@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: aeroimagehost-app
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_USER=aero_user
+      - MYSQL_PASSWORD=aero_password
+      - MYSQL_DB=imagehost
+      - REDIS_HOST=redis
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=aero-images
+    volumes:
+      - aeroimagehost-logs:/app/logs
+      - ./config/config-docker.json:/app/config.json
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    container_name: aeroimagehost-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: imagehost
+      MYSQL_USER: aero_user
+      MYSQL_PASSWORD: aero_password
+    volumes:
+      - aeroimagehost-db:/var/lib/mysql
+      - ./schema:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-u", "root", "-proot_password"]
+      interval: 5s
+      timeout: 10s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    container_name: aeroimagehost-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: aeroimagehost-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9090"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - aeroimagehost-minio:/data
+    ports:
+      - "9000:9000"
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 10s
+      retries: 15
+
+  minio-client:
+    image: minio/mc
+    container_name: aeroimagehost-minio-client
+    restart: on-failure
+    depends_on:
+      minio:
+        condition: service_healthy
+    command: >
+      /bin/sh -c "
+        mc config host add minio http://minio:9000 minioadmin minioadmin &&
+        mc mb minio/aero-images --region us-east-1 &&
+        mc policy set download minio/aero-images
+      "
+
+volumes:
+  aeroimagehost-db:
+  aeroimagehost-minio:
+  aeroimagehost-logs:
+
+networks:
+  default:
+    name: aeroimagehost-network
+    driver: bridge

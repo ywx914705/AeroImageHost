@@ -1,0 +1,3337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>AeroImageHost · 极速图床</title>
+<link rel="icon" href="https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29" type="image/x-icon">
+
+<!-- 必要的CSS -->
+<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<style>
+    /* 基础样式 */
+    :root {
+        --bg-primary: rgba(255, 255, 255, 0.72);
+        --bg-secondary: rgba(255, 255, 255, 0.55);
+        --bg-card: rgba(255, 255, 255, 0.68);
+        --text-primary: #1e293b;
+        --text-secondary: #475569;
+        --text-tertiary: #64748b;
+        --border-subtle: rgba(0, 0, 0, 0.06);
+        --border-card: rgba(255, 255, 255, 0.55);
+        --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.06);
+        --shadow-md: 0 20px 30px -10px rgba(0, 0, 0, 0.15);
+        --shadow-lg: 0 30px 50px -15px rgba(0, 0, 0, 0.2);
+        --glass-bg: rgba(255, 255, 255, 0.6);
+        --glass-border: rgba(255, 255, 255, 0.4);
+        --overlay-bg: rgba(255, 255, 255, 0.15);
+        --upload-zone-bg: rgba(255, 255, 255, 0.4);
+        --thumb-bg: #f1f5f9;
+        --accent: #3b82f6;
+        --accent-light: rgba(59, 130, 246, 0.12);
+        --accent-border: rgba(59, 130, 246, 0.25);
+        --gradient-primary: linear-gradient(135deg, #2563eb, #0ea5e9);
+        --gradient-button: linear-gradient(135deg, #3b82f6, #0ea5e9);
+        --navbar-bg: rgba(255, 255, 255, 0.6);
+        --navbar-border: rgba(0, 0, 0, 0.05);
+        --input-bg: rgba(255, 255, 255, 0.6);
+        --badge-bg: rgba(59, 130, 246, 0.12);
+        --badge-border: rgba(59, 130, 246, 0.25);
+        --empty-icon-opacity: 0.5;
+    }
+
+    [data-theme="dark"] {
+        --bg-primary: rgba(15, 23, 42, 0.8);
+        --bg-secondary: rgba(30, 41, 59, 0.7);
+        --bg-card: rgba(30, 41, 59, 0.75);
+        --text-primary: #e2e8f0;
+        --text-secondary: #94a3b8;
+        --text-tertiary: #64748b;
+        --border-subtle: rgba(255, 255, 255, 0.08);
+        --border-card: rgba(255, 255, 255, 0.1);
+        --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 20px 30px -10px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 30px 50px -15px rgba(0, 0, 0, 0.5);
+        --glass-bg: rgba(30, 41, 59, 0.75);
+        --glass-border: rgba(255, 255, 255, 0.12);
+        --overlay-bg: rgba(0, 0, 0, 0.3);
+        --upload-zone-bg: rgba(30, 41, 59, 0.5);
+        --thumb-bg: #1e293b;
+        --accent: #60a5fa;
+        --accent-light: rgba(96, 165, 250, 0.15);
+        --accent-border: rgba(96, 165, 250, 0.3);
+        --gradient-primary: linear-gradient(135deg, #3b82f6, #60a5fa);
+        --gradient-button: linear-gradient(135deg, #3b82f6, #60a5fa);
+        --navbar-bg: rgba(15, 23, 42, 0.75);
+        --navbar-border: rgba(255, 255, 255, 0.06);
+        --input-bg: rgba(30, 41, 59, 0.7);
+        --badge-bg: rgba(96, 165, 250, 0.2);
+        --badge-border: rgba(96, 165, 250, 0.3);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: var(--text-primary);
+        min-height: 100vh;
+        overflow-x: hidden;
+        background: #0f172a;
+        transition: background 0.4s ease;
+    }
+
+    body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: -3;
+        background: linear-gradient(160deg, #f0f9ff 0%, #e0f2fe 30%, #f8fafc 60%, #f1f5f9 100%);
+        transition: background 0.4s ease;
+    }
+
+    [data-theme="dark"] body::before {
+        background: linear-gradient(160deg, #0f172a 0%, #1e293b 30%, #0f172a 60%, #1a1f2e 100%);
+    }
+
+    .bg-slideshow { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; }
+    .bg-image {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background-size: cover; background-position: center; background-repeat: no-repeat;
+        opacity: 0; transition: opacity 2s ease-in-out;
+    }
+    .bg-image.active { opacity: 1; }
+
+    .bg-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+        background: var(--overlay-bg);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        transition: background 0.4s ease;
+    }
+
+    .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+    .brand-logo { display: flex; align-items: center; gap: 10px; font-size: 1.9rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; transition: color 0.3s ease; }
+    .brand-icon { font-size: 2rem; color: var(--accent); transition: color 0.3s ease; }
+    .brand-icon img { width: 36px; height: 36px; object-fit: contain; }
+    .brand-text { background: var(--gradient-primary); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+    .login-logo { justify-content: center; margin-bottom: 0.5rem; }
+    .login-logo .brand-icon img { width: 56px; height: 56px; }
+    .login-logo .brand-text { font-size: 2.2rem; }
+
+    .glass-card { background: var(--bg-card); backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%); border: 1px solid var(--border-card); border-radius: 2rem; box-shadow: var(--shadow-sm); transition: all 0.3s ease; padding: 1rem; }
+
+    .navbar {
+        background: var(--navbar-bg); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%);
+        border-bottom: 1px solid var(--navbar-border); padding: 0 2rem; height: 70px;
+        display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    }
+
+    .user-area { display: flex; align-items: center; gap: 12px; }
+    .user-badge { background: var(--badge-bg); padding: 0.4rem 1.2rem; border-radius: 40px; font-weight: 500; border: 1px solid var(--badge-border); color: var(--text-primary); font-size: 0.9rem; }
+
+    .theme-toggle {
+        width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--navbar-border); background: var(--bg-secondary);
+        color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+        font-size: 1.1rem; transition: all 0.3s ease; backdrop-filter: blur(8px);
+    }
+    .theme-toggle:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+    .main { max-width: 1360px; margin: 2rem auto; padding: 0 1.8rem; width: 100%; flex: 1; animation: fadeInUp 0.5s ease; }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
+
+    .login-card {
+        max-width: 480px; margin: 100px auto 0; padding: 2.8rem 2.2rem;
+        background: var(--bg-primary); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border); border-radius: 2.5rem; box-shadow: var(--shadow-lg);
+        animation: fadeInUp 0.6s ease;
+    }
+
+    .upload-zone {
+        border: 2px dashed rgba(59, 130, 246, 0.4); border-radius: 1.8rem; padding: 2.5rem 1.5rem;
+        text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: var(--upload-zone-bg); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        position: relative; overflow: hidden;
+    }
+    .upload-zone::before {
+        content: ''; position: absolute; inset: 0; border-radius: 1.8rem;
+        background: radial-gradient(circle at center, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
+        opacity: 0; transition: opacity 0.3s ease;
+    }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); transform: scale(1.005); box-shadow: 0 0 25px rgba(59, 130, 246, 0.2); }
+    .upload-zone:hover::before, .upload-zone.drag-over::before { opacity: 1; }
+    .upload-zone.drag-over { animation: pulse 1.5s ease-in-out infinite; }
+
+    .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.8rem; }
+
+    .file-card {
+        background: var(--bg-card); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        border-radius: 1.5rem; overflow: hidden; border: 1px solid var(--border-card);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; box-shadow: var(--shadow-sm);
+        user-select: none;
+    }
+    .file-card:hover { transform: translateY(-5px); border-color: rgba(59, 130, 246, 0.5); box-shadow: var(--shadow-md); }
+
+    .file-thumb {
+        height: 175px; background: var(--thumb-bg); display: flex; align-items: center; justify-content: center;
+        position: relative; overflow: hidden;
+    }
+    .file-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+    .file-card:hover .file-thumb img { transform: scale(1.08); }
+
+    .file-icon-container {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        width: 100%; height: 100%; position: relative;
+    }
+    .file-icon-large {
+        font-size: 4rem; transition: all 0.3s ease;
+    }
+    .file-extension-tag {
+        position: absolute; bottom: 12px; right: 12px;
+        background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(6px);
+        color: white; padding: 2px 10px; border-radius: 20px;
+        font-size: 0.7rem; font-weight: 600; letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+
+    .file-info { padding: 1rem 1.1rem; color: var(--text-primary); }
+    .file-name { font-weight: 600; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.92rem; line-height: 1.35; color: var(--text-primary); }
+    .file-meta { font-size: 0.75rem; color: var(--text-secondary); margin: 0.4rem 0 0.8rem; }
+    .file-actions {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        border-top: 1px solid var(--border-subtle);
+        padding-top: 0.6rem;
+        gap: 0;
+        flex-wrap: nowrap;
+    }
+    .file-actions .action-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 4px 6px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        border: none;
+        background: transparent;
+        flex: 1;
+        min-width: 0;
+        text-align: center;
+    }
+    .file-actions .action-btn:hover {
+        background: var(--accent-light);
+        color: var(--accent);
+    }
+    .file-actions .action-btn i {
+        font-size: 0.85rem;
+    }
+    .file-actions .action-btn.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+    .file-actions .action-btn.success {
+        color: var(--accent);
+    }
+    .file-actions .action-btn.success:hover {
+        background: rgba(34, 197, 94, 0.1);
+        color: #22c55e;
+    }
+
+    .el-button--primary { background: var(--gradient-button) !important; border: none !important; transition: all 0.3s ease !important; }
+    .el-button--primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35); }
+
+    .el-input__wrapper { background: var(--input-bg) !important; border-radius: 40px !important; transition: all 0.3s ease !important; }
+    .el-dialog { background: var(--bg-primary) !important; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 1.8rem !important; color: var(--text-primary); }
+    .el-descriptions__title, .el-descriptions__label, .el-descriptions__content { color: var(--text-primary) !important; }
+    .el-tabs__item { color: var(--text-secondary) !important; }
+    .el-tabs__item.is-active { color: var(--accent) !important; }
+    .el-tabs__active-bar { background-color: var(--accent) !important; }
+    .el-pagination button, .el-pager li { color: var(--text-primary) !important; }
+    .el-pagination .el-pager li.is-active { background-color: var(--accent) !important; color: white !important; }
+
+    .empty-state { text-align: center; padding: 4rem 1rem; color: var(--text-secondary); animation: fadeInUp 0.5s ease; }
+
+    .skeleton-card { background: var(--bg-card); border-radius: 1.5rem; overflow: hidden; border: 1px solid var(--border-card); }
+    .skeleton-thumb { height: 175px; background: linear-gradient(90deg, var(--thumb-bg) 25%, rgba(128,128,128,0.08) 50%, var(--thumb-bg) 75%); background-size: 200px 100%; animation: shimmer 1.5s infinite; }
+    .skeleton-info { padding: 1rem 1.1rem; }
+    .skeleton-line { height: 14px; border-radius: 8px; background: linear-gradient(90deg, var(--thumb-bg) 25%, rgba(128,128,128,0.08) 50%, var(--thumb-bg) 75%); background-size: 200px 100%; animation: shimmer 1.5s infinite; margin-bottom: 8px; }
+    .skeleton-line.short { width: 60%; }
+    .skeleton-line.tiny { width: 35%; height: 10px; }
+
+    .image-preview-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; cursor: zoom-out; animation: fadeIn 0.25s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .image-preview-overlay img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+    .image-preview-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: rgba(0,0,0,0.5); color: white; font-size: 1.4rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
+    .image-preview-close:hover { background: rgba(255,255,255,0.2); border-color: white; }
+
+    /* 文件详情弹窗 */
+    .file-detail-overlay {
+        position: fixed; inset: 0; z-index: 9998;
+        background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+        display: flex; align-items: center; justify-content: center;
+        animation: fadeIn 0.2s ease;
+    }
+    .file-detail-card {
+        background: var(--bg-primary); backdrop-filter: blur(20px);
+        border: 1px solid var(--border-card); border-radius: 1.5rem;
+        width: 90%; max-width: 480px; max-height: 85vh; overflow-y: auto;
+        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .file-detail-header {
+        padding: 1.5rem 1.5rem 1rem; display: flex; align-items: flex-start; gap: 1rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    .file-detail-preview {
+        width: 80px; height: 80px; border-radius: 12px; background: var(--thumb-bg);
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0; overflow: hidden;
+    }
+    .file-detail-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; transition: transform 0.2s ease; }
+    .file-detail-preview[style*="cursor"]:hover img { transform: scale(1.05); }
+    .file-detail-preview i { font-size: 2rem; }
+    .file-detail-title { flex: 1; min-width: 0; }
+    .file-detail-title h3 {
+        font-size: 1.1rem; font-weight: 600; color: var(--text-primary);
+        margin: 0 0 0.4rem; word-break: break-all; line-height: 1.4;
+    }
+    .file-detail-close {
+        width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-subtle);
+        background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer;
+        display: flex; align-items: center; justify-content: center; font-size: 1rem;
+        transition: all 0.2s ease; flex-shrink: 0;
+    }
+    .file-detail-close:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+    .file-detail-body { padding: 1.2rem 1.5rem; }
+    .file-detail-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0.6rem 0; border-bottom: 1px dashed var(--border-subtle);
+    }
+    .file-detail-row:last-child { border-bottom: none; }
+    .file-detail-label {
+        font-size: 0.8rem; color: var(--text-tertiary); display: flex; align-items: center; gap: 6px;
+    }
+    .file-detail-label i { font-size: 0.85rem; width: 16px; text-align: center; }
+    .file-detail-value {
+        font-size: 0.85rem; color: var(--text-primary); font-weight: 500;
+        text-align: right; max-width: 60%; word-break: break-all;
+    }
+    .file-detail-links { padding: 1rem 1.5rem 1.5rem; }
+    .file-detail-links label {
+        display: block; font-size: 0.75rem; color: var(--text-tertiary);
+        margin-bottom: 0.4rem; font-weight: 500;
+    }
+    .file-link-box {
+        display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem;
+        background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+        border-radius: 0.8rem; padding: 0.5rem 0.8rem;
+    }
+    .file-link-box input {
+        flex: 1; border: none; background: transparent; color: var(--text-primary);
+        font-size: 0.78rem; outline: none; font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .file-link-box .copy-sm-btn {
+        padding: 4px 10px; border-radius: 0.5rem; border: 1px solid var(--border-subtle);
+        background: var(--bg-primary); color: var(--text-secondary); cursor: pointer;
+        font-size: 0.72rem; font-weight: 500; white-space: nowrap; transition: all 0.2s ease;
+    }
+    .file-link-box .copy-sm-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+    .file-detail-actions {
+        display: flex; gap: 0.5rem; padding: 0 1.5rem 1.5rem;
+    }
+    .file-detail-actions button {
+        flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+        padding: 0.6rem; border-radius: 0.8rem; border: 1px solid var(--border-subtle);
+        background: var(--bg-secondary); color: var(--text-primary); cursor: pointer;
+        font-size: 0.82rem; font-weight: 500; transition: all 0.2s ease;
+    }
+    .file-detail-actions button:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+    .file-detail-actions button.danger:hover { background: rgba(239,68,68,0.1); color: #ef4444; border-color: #ef4444; }
+    .file-detail-actions button.success { color: var(--accent); }
+    .file-detail-actions button.success:hover { background: rgba(34,197,94,0.1); color: #22c55e; border-color: #22c55e; }
+    .status-badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 8px; border-radius: 20px; font-size: 0.72rem; font-weight: 500;
+    }
+    .status-badge.public { background: rgba(34,197,94,0.1); color: #22c55e; }
+    .status-badge.private { background: rgba(107,114,128,0.1); color: #6b7280; }
+
+    @media (max-width: 768px) {
+        .main { padding: 0 1rem; }
+        .file-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+        .login-card { margin-top: 60px; padding: 2rem 1.5rem; }
+        .navbar { padding: 0 1rem; }
+        .file-thumb { height: 140px; }
+        .file-info { padding: 0.7rem 0.8rem; }
+        .file-name { font-size: 0.82rem; }
+        .brand-logo { font-size: 1.4rem; }
+        .brand-icon { font-size: 1.5rem; }
+        .navbar { padding: 0 1rem; }
+        .guest-navbar, .navbar { padding: 0 1rem; }
+    }
+
+    /* 加载状态 */
+    .loading-indicator {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+    }
+
+    /* 错误边界 */
+    .error-boundary {
+        padding: 2rem;
+        background: #fee;
+        border: 1px solid #fcc;
+        border-radius: 0.5rem;
+        color: #c33;
+        margin: 1rem;
+    }
+
+    /* 上传队列样式 */
+    .upload-queue-container {
+        margin-top: 2rem;
+        background: var(--bg-card);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        border: 1px solid var(--border-card);
+    }
+
+    .upload-queue {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .upload-item {
+        background: var(--bg-primary);
+        border-radius: 0.8rem;
+        padding: 1rem;
+        border: 1px solid var(--border-subtle);
+        transition: all 0.3s ease;
+    }
+
+    .upload-item:hover {
+        border-color: var(--accent);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+    }
+
+
+    /* 搜索框样式 */
+    .search-container {
+        position: relative;
+        margin-bottom: 1.5rem;
+        max-width: 400px;
+    }
+
+    .search-container .search-input {
+        width: 100%;
+        padding: 0.8rem 1rem 0.8rem 2.8rem;
+        border: 1px solid var(--border-subtle);
+        border-radius: 2rem;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        outline: none;
+        transition: all 0.3s ease;
+    }
+
+    .search-container .search-input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-light);
+    }
+
+    .search-container .search-input::placeholder {
+        color: var(--text-tertiary);
+    }
+
+    .search-container i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-tertiary);
+    }
+
+    .search-btn {
+        padding: 0.8rem 1.5rem;
+        border: none;
+        border-radius: 1.5rem;
+        background: var(--gradient-button);
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
+
+    .search-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+    }
+
+    .search-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .upload-item.uploading {
+        border-color: var(--accent);
+        background: var(--accent-light);
+    }
+
+    .upload-item.success {
+        border-color: #22c55e;
+        background: rgba(34, 197, 94, 0.05);
+    }
+
+    .upload-item.error {
+        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.05);
+    }
+
+    .upload-info {
+        margin-bottom: 0.8rem;
+    }
+
+    .upload-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .upload-status {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .upload-speed {
+        font-size: 0.8rem;
+        color: var(--accent);
+        font-weight: 500;
+    }
+
+    .upload-progress {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .progress-text {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        min-width: 45px;
+        text-align: right;
+    }
+
+    /* 未登录导航栏 */
+    .guest-navbar {
+        background: var(--navbar-bg);
+        backdrop-filter: blur(18px) saturate(180%);
+        -webkit-backdrop-filter: blur(18px) saturate(180%);
+        border-bottom: 1px solid var(--navbar-border);
+        padding: 0 2rem;
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+    .guest-login-btn {
+        padding: 0.5rem 1.6rem;
+        border-radius: 40px;
+        border: 1px solid var(--accent-border);
+        background: var(--accent-light);
+        color: var(--accent);
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .guest-login-btn:hover {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+        box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Landing Page */
+    .landing-hero {
+        position: relative;
+        min-height: 55vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 4rem 2rem 3rem;
+        overflow: hidden;
+    }
+    .landing-hero-bg {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+    }
+    .landing-glow {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(100px);
+        opacity: 0.35;
+    }
+    .landing-glow-1 {
+        width: 500px; height: 500px;
+        background: #3b82f6;
+        top: -150px; left: 10%;
+        animation: floatGlow 12s ease-in-out infinite alternate;
+    }
+    .landing-glow-2 {
+        width: 400px; height: 400px;
+        background: #a855f7;
+        bottom: -100px; right: 15%;
+        animation: floatGlow 10s ease-in-out infinite alternate-reverse;
+    }
+    .landing-glow-3 {
+        width: 300px; height: 300px;
+        background: #06b6d4;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        animation: floatGlow 8s ease-in-out infinite alternate;
+    }
+    @keyframes floatGlow {
+        0% { transform: translate(0, 0) scale(1); }
+        100% { transform: translate(30px, -20px) scale(1.15); }
+    }
+    .landing-hero-content {
+        position: relative;
+        z-index: 1;
+        max-width: 800px;
+    }
+    .landing-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0.4rem 1.2rem;
+        border-radius: 40px;
+        background: var(--accent-light);
+        border: 1px solid var(--accent-border);
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+    }
+    .landing-title {
+        font-size: 3rem;
+        font-weight: 900;
+        line-height: 1.15;
+        margin-bottom: 1.2rem;
+        color: var(--text-primary);
+        letter-spacing: -1px;
+    }
+    .landing-subtitle {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+        line-height: 1.7;
+        margin-bottom: 2.5rem;
+        max-width: 640px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .landing-ctas {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .landing-btn {
+        padding: 0.8rem 2rem;
+        border-radius: 40px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: none;
+    }
+    .landing-btn-primary {
+        background: var(--gradient-button);
+        color: white;
+        box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+    }
+    .landing-btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 32px rgba(59, 130, 246, 0.45);
+    }
+    .landing-btn-ghost {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-subtle);
+        backdrop-filter: blur(8px);
+    }
+    .landing-btn-ghost:hover {
+        background: var(--accent-light);
+        border-color: var(--accent-border);
+        color: var(--accent);
+    }
+    .landing-btn-lg {
+        padding: 1rem 2.8rem;
+        font-size: 1.1rem;
+    }
+    .gradient-text {
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+
+    /* 统计区域 */
+    .landing-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+        max-width: 1100px;
+        margin: -2rem auto 3rem;
+        padding: 0 2rem;
+        position: relative;
+        z-index: 2;
+    }
+    .stat-card {
+        background: var(--bg-card);
+        backdrop-filter: blur(14px) saturate(180%);
+        -webkit-backdrop-filter: blur(14px) saturate(180%);
+        border: 1px solid var(--border-card);
+        border-radius: 1.2rem;
+        padding: 1.8rem 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-sm);
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-md);
+        border-color: var(--accent-border);
+    }
+    .stat-icon { font-size: 1.6rem; margin-bottom: 0.5rem; }
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--text-primary);
+        margin-bottom: 0.2rem;
+        letter-spacing: -0.5px;
+    }
+    .stat-label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 500; }
+
+    /* 通用 Section */
+    .landing-section {
+        max-width: 1100px;
+        margin: 0 auto 4rem;
+        padding: 0 2rem;
+    }
+    .landing-section-header {
+        text-align: center;
+        margin-bottom: 2.5rem;
+    }
+    .landing-section-title {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--text-primary);
+        margin-bottom: 0.6rem;
+        letter-spacing: -0.5px;
+    }
+    .landing-section-desc {
+        font-size: 1rem;
+        color: var(--text-secondary);
+    }
+
+    /* 3列特性卡片 */
+    .landing-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+    .landing-feature-card {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--border-card);
+        border-radius: 1.2rem;
+        padding: 2rem 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-sm);
+    }
+    .landing-feature-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--accent-border);
+        box-shadow: var(--shadow-md);
+    }
+    .landing-feature-icon {
+        width: 56px; height: 56px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .landing-feature-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+    .landing-feature-desc {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 1rem;
+    }
+    .landing-feature-tags {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .landing-tag {
+        padding: 0.2rem 0.7rem;
+        border-radius: 20px;
+        background: var(--accent-light);
+        color: var(--accent);
+        font-size: 0.72rem;
+        font-weight: 500;
+        border: 1px solid var(--accent-border);
+    }
+
+    /* 步骤流程 */
+    .landing-steps {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        flex-wrap: wrap;
+    }
+    .landing-step {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--border-card);
+        border-radius: 1.2rem;
+        padding: 2rem 1.8rem;
+        text-align: center;
+        min-width: 220px;
+        position: relative;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-sm);
+    }
+    .landing-step:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-md);
+        border-color: var(--accent-border);
+    }
+    .landing-step-number {
+        position: absolute;
+        top: -12px; left: -12px;
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        background: var(--gradient-button);
+        color: white;
+        font-size: 0.85rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    .landing-step-icon {
+        font-size: 2.2rem;
+        color: var(--accent);
+        margin-bottom: 0.8rem;
+    }
+    .landing-step-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.3rem;
+    }
+    .landing-step-desc {
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+    }
+    .landing-step-arrow {
+        font-size: 1.2rem;
+        color: var(--text-tertiary);
+        padding: 0 0.8rem;
+    }
+
+    /* 文件类型 */
+    .landing-file-types {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+    .landing-file-type {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--border-card);
+        border-radius: 1rem;
+        padding: 1.5rem 1rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-sm);
+    }
+    .landing-file-type:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-md);
+        border-color: var(--accent-border);
+    }
+    .landing-file-type i { font-size: 1.8rem; margin-bottom: 0.5rem; display: block; }
+    .landing-file-type span { display: block; font-size: 0.9rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.2rem; }
+    .landing-file-type small { font-size: 0.72rem; color: var(--text-secondary); }
+
+    /* 应用场景 */
+    .landing-use-cases {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin: 2rem 0;
+    }
+    .landing-use-case {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--border-card);
+        border-radius: 1rem;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-sm);
+    }
+    .landing-use-case:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-md);
+        border-color: var(--accent-border);
+    }
+    .landing-use-case-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        display: block;
+        color: var(--accent);
+    }
+    .landing-use-case h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0.5rem 0;
+    }
+    .landing-use-case p {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        line-height: 1.4;
+    }
+
+    /* FAQ */
+    .landing-faq {
+        max-width: 800px;
+        margin: 2rem auto;
+    }
+    .landing-faq-item {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--border-card);
+        border-radius: 0.8rem;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+    .landing-faq-item:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-sm);
+    }
+    .landing-faq-question {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.8rem;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .landing-faq-answer {
+        color: var(--text-secondary);
+        line-height: 1.6;
+        font-size: 0.85rem;
+    }
+
+    /* CTA */
+    .landing-cta {
+        background: var(--gradient-primary);
+        border-radius: 1.5rem;
+        padding: 3.5rem 2rem;
+        text-align: center;
+        max-width: 1100px;
+        margin: 0 auto 4rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .landing-cta::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.15) 0%, transparent 60%);
+        pointer-events: none;
+    }
+    .landing-cta-content { position: relative; z-index: 1; }
+    .landing-cta-title {
+        font-size: 2rem;
+        font-weight: 800;
+        color: white;
+        margin-bottom: 0.6rem;
+    }
+    .landing-cta-desc {
+        font-size: 1rem;
+        color: rgba(255,255,255,0.85);
+        margin-bottom: 2rem;
+    }
+    .landing-cta .landing-btn-primary {
+        background: white;
+        color: #2563eb;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .landing-cta .landing-btn-primary:hover {
+        box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+    }
+
+    /* 响应式 */
+    @media (max-width: 900px) {
+        .landing-title { font-size: 2.2rem; }
+        .landing-stats { grid-template-columns: repeat(2, 1fr); }
+        .landing-grid-3 { grid-template-columns: repeat(2, 1fr); }
+        .landing-file-types { grid-template-columns: repeat(2, 1fr); }
+        .landing-use-cases { grid-template-columns: repeat(2, 1fr); }
+        .landing-steps { flex-direction: column; }
+        .landing-steps { flex-direction: column; }
+        .landing-step-arrow { transform: rotate(90deg); padding: 0.4rem 0; }
+    }
+    @media (max-width: 600px) {
+        .landing-hero { min-height: 45vh; padding: 3rem 1rem 2rem; }
+        .landing-title { font-size: 1.8rem; }
+        .landing-subtitle { font-size: 0.95rem; }
+        .landing-stats { grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
+        .landing-grid-3 { grid-template-columns: 1fr; }
+        .landing-file-types { grid-template-columns: repeat(2, 1fr); }
+        .landing-section { padding: 0 1rem; }
+        .guest-navbar { padding: 0 1rem; }
+        .landing-ctas { flex-direction: column; align-items: center; }
+    }
+
+    /* 粘贴上传提示 */
+    .paste-hint {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-top: 0.8rem;
+    }
+    .paste-hint kbd {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        padding: 1px 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        font-family: inherit;
+    }
+</style>
+</head>
+<body>
+<!-- 加载指示器 -->
+<div id="loading" class="loading-indicator" style="display: none;">
+    <div style="color: white; text-align: center;">
+        <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+        <p style="margin-top: 1rem;">正在加载应用...</p>
+    </div>
+</div>
+
+<!-- 错误容器 -->
+<div id="error-container" style="display: none;"></div>
+
+<!-- 主应用容器 -->
+<div id="app">
+    <div class="bg-slideshow">
+        <div v-for="(img, index) in bgImages" :key="index" class="bg-image" :class="{ active: currentBgIndex === index }" :style="{ backgroundImage: 'url(' + img + ')' }"></div>
+    </div>
+    <div class="bg-overlay"></div>
+
+    <div class="app">
+        <!-- 未登录 -->
+        <div v-if="!token">
+            <div class="guest-navbar">
+                <div class="brand-logo">
+                    <span class="brand-icon"><img src="https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29" alt="AeroImageHost"></span>
+                    <span class="brand-text">AeroImageHost</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <button class="guest-login-btn" @click="showAuthModal = true">
+                        <i class="fas fa-sign-in-alt"></i> 登录 / 注册
+                    </button>
+                    <button class="theme-toggle" @click="toggleTheme" :title="isDark ? '切换亮色模式' : '切换暗色模式'">
+                        <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hero 首屏 -->
+            <div class="landing-hero">
+                <div class="landing-hero-bg">
+                    <div class="landing-glow landing-glow-1"></div>
+                    <div class="landing-glow landing-glow-2"></div>
+                    <div class="landing-glow landing-glow-3"></div>
+                </div>
+                <div class="landing-hero-content">
+                    <div class="landing-badge"><i class="fas fa-rocket"></i> 极速 · 安全 · 可靠</div>
+                    <h1 class="landing-title">
+                        你的文件，<span class="gradient-text">即刻分享</span>
+                    </h1>
+                    <p class="landing-subtitle">
+                        支持图片、文档、压缩包等多种文件类型，拖拽粘贴一键上传，支持批量上传和智能搜索，永久链接轻松分享。
+                        <br>无需注册即可浏览公开内容，注册后享受完整功能。
+                    </p>
+                </div>
+            </div>
+
+            <!-- 数据统计 -->
+            <div class="landing-stats">
+                <div class="stat-card">
+                    <div class="stat-icon" style="color: #3b82f6;"><i class="fas fa-users"></i></div>
+                    <div class="stat-number">{{ stats.total_users }}</div>
+                    <div class="stat-label">注册用户</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="color: #8b5cf6;"><i class="fas fa-file-alt"></i></div>
+                    <div class="stat-number">{{ stats.total_files }}</div>
+                    <div class="stat-label">总上传文件</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="color: #22c55e;"><i class="fas fa-images"></i></div>
+                    <div class="stat-number">{{ stats.total_images }}</div>
+                    <div class="stat-label">总上传图片</div>
+                </div>
+            </div>
+
+            <!-- 核心功能 -->
+            <div class="landing-section">
+                <div class="landing-section-header">
+                    <h2 class="landing-section-title">为什么选择 <span class="gradient-text">AeroImageHost</span>？</h2>
+                    <p class="landing-section-desc">一站式文件托管与分享平台</p>
+                </div>
+                <div class="landing-grid-3">
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(59,130,246,0.12); color: #3b82f6;">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <h3 class="landing-feature-title">极速上传</h3>
+                        <p class="landing-feature-desc">支持拖拽上传、点击上传、粘贴上传等多种方式，批量上传功能让你一次处理多个文件。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">拖拽上传</span>
+                            <span class="landing-tag">粘贴上传</span>
+                            <span class="landing-tag">批量上传</span>
+                        </div>
+                    </div>
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(34,197,94,0.12); color: #22c55e;">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h3 class="landing-feature-title">安全可靠</h3>
+                        <p class="landing-feature-desc">基于 MinIO 分布式对象存储，数据多副本备份，支持私有/公开权限控制，保障文件安全。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">分布式存储</span>
+                            <span class="landing-tag">权限控制</span>
+                            <span class="landing-tag">数据加密</span>
+                        </div>
+                    </div>
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(168,85,247,0.12); color: #a855f7;">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <h3 class="landing-feature-title">智能搜索</h3>
+                        <p class="landing-feature-desc">支持按文件名搜索，快速定位需要的文件，支持分页浏览，高效管理海量文件。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">文件名搜索</span>
+                            <span class="landing-tag">分页浏览</span>
+                            <span class="landing-tag">快速定位</span>
+                        </div>
+                    </div>
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(249,115,22,0.12); color: #f97316;">
+                            <i class="fas fa-share-alt"></i>
+                        </div>
+                        <h3 class="landing-feature-title">轻松分享</h3>
+                        <p class="landing-feature-desc">一键生成永久分享链接，支持直接查看和下载，无需登录即可访问公开文件。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">永久链接</span>
+                            <span class="landing-tag">在线预览</span>
+                            <span class="landing-tag">直接下载</span>
+                        </div>
+                    </div>
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(168,85,247,0.12); color: #a855f7;">
+                            <i class="fas fa-images"></i>
+                        </div>
+                        <h3 class="landing-feature-title">图片管理</h3>
+                        <p class="landing-feature-desc">自动缩略图生成、图片在线预览、EXIF 信息查看，让你的图片井井有条。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">自动缩略图</span>
+                            <span class="landing-tag">在线预览</span>
+                            <span class="landing-tag">网格浏览</span>
+                        </div>
+                    </div>
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(6,182,212,0.12); color: #06b6d4;">
+                            <i class="fas fa-palette"></i>
+                        </div>
+                        <h3 class="landing-feature-title">深色模式</h3>
+                        <p class="landing-feature-desc">支持亮色/暗色主题切换，毛玻璃拟态设计，为你的视觉体验精心设计每一个细节。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">亮色模式</span>
+                            <span class="landing-tag">暗色模式</span>
+                            <span class="landing-tag">毛玻璃效果</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 使用流程 -->
+            <div class="landing-section">
+                <div class="landing-section-header">
+                    <h2 class="landing-section-title">三步搞定文件上传</h2>
+                    <p class="landing-section-desc">简单到任何人都能上手</p>
+                </div>
+                <div class="landing-steps">
+                    <div class="landing-step">
+                        <div class="landing-step-number">1</div>
+                        <div class="landing-step-icon"><i class="fas fa-user-plus"></i></div>
+                        <h4 class="landing-step-title">注册账号</h4>
+                        <p class="landing-step-desc">免费快速注册，无需邮箱验证</p>
+                    </div>
+                    <div class="landing-step-arrow"><i class="fas fa-chevron-right"></i></div>
+                    <div class="landing-step">
+                        <div class="landing-step-number">2</div>
+                        <div class="landing-step-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                        <h4 class="landing-step-title">上传文件</h4>
+                        <p class="landing-step-desc">拖拽、点击或粘贴，支持批量上传</p>
+                    </div>
+                    <div class="landing-step-arrow"><i class="fas fa-chevron-right"></i></div>
+                    <div class="landing-step">
+                        <div class="landing-step-number">3</div>
+                        <div class="landing-step-icon"><i class="fas fa-link"></i></div>
+                        <h4 class="landing-step-title">分享链接</h4>
+                        <p class="landing-step-desc">一键复制永久链接，轻松分享</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 智能搜索功能 -->
+            <div class="landing-section" style="background: var(--bg-secondary); border-radius: 2rem; margin: 3rem auto; padding: 3rem 2rem;">
+                <div class="landing-section-header">
+                    <h2 class="landing-section-title"><i class="fas fa-search"></i> 智能搜索功能</h2>
+                    <p class="landing-section-desc">海量文件，一键直达</p>
+                </div>
+                <div class="landing-grid-3">
+                    <div class="landing-feature-card" style="text-align: center;">
+                        <div class="landing-feature-icon" style="background: rgba(59,130,246,0.12); color: #3b82f6; margin: 0 auto 1rem;">
+                            <i class="fas fa-keyboard"></i>
+                        </div>
+                        <h3 class="landing-feature-title">实时搜索</h3>
+                        <p class="landing-feature-desc">输入文件名即可快速过滤，支持实时搜索和回车确认</p>
+                    </div>
+                    <div class="landing-feature-card" style="text-align: center;">
+                        <div class="landing-feature-icon" style="background: rgba(34,197,94,0.12); color: #22c55e; margin: 0 auto 1rem;">
+                            <i class="fas fa-list-ol"></i>
+                        </div>
+                        <h3 class="landing-feature-title">分页浏览</h3>
+                        <p class="landing-feature-desc">支持每页 10/20/50/100 条文件切换，灵活控制浏览体验</p>
+                    </div>
+                    <div class="landing-feature-card" style="text-align: center;">
+                        <div class="landing-feature-icon" style="background: rgba(168,85,247,0.12); color: #a855f7; margin: 0 auto 1rem;">
+                            <i class="fas fa-broom"></i>
+                        </div>
+                        <h3 class="landing-feature-title">快速清除</h3>
+                        <p class="landing-feature-desc">一键清除搜索关键词，立即返回全部文件列表</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 支持的文件类型 -->
+            <div class="landing-section">
+                <div class="landing-section-header">
+                    <h2 class="landing-section-title">支持的文件类型</h2>
+                    <p class="landing-section-desc">几乎所有常见文件类型都能上传，单个文件最大 100MB</p>
+                </div>
+                <div class="landing-file-types">
+                    <div class="landing-file-type">
+                        <i class="fas fa-image" style="color: #3b82f6;"></i>
+                        <span>图片</span>
+                        <small>JPG / PNG / GIF / WebP</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-file-pdf" style="color: #ef4444;"></i>
+                        <span>PDF</span>
+                        <small>PDF 文档</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-file-word" style="color: #2563eb;"></i>
+                        <span>文档</span>
+                        <small>DOC / DOCX</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-file-excel" style="color: #22c55e;"></i>
+                        <span>表格</span>
+                        <small>XLS / XLSX</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-file-powerpoint" style="color: #f59e0b;"></i>
+                        <span>演示文稿</span>
+                        <small>PPT / PPTX</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-file-alt" style="color: #6b7280;"></i>
+                        <span>文本</span>
+                        <small>TXT</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-file-archive" style="color: #f59e0b;"></i>
+                        <span>压缩包</span>
+                        <small>ZIP / RAR / 7Z</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-file-code" style="color: #06b6d4;"></i>
+                        <span>源代码</span>
+                        <small>其他格式</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 应用场景 -->
+            <div class="landing-section">
+                <h2 class="landing-section-title"><i class="fas fa-lightbulb"></i> 应用场景</h2>
+                <div class="landing-use-cases">
+                    <div class="landing-use-case">
+                        <div class="landing-use-case-icon"><i class="fas fa-blog" style="color: #3b82f6;"></i></div>
+                        <h4>博客/论坛配图</h4>
+                        <p>为您的文章、帖子提供稳定的图片托管服务</p>
+                    </div>
+                    <div class="landing-use-case">
+                        <div class="landing-use-case-icon"><i class="fas fa-shopping-cart" style="color: #22c55e;"></i></div>
+                        <h4>电商商品展示</h4>
+                        <p>产品图片、宣传海报的快速上传与分享</p>
+                    </div>
+                    <div class="landing-use-case">
+                        <div class="landing-use-case-icon"><i class="fas fa-share-alt" style="color: #f59e0b;"></i></div>
+                        <h4>社交媒体分享</h4>
+                        <p>一键复制链接，快速分享到微博、朋友圈</p>
+                    </div>
+                    <div class="landing-use-case">
+                        <div class="landing-use-case-icon"><i class="fas fa-file-alt" style="color: #8b5cf6;"></i></div>
+                        <h4>文档资料托管</h4>
+                        <p>PDF、Word、Excel 等文档的便捷存储</p>
+                    </div>
+                    <div class="landing-use-case">
+                        <div class="landing-use-case-icon"><i class="fas fa-code" style="color: #06b6d4;"></i></div>
+                        <h4>开发者文档</h4>
+                        <p>项目截图、流程图、架构图的托管</p>
+                    </div>
+                    <div class="landing-use-case">
+                        <div class="landing-use-case-icon"><i class="fas fa-graduation-cap" style="color: #ec4899;"></i></div>
+                        <h4>教育学习</h4>
+                        <p>课件、作业、学习资料的云端存储</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 常见问题 FAQ -->
+            <div class="landing-section">
+                <h2 class="landing-section-title"><i class="fas fa-question-circle"></i> 常见问题</h2>
+                <div class="landing-faq">
+                    <div class="landing-faq-item">
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 支持哪些文件格式？</div>
+                        <div class="landing-faq-answer">支持 JPG、PNG、GIF、WebP 图片，PDF、DOC、DOCX、PPT、PPTX 文档，以及 ZIP、RAR、7Z 压缩包等多种格式。</div>
+                    </div>
+                    <div class="landing-faq-item">
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 单个文件大小限制是多少？</div>
+                        <div class="landing-faq-answer">单个文件最大支持 100MB，足以满足日常图片、文档的上传需求。</div>
+                    </div>
+                    <div class="landing-faq-item">
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 文件是否永久保存？</div>
+                        <div class="landing-faq-answer">上传的文件存储在高可用云存储系统中，确保文件的安全与持久保存。</div>
+                    </div>
+                    <div class="landing-faq-item">
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 如何保护我的隐私？</div>
+                        <div class="landing-faq-answer">默认设置为私有模式，只有您自己可以查看，可选择公开分享给他人。</div>
+                    </div>
+                    <div class="landing-faq-item">
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 支持批量上传吗？</div>
+                        <div class="landing-faq-answer">支持多文件同时上传，可拖拽文件夹或使用 Ctrl+V 粘贴上传。</div>
+                    </div>
+                    <div class="landing-faq-item">
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 是否需要付费？</div>
+                        <div class="landing-faq-answer">基础功能完全免费，免费注册即可开始使用。</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CTA 行动号召 -->
+            <div class="landing-cta">
+                <div class="landing-cta-content">
+                    <h2 class="landing-cta-title">准备好开始了吗？</h2>
+                    <p class="landing-cta-desc">加入 AeroImageHost，体验极致的文件上传与分享</p>
+                    <button class="landing-btn landing-btn-primary landing-btn-lg" @click="showAuthModal = true">
+                        <i class="fas fa-rocket"></i> 立即免费注册
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 已登录 -->
+        <div v-else>
+            <div class="navbar">
+                <div class="brand-logo">
+                    <span class="brand-icon"><img src="https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29" alt="AeroImageHost"></span>
+                    <span class="brand-text">AeroImageHost</span>
+                </div>
+                <div class="user-area">
+                    <span class="user-badge"><i class="fas fa-user-astronaut"></i> {{ username }}</span>
+                    <button class="theme-toggle" @click="toggleTheme" :title="isDark ? '切换亮色模式' : '切换暗色模式'">
+                        <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'"></i>
+                    </button>
+                    <el-dropdown @command="handleUserCommand">
+                        <span style="cursor: pointer; background: var(--bg-secondary); padding: 0.5rem 0.9rem; border-radius: 30px; border: 1px solid var(--navbar-border);"><i class="fas fa-cog" style="color: var(--text-secondary);"></i></span>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-dropdown-item command="stats"><i class="fas fa-chart-bar"></i> 使用统计</el-dropdown-item>
+                                <el-dropdown-item command="shortcuts"><i class="fas fa-keyboard"></i> 快捷键</el-dropdown-item>
+                                <el-dropdown-item command="logout" divided style="color: #ef4444;"><i class="fas fa-sign-out-alt"></i> 退出登录</el-dropdown-item>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
+                </div>
+            </div>
+
+            <div class="main">
+                <!-- 上传区域 -->
+                <div class="glass-card" style="margin-bottom: 2.2rem; overflow: hidden;">
+                    <div class="upload-zone"
+                         @click="triggerFileInput"
+                         @dragover.prevent="dragOver = true"
+                         @dragleave="dragOver = false"
+                         @drop.prevent="handleDrop"
+                         :class="{ 'drag-over': dragOver }">
+                        <div style="font-size: 3.8rem; margin-bottom: 0.8rem; color: var(--accent);"><i class="fas fa-cloud-upload-alt"></i></div>
+                        <div style="font-size: 1.3rem; font-weight: 600; color: var(--text-primary);">拖拽文件至此 或 点击上传</div>
+                        <div style="color: var(--text-secondary);">图片 · 文档 · 压缩包 · 最大 100MB</div>
+                        <div style="margin-top: 0.8rem; font-size: 0.85rem; color: var(--accent);"><i class="fas fa-lock"></i> 新上传文件默认私有，可手动切换为公开</div>
+                        <div class="paste-hint"><kbd>Ctrl</kbd> + <kbd>V</kbd> 粘贴上传</div>
+                    </div>
+                    <input type="file" ref="fileInput" style="display: none" @change="handleFileChange" multiple>
+                </div>
+
+                <!-- 搜索栏 -->
+                <div class="glass-card" style="margin-bottom: 2.2rem; padding: 1.2rem 1.8rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div class="search-container" style="flex: 1; margin-bottom: 0;">
+                            <i class="fas fa-search"></i>
+                            <input type="text" class="search-input" v-model="searchKeyword" @keyup.enter="handleSearch" placeholder="搜索文件名..." style="padding-right: 3rem;">
+                        </div>
+                        <button class="search-btn" @click="handleSearch" :disabled="fileListLoading">
+                            <i class="fas fa-search"></i>
+                            <span v-if="!fileListLoading">搜索</span>
+                            <span v-else><i class="fas fa-spinner fa-spin"></i></span>
+                        </button>
+                        <button class="search-btn" @click="clearSearch" v-if="searchKeyword.trim()" style="background: var(--bg-secondary);">
+                            <i class="fas fa-times"></i>
+                            <span>清除</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 上传队列 -->
+                <div v-if="uploadQueue.length > 0" class="upload-queue-container">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-primary);">
+                        <i class="fas fa-upload"></i> 上传队列 ({{ uploadQueue.length }})
+                    </h3>
+                    <div class="upload-queue">
+                        <div v-for="item in uploadQueue" :key="item.id" class="upload-item" :class="item.status">
+                            <div class="upload-info">
+                                <div class="upload-name">
+                                    <i v-if="item.status === 'pending'" class="fas fa-clock"></i>
+                                    <i v-else-if="item.status === 'uploading'" class="fas fa-spinner fa-spin"></i>
+                                    <i v-else-if="item.status === 'success'" class="fas fa-check-circle"></i>
+                                    <i v-else-if="item.status === 'error'" class="fas fa-exclamation-circle"></i>
+                                    {{ item.name }}
+                                </div>
+                                <div class="upload-status">{{ item.statusText }}</div>
+                                <div class="upload-speed" v-if="item.status === 'uploading'">
+                                    <span v-if="item.speed">{{ item.speed }}</span>
+                                    <span v-if="item.eta">· {{ item.eta }}</span>
+                                </div>
+                            </div>
+                            <div class="upload-progress">
+                                <el-progress
+                                    :percentage="item.progress"
+                                    :status="item.status === 'success' ? 'success' : item.status === 'error' ? 'exception' : ''"
+                                    :stroke-width="8"
+                                    :show-text="false"
+                                    :format="() => `${item.progress}%`"
+                                    :color="item.progress === 100 ? '#22c55e' : undefined"
+                                />
+                                <span class="progress-text">{{ item.progress }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 文件列表 -->
+                <div v-loading="fileListLoading">
+                    <div v-if="files.length === 0" class="empty-state">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                        <p style="font-size: 1.1rem; font-weight: 500;">还没有文件，快来上传第一个吧 ✨</p>
+                    </div>
+                    <div v-else class="file-grid">
+                        <div v-for="file in files" :key="file.file_id" class="file-card" @click="openFileDetail(file)">
+                            <div class="file-thumb">
+                                <img v-if="isImageFile(file)" :src="getImageSrc(file)" :alt="file.filename" loading="lazy" @error="handleImageError" />
+                                <div v-else class="file-icon-container">
+                                    <i :class="getFileIconClass(file)" class="file-icon-large" :style="{ color: getFileColor(file) }"></i>
+                                    <span class="file-extension-tag" :style="{ backgroundColor: getFileColor(file) }">{{ getFileExtension(file.filename) }}</span>
+                                </div>
+                            </div>
+                            <div class="file-info">
+                                <div class="file-name" :title="file.filename">{{ file.filename }}</div>
+                                <div class="file-meta">{{ formatSize(file.size) }} · {{ formatDate(file.upload_time) }}</div>
+                                <div class="file-actions">
+                                    <button class="action-btn" @click.stop="copyLink(file.file_id, true)" title="复制链接">
+                                        <i class="fas fa-link"></i>
+                                        <span>复制链接</span>
+                                    </button>
+                                    <button class="action-btn" :class="{'success': !!file.is_public}" @click.stop="togglePublic(file)" :title="file.is_public ? '设为私有' : '设为公开'">
+                                        <i :class="file.is_public ? 'fas fa-globe' : 'fas fa-lock'"></i>
+                                        <span>{{ file.is_public ? '公开' : '私有' }}</span>
+                                    </button>
+                                    <el-popconfirm title="确定要删除此文件吗？此操作不可恢复。" confirm-button-text="确定删除" cancel-button-text="取消" confirm-button-type="danger" @confirm="handleDelete(file)">
+                                        <template #reference>
+                                            <button class="action-btn danger" title="删除文件">
+                                                <i class="fas fa-trash-alt"></i>
+                                                <span>删除</span>
+                                            </button>
+                                        </template>
+                                    </el-popconfirm>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    
+                    <!-- 分页组件 -->
+                    <div style="margin-top: 2rem; display: flex; justify-content: center; align-items: center;">
+                            <el-pagination
+                                v-model:current-page="page"
+                                v-model:page-size="pageSize"
+                                :page-sizes="[10, 20, 50, 100]"
+                                :total="total"
+                                layout="total, sizes, prev, pager, next, jumper"
+                                @size-change="handlePageSizeChange"
+                                @current-change="handlePageChange"
+                            />
+                        </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件详情弹窗 -->
+        <div v-if="detailFile" class="file-detail-overlay" @click="closeFileDetail">
+            <div class="file-detail-card" @click.stop>
+                <div class="file-detail-header">
+                    <div class="file-detail-preview" v-if="isImageFile(detailFile)" @click="previewFromDetail(detailFile)" style="cursor: pointer;">
+                        <img :src="getImageSrc(detailFile)" />
+                    </div>
+                    <div class="file-detail-preview" v-else>
+                        <i :class="getFileIconClass(detailFile)" :style="{ color: getFileColor(detailFile) }"></i>
+                    </div>
+                    <div class="file-detail-title">
+                        <h3>{{ detailFile.filename }}</h3>
+                        <span class="status-badge" :class="detailFile.is_public ? 'public' : 'private'">
+                            <i :class="detailFile.is_public ? 'fas fa-globe' : 'fas fa-lock'"></i>
+                            {{ detailFile.is_public ? '公开' : '私有' }}
+                        </span>
+                    </div>
+                    <button class="file-detail-close" @click="closeFileDetail">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="file-detail-body">
+                    <div class="file-detail-row">
+                        <span class="file-detail-label"><i class="fas fa-file"></i> 文件类型</span>
+                        <span class="file-detail-value">{{ detailFile.mime_type || '未知' }}</span>
+                    </div>
+                    <div class="file-detail-row">
+                        <span class="file-detail-label"><i class="fas fa-weight"></i> 文件大小</span>
+                        <span class="file-detail-value">{{ formatSize(detailFile.size) }}</span>
+                    </div>
+                    <div class="file-detail-row" v-if="isImageFile(detailFile) && detailFile.width">
+                        <span class="file-detail-label"><i class="fas fa-expand"></i> 图片尺寸</span>
+                        <span class="file-detail-value">{{ detailFile.width }} × {{ detailFile.height }}</span>
+                    </div>
+                    <div class="file-detail-row">
+                        <span class="file-detail-label"><i class="fas fa-calendar"></i> 上传时间</span>
+                        <span class="file-detail-value">{{ formatDate(detailFile.upload_time) }}</span>
+                    </div>
+                    <div class="file-detail-row">
+                        <span class="file-detail-label"><i class="fas fa-fingerprint"></i> 文件ID</span>
+                        <span class="file-detail-value" style="font-size: 0.72rem; font-family: monospace;">{{ detailFile.file_id }}</span>
+                    </div>
+                </div>
+                <div class="file-detail-links">
+                    <label><i class="fas fa-link"></i> 分享链接</label>
+                    <div class="file-link-box">
+                        <input readonly :value="getShareUrl(detailFile)" />
+                        <button class="copy-sm-btn" @click="copyText(getShareUrl(detailFile), '分享链接已复制')">复制</button>
+                    </div>
+                </div>
+                <div class="file-detail-actions">
+                    <button @click="copyLink(detailFile.file_id, true); closeFileDetail()">
+                        <i class="fas fa-link"></i> 复制链接
+                    </button>
+                    <button :class="{'success': !!detailFile.is_public}" @click="togglePublicAndRefresh(detailFile)">
+                        <i :class="detailFile.is_public ? 'fas fa-globe' : 'fas fa-lock'"></i>
+                        {{ detailFile.is_public ? '公开' : '私有' }}
+                    </button>
+                    <el-popconfirm title="确定要删除此文件吗？此操作不可恢复。" confirm-button-text="确定删除" cancel-button-text="取消" confirm-button-type="danger" @confirm="handleDeleteFromDetail(detailFile)">
+                        <template #reference>
+                            <button class="danger">
+                                <i class="fas fa-trash-alt"></i> 删除
+                            </button>
+                        </template>
+                    </el-popconfirm>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图片预览弹窗 -->
+        <div v-if="previewImage" class="image-preview-overlay" @click="closeImagePreview">
+            <img :src="getImageSrc(previewImage)" :alt="previewImage.filename" @click.stop />
+            <div class="image-preview-close" @click="closeImagePreview">
+                <i class="fas fa-times"></i>
+            </div>
+            <div style="position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); padding: 0.8rem 1.5rem; border-radius: 1rem; color: white; text-align: center; backdrop-filter: blur(10px);">
+                <div style="font-weight: 600; margin-bottom: 0.3rem;">{{ previewImage.filename }}</div>
+                <div style="font-size: 0.85rem; opacity: 0.8;">{{ formatSize(previewImage.size) }} · {{ formatDate(previewImage.upload_time) }}</div>
+            </div>
+        </div>
+
+        <!-- 登录/注册弹窗 -->
+        <el-dialog v-model="showAuthModal" :close-on-click-modal="false" width="850px" center>
+            <div style="display: flex; border-radius: 12px; overflow: hidden; min-height: 460px;">
+                <div style="width: 40%; background: linear-gradient(135deg, #2563eb, #0ea5e9); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem; color: white;">
+                    <div style="margin-bottom: 1rem;"><img src="https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29" alt="AeroImageHost" style="width: 120px; height: 120px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);"></div>
+                    <div style="font-size: 2rem; font-weight: 800; margin-bottom: 0.4rem;">AeroImageHost</div>
+                    <div style="font-size: 0.95rem; opacity: 0.85; text-align: center; line-height: 1.6;">极速 · 安全 · 云存储<br>文件轻松上传与分享</div>
+                </div>
+                <div style="flex: 1; padding: 2.5rem; display: flex; flex-direction: column; justify-content: center;">
+                    <div style="margin-bottom: 1.5rem; font-size: 1.3rem; font-weight: 700; color: var(--text-primary);">欢迎回来</div>
+                    <el-tabs v-model="activeTab" stretch>
+                        <el-tab-pane label="登录" name="login">
+                            <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" @keyup.enter="handleLoginModal">
+                                <el-form-item prop="account"><el-input v-model="loginForm.account" placeholder="账号" prefix-icon="User" size="large" clearable></el-input></el-form-item>
+                                <el-form-item prop="password"><el-input v-model="loginForm.password" type="password" placeholder="密码" prefix-icon="Lock" size="large" show-password></el-input></el-form-item>
+                                <el-button type="primary" @click="handleLoginModal" :loading="loginLoading" size="large" style="width: 100%; border-radius: 40px; height: 48px; font-weight: 600;">登 录</el-button>
+                            </el-form>
+                        </el-tab-pane>
+                        <el-tab-pane label="邮箱注册" name="emailRegister">
+                            <el-form :model="emailRegisterForm" :rules="emailRegisterRules" ref="emailRegisterFormRef" @keyup.enter="handleEmailRegister">
+                                <el-form-item prop="account">
+                                    <el-input v-model="emailRegisterForm.account" placeholder="账号" prefix-icon="User" size="large" clearable></el-input>
+                                </el-form-item>
+                                <el-form-item prop="email">
+                                    <el-input v-model="emailRegisterForm.email" placeholder="邮箱" prefix-icon="Message" size="large" clearable></el-input>
+                                </el-form-item>
+                                <div style="display: flex; gap: 10px;">
+                                    <el-form-item prop="code" style="flex: 1;">
+                                        <el-input v-model="emailRegisterForm.code" placeholder="验证码" prefix-icon="Key" size="large" clearable></el-input>
+                                    </el-form-item>
+                                    <el-button @click="sendVerificationCode" :disabled="codeSending || countdown > 0" size="large" style="width: 120px;">
+                                        {{ countdown > 0 ? `${countdown}s` : (codeSending ? '发送中...' : '发送验证码') }}
+                                    </el-button>
+                                </div>
+                                <el-form-item prop="password">
+                                    <el-input v-model="emailRegisterForm.password" type="password" placeholder="密码" prefix-icon="Lock" size="large" show-password></el-input>
+                                </el-form-item>
+                                <el-button type="primary" @click="handleEmailRegisterModal" :loading="emailRegisterLoading" size="large" style="width: 100%; border-radius: 40px; height: 48px; font-weight: 600;">邮箱注册</el-button>
+                            </el-form>
+                        </el-tab-pane>
+                    </el-tabs>
+                </div>
+            </div>
+        </el-dialog>
+    </div>
+</div>
+
+<!-- 外部资源加载 -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@vueuse/components"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+
+<script>
+    // 全局错误处理
+    window.addEventListener('error', (event) => {
+        console.error('Global error:', event.error);
+        showError(`应用错误: ${event.error?.message || '未知错误'}`);
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+        console.error('Unhandled promise rejection:', event.reason);
+        showError(`网络错误: ${event.reason?.message || '请求失败'}`);
+    });
+
+    // 显示错误函数
+    function showError(message) {
+        const errorContainer = document.getElementById('error-container');
+        errorContainer.innerHTML = `
+            <div class="error-boundary">
+                <h3>⚠️ 发生错误</h3>
+                <p>${message}</p>
+                <p>请刷新页面重试，或联系技术支持。</p>
+                <button onclick="location.reload()" style="margin-top: 1rem;">刷新页面</button>
+            </div>
+        `;
+        errorContainer.style.display = 'block';
+    }
+
+    // 工业级应用初始化
+    (function() {
+        // 等待所有资源加载完成
+        window.addEventListener('load', function() {
+            console.log('所有资源加载完成，开始初始化应用');
+
+            // 检查必要依赖
+            const dependencies = ['Vue', 'ElementPlus', 'axios', 'dayjs'];
+            const missingDeps = dependencies.filter(dep => typeof window[dep] === 'undefined');
+
+            if (missingDeps.length > 0) {
+                showError('缺少必要的依赖项: ' + missingDeps.join(', '));
+                return;
+            }
+
+            // 初始化应用
+            initAeroImageHost();
+        });
+
+        function initAeroImageHost() {
+            const { createApp, ref, reactive, computed, onMounted, watch, onUnmounted, defineAsyncComponent } = Vue;
+
+            // 安全获取 ElementPlus 组件
+            let ElMessage, ElMessageBox, ElNotification;
+
+            try {
+                const ep = ElementPlus;
+                ElMessage = ep.ElMessage || {
+                    success: (msg) => console.log('Success:', msg),
+                    error: (msg) => console.error('Error:', msg),
+                    warning: (msg) => console.warn('Warning:', msg),
+                    info: (msg) => console.info('Info:', msg)
+                };
+                ElMessageBox = ep.ElMessageBox || { confirm: (msg) => confirm(msg) };
+                ElNotification = ep.ElNotification || { success: (msg) => console.log('Notification:', msg) };
+            } catch (e) {
+                console.error('ElementPlus 初始化失败:', e);
+            }
+
+            const dayjs = window.dayjs;
+            const API_BASE = '/api';
+
+            // ========== 工业级上传优化配置 ==========
+            const UPLOAD_CONFIG = {
+                // 5MB阈值：小于此值使用代理上传，大于此值使用直传
+                DIRECT_UPLOAD_THRESHOLD: 5 * 1024 * 1024,
+                // 分块大小：5MB每块（S3标准推荐）
+                CHUNK_SIZE: 5 * 1024 * 1024,
+                // 最大并行上传数
+                MAX_PARALLEL_UPLOADS: 3,
+                // 重试次数
+                MAX_RETRY_ATTEMPTS: 3,
+                // 基础重试延迟（毫秒）
+                BASE_RETRY_DELAY: 1000,
+                // 分块上传超时（毫秒）
+                CHUNK_UPLOAD_TIMEOUT: 120000,
+                // 直传URL有效期（秒）- 与后端一致
+                PRESIGNED_URL_EXPIRES: 7200,
+                // 速度计算采样窗口（毫秒）
+                SPEED_SAMPLE_WINDOW: 500
+            };
+
+            // 工业级上传工具类
+            class UploadOptimizer {
+                constructor() {
+                    this.activeUploads = 0;
+                    this.retryCount = new Map();
+                }
+
+                // 判断是否应该使用直传
+                shouldUseDirectUpload(fileSize) {
+                    return fileSize >= UPLOAD_CONFIG.DIRECT_UPLOAD_THRESHOLD;
+                }
+
+                // 计算最佳分块数
+                calculateOptimalChunks(fileSize) {
+                    if (fileSize <= UPLOAD_CONFIG.CHUNK_SIZE) return 1;
+                    const chunkCount = Math.ceil(fileSize / UPLOAD_CONFIG.CHUNK_SIZE);
+                    // 限制最大分块数为100（S3限制）
+                    return Math.min(chunkCount, 100);
+                }
+
+                // 指数退避重试延迟
+                getRetryDelay(attempt) {
+                    return UPLOAD_CONFIG.BASE_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
+                }
+
+                // 格式化文件大小
+                formatFileSize(bytes) {
+                    if (bytes === 0) return '0 B';
+                    const units = ['B', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log2(bytes) / 10);
+                    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
+                }
+
+                // 计算上传速度
+                calculateSpeed(bytesUploaded, elapsedMs) {
+                    if (elapsedMs === 0) return 0;
+                    const bytesPerSec = (bytesUploaded / elapsedMs) * 1000;
+                    return bytesPerSec;
+                }
+
+                // 计算预计剩余时间
+                calculateETA(bytesRemaining, bytesPerSec) {
+                    if (bytesPerSec <= 0) return null;
+                    const secondsRemaining = bytesRemaining / bytesPerSec;
+                    if (secondsRemaining < 60) return `${Math.round(secondsRemaining)}秒`;
+                    if (secondsRemaining < 3600) return `${Math.round(secondsRemaining / 60)}分钟`;
+                    return `${(secondsRemaining / 3600).toFixed(1)}小时`;
+                }
+            }
+
+            const uploadOptimizer = new UploadOptimizer();
+
+            // 分块上传管理器
+            class ChunkedUploader {
+                constructor(file, uploadUrl, progressCallback) {
+                    this.file = file;
+                    this.uploadUrl = uploadUrl;
+                    this.progressCallback = progressCallback;
+                    this.chunks = [];
+                    this.uploadedChunks = 0;
+                    this.totalChunks = 0;
+                    this.startTime = Date.now();
+                    this.bytesUploaded = 0;
+                    this.lastProgressTime = Date.now();
+                    this.speedHistory = [];
+                }
+
+                // 创建分块
+                createChunks() {
+                    const chunkSize = UPLOAD_CONFIG.CHUNK_SIZE;
+                    this.totalChunks = Math.ceil(this.file.size / chunkSize);
+
+                    for (let i = 0; i < this.totalChunks; i++) {
+                        const start = i * chunkSize;
+                        const end = Math.min(start + chunkSize, this.file.size);
+                        this.chunks.push({
+                            index: i,
+                            start,
+                            end,
+                            data: this.file.slice(start, end),
+                            uploaded: false,
+                            retries: 0
+                        });
+                    }
+                    return this.chunks;
+                }
+
+                // 上传单个分块（带重试）
+                async uploadChunk(chunk) {
+                    const maxRetries = UPLOAD_CONFIG.MAX_RETRY_ATTEMPTS;
+
+                    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                        try {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => {
+                                controller.abort();
+                            }, UPLOAD_CONFIG.CHUNK_UPLOAD_TIMEOUT);
+
+                            const response = await fetch(this.uploadUrl, {
+                                method: 'PUT',
+                                body: chunk.data,
+                                headers: {
+                                    'Content-Type': this.file.type || 'application/octet-stream',
+                                    'Content-Range': `bytes ${chunk.start}-${chunk.end - 1}/${this.file.size}`
+                                },
+                                signal: controller.signal
+                            });
+
+                            clearTimeout(timeoutId);
+
+                            if (response.ok || response.status === 308) {
+                                chunk.uploaded = true;
+                                this.uploadedChunks++;
+                                this.bytesUploaded += chunk.data.size;
+                                this.updateProgress();
+                                return true;
+                            } else {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                        } catch (error) {
+                            chunk.retries++;
+                            if (attempt >= maxRetries) {
+                                throw new Error(`分块 ${chunk.index + 1} 上传失败: ${error.message}`);
+                            }
+                            // 指数退避
+                            await new Promise(resolve =>
+                                setTimeout(resolve, UPLOAD_CONFIG.BASE_RETRY_DELAY * Math.pow(2, attempt))
+                            );
+                        }
+                    }
+                    return false;
+                }
+
+                // 串行上传所有分块（保证顺序和可靠性）
+                async upload() {
+                    this.createChunks();
+
+                    for (const chunk of this.chunks) {
+                        await this.uploadChunk(chunk);
+                    }
+
+                    return this.uploadedChunks === this.totalChunks;
+                }
+
+                // 更新进度
+                updateProgress() {
+                    const now = Date.now();
+                    const elapsed = now - this.startTime;
+                    const progress = Math.round((this.uploadedChunks / this.totalChunks) * 100);
+
+                    // 计算速度
+                    const bytesPerSec = uploadOptimizer.calculateSpeed(this.bytesUploaded, elapsed);
+                    const remainingBytes = this.file.size - this.bytesUploaded;
+                    const eta = uploadOptimizer.calculateETA(remainingBytes, bytesPerSec);
+
+                    this.progressCallback({
+                        progress,
+                        uploadedChunks: this.uploadedChunks,
+                        totalChunks: this.totalChunks,
+                        speed: bytesPerSec,
+                        eta,
+                        bytesUploaded: this.bytesUploaded,
+                        totalBytes: this.file.size
+                    });
+                }
+            }
+            // ========================================
+            const bgImages = [
+                'https://images.pexels.com/photos/466685/pexels-photo-466685.jpeg?auto=compress&cs=tinysrgb&w=1920',
+                'https://images.pexels.com/photos/460672/pexels-photo-460672.jpeg?auto=compress&cs=tinysrgb&w=1920',
+                'https://images.pexels.com/photos/290595/pexels-photo-290595.jpeg?auto=compress&cs=tinysrgb&w=1920',
+                'https://images.pexels.com/photos/3722818/pexels-photo-3722818.jpeg?auto=compress&cs=tinysrgb&w=1920',
+                'https://images.pexels.com/photos/161901/paris-sunset-france-monument-161901.jpeg?auto=compress&cs=tinysrgb&w=1920',
+                'https://images.pexels.com/photos/995764/pexels-photo-995764.jpeg?auto=compress&cs=tinysrgb&w=1920',
+            ];
+
+            const app = createApp({
+                setup() {
+                    // 主题管理
+                    const isDark = ref(false);
+                    const applyTheme = (dark) => {
+                        if (dark) {
+                            document.documentElement.setAttribute('data-theme', 'dark');
+                            localStorage.setItem('theme', 'dark');
+                        } else {
+                            document.documentElement.removeAttribute('data-theme');
+                            localStorage.setItem('theme', 'light');
+                        }
+                    };
+
+                    // 初始化主题
+                    isDark.value = localStorage.getItem('theme') === 'dark';
+                    applyTheme(isDark.value);
+
+                    const toggleTheme = () => {
+                        isDark.value = !isDark.value;
+                        applyTheme(isDark.value);
+                        ElMessage?.success?.(isDark.value ? '已切换至暗色模式 🌙' : '已切换至亮色模式 ☀️');
+                    };
+
+                    // 背景图片轮播
+                    const currentBgIndex = ref(0);
+                    let bgTimer = null;
+
+                    // ESC 键关闭预览/详情
+                    const handleEscKey = (e) => {
+                        if (e.key === 'Escape') {
+                            if (previewImage.value) closeImagePreview();
+                            else if (detailFile.value) closeFileDetail();
+                        }
+                    };
+
+                    // 全局键盘快捷键
+                    const handleGlobalShortcuts = (e) => {
+                        // 忽略输入框中的快捷键
+                        const tag = e.target.tagName;
+                        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+                        if (e.ctrlKey || e.metaKey) {
+                            switch (e.key.toLowerCase()) {
+                                case 'k': // Ctrl+K: 搜索
+                                    e.preventDefault();
+                                    const searchInput = document.querySelector('.search-input');
+                                    if (searchInput) searchInput.focus();
+                                    break;
+                                case 'o': // Ctrl+O: 上传文件
+                                    e.preventDefault();
+                                    triggerFileInput();
+                                    break;
+                                case 'r': // Ctrl+R: 刷新
+                                    e.preventDefault();
+                                    loadFiles(true);
+                                    ElMessage?.success?.('已刷新');
+                                    break;
+                                case 's': // Ctrl+S: 统计
+                                    e.preventDefault();
+                                    handleUserCommand('stats');
+                                    break;
+                            }
+                        } else if (e.key === 'Delete') {
+                            // 忽略输入框中的 Delete 键
+                            const tag = e.target.tagName;
+                            if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+                                e.preventDefault();
+                            }
+                        }
+                    };
+
+                    onMounted(() => {
+                        bgTimer = setInterval(() => {
+                            currentBgIndex.value = (currentBgIndex.value + 1) % bgImages.length;
+                        }, 8000);
+                        window.addEventListener('keydown', handleEscKey);
+                        window.addEventListener('keydown', handleGlobalShortcuts);
+                    });
+
+                    onUnmounted(() => {
+                        if (bgTimer) clearInterval(bgTimer);
+                        window.removeEventListener('keydown', handleEscKey);
+                        window.removeEventListener('keydown', handleGlobalShortcuts);
+                        document.removeEventListener('paste', handlePaste);
+                    });
+
+                    // 用户认证
+                    const token = ref(localStorage.getItem('token') || '');
+                    const username = ref(localStorage.getItem('username') || '');
+                    const user_id = ref(0); // 初始化为0，在登录后更新
+                    const activeTab = ref('login');
+                    const loginLoading = ref(false), registerLoading = ref(false);
+
+                    const loginForm = reactive({ account: '', password: '' });
+                    const loginRules = {
+                        account: [{ required: true, message: "请输入账号", trigger: "blur" }],
+                        password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+                    };
+
+                    const registerForm = reactive({ account: '', password: '' });
+                    const registerRules = {
+                        account: [{ required: true, message: "请输入账号", trigger: "blur" }],
+                        password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+                    };
+
+                    // 文件管理
+                    const files = ref([]);
+                    const fileListLoading = ref(false);
+                    const page = ref(1), pageSize = ref(10), total = ref(0);
+                    const searchKeyword = ref('');
+                    const uploadQueue = ref([]);
+                    let nextUploadId = 1;
+                    const dragOver = ref(false);
+                    const fileInput = ref(null);
+                    const pageSizeOptions = ref([5, 10, 20, 50]);
+                    const previewImage = ref(null); // 图片预览状态
+                    const detailFile = ref(null); // 文件详情弹窗状态
+                    const showAuthModal = ref(false); // 登录/注册弹窗
+                    const stats = reactive({ total_users: 0, total_files: 0, total_images: 0 }); // 站点统计
+
+                    // 时间格式化
+                    const formatDate = (timestamp) => {
+                        if (!timestamp) return '';
+                        return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss');
+                    };
+
+                    const formatSize = (bytes) => {
+                        if (!bytes) return '0 B';
+                        const units = ['B', 'KB', 'MB', 'GB'];
+                        let size = bytes;
+                        let i = 0;
+                        while (size >= 1024 && i < units.length - 1) {
+                            size /= 1024;
+                            i++;
+                        }
+                        return `${size.toFixed(1)} ${units[i]}`;
+                    };
+
+                    // 格式化上传速度
+                    const formatSpeed = (kbPerSec) => {
+                        if (kbPerSec < 1024) {
+                            return `${kbPerSec} KB/s`;
+                        } else {
+                            const mbPerSec = (kbPerSec / 1024).toFixed(1);
+                            return `${mbPerSec} MB/s`;
+                        }
+                    };
+
+                    // 格式化ETA
+                    const formatETA = (seconds) => {
+                        if (seconds < 60) {
+                            return `${seconds}秒`;
+                        } else if (seconds < 3600) {
+                            const minutes = Math.floor(seconds / 60);
+                            const remainingSeconds = seconds % 60;
+                            return `${minutes}分${remainingSeconds}秒`;
+                        } else {
+                            const hours = Math.floor(seconds / 3600);
+                            const minutes = Math.floor((seconds % 3600) / 60);
+                            return `${hours}小时${minutes}分`;
+                        }
+                    };
+
+                    // 文件类型判断
+                    const isImageFile = (file) => {
+                        return file.mime_type && file.mime_type.startsWith('image/');
+                    };
+
+                    const getFileExtension = (filename) => {
+                        const dot = filename.lastIndexOf('.');
+                        if (dot === -1) return '';
+                        return filename.substring(dot).toLowerCase();
+                    };
+
+                    const getFileIconClass = (file) => {
+                        const mime = file.mime_type || '';
+                        const name = file.filename || '';
+                        if (mime === 'application/pdf') return 'fas fa-file-pdf';
+                        if (mime.includes('word') || name.endsWith('.doc') || name.endsWith('.docx')) return 'fas fa-file-word';
+                        if (mime.includes('excel') || name.endsWith('.xls') || name.endsWith('.xlsx')) return 'fas fa-file-excel';
+                        if (mime.includes('powerpoint') || name.endsWith('.ppt') || name.endsWith('.pptx')) return 'fas fa-file-powerpoint';
+                        if (mime.startsWith('text/')) return 'fas fa-file-alt';
+                        if (mime.startsWith('video/')) return 'fas fa-file-video';
+                        if (mime.startsWith('audio/')) return 'fas fa-file-audio';
+                        if (mime.includes('zip') || name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z')) return 'fas fa-file-archive';
+                        return 'fas fa-file';
+                    };
+
+                    const getFileColor = (file) => {
+                        const ext = getFileExtension(file.filename);
+                        const colorMap = {
+                            '.pdf': '#ef4444',
+                            '.doc': '#3b82f6', '.docx': '#3b82f6',
+                            '.xls': '#22c55e', '.xlsx': '#22c55e',
+                            '.ppt': '#f97316', '.pptx': '#f97316',
+                            '.txt': '#6b7280',
+                            '.zip': '#8b5cf6', '.rar': '#8b5cf6', '.7z': '#8b5cf6',
+                            '.jpg': '#eab308', '.jpeg': '#eab308', '.png': '#eab308',
+                            '.gif': '#eab308', '.webp': '#eab308',
+                            '.mp4': '#06b6d4', '.mov': '#06b6d4', '.avi': '#06b6d4',
+                            '.mp3': '#ec4899', '.wav': '#ec4899', '.flac': '#ec4899',
+                        };
+                        return colorMap[ext] || '#64748b';
+                    };
+
+                    const getFileUrl = (fileId, thumbnail = false) => {
+                        return `${API_BASE}/i/${fileId}${thumbnail ? '?w=200&h=200' : ''}`;
+                    };
+
+                    // 获取图片 src：优先使用 presign_url（已签名直链，<img> 可直接加载）
+                    const getImageSrc = (file) => {
+                        // 优先使用 presign_url（已签名直链，不需要 auth）
+                        if (file.presign_url && typeof file.presign_url === 'string' && file.presign_url.length > 0) {
+                            return file.presign_url;
+                        }
+                        // 回退到 /api/i/ 端点（支持缩略图匿名访问）
+                        return getFileUrl(file.file_id, true);
+                    };
+
+                    const handleImageError = (e) => {
+                        e.target.style.display = 'none';
+                    };
+
+                    // 图片预览
+                    const openImagePreview = (file) => {
+                        if (isImageFile(file)) {
+                            previewImage.value = file;
+                        }
+                    };
+                    const closeImagePreview = () => {
+                        previewImage.value = null;
+                    };
+
+                    // 文件详情弹窗
+                    const openFileDetail = (file) => {
+                        detailFile.value = file;
+                    };
+                    const closeFileDetail = () => {
+                        detailFile.value = null;
+                    };
+                    const previewFromDetail = (file) => {
+                        if (isImageFile(file)) {
+                            detailFile.value = null;
+                            previewImage.value = file;
+                        }
+                    };
+                    const getShareUrl = (file) => {
+                        return window.location.origin + getFileUrl(file.file_id);
+                    };
+                    const copyText = (text, msg = '已复制到剪贴板') => {
+                        if (navigator.clipboard && window.isSecureContext) {
+                            navigator.clipboard.writeText(text).then(() => ElMessage?.success?.(msg));
+                        } else {
+                            fallbackCopy(text);
+                            ElMessage?.success?.(msg);
+                        }
+                    };
+                    const togglePublicAndRefresh = async (file) => {
+                        try {
+                            const res = await api.put(`/file/${file.file_id}/public`);
+                            if (res.data.status === 'success') {
+                                const newState = !!res.data.is_public;
+                                file.is_public = newState;
+                                const idx = files.value.findIndex(f => f.file_id === file.file_id);
+                                if (idx !== -1) files.value[idx].is_public = newState;
+                                ElMessage?.success?.(`文件已设为 ${newState ? '公开' : '私有'}`);
+                            }
+                        } catch (err) { ElMessage?.error?.('操作失败'); }
+                    };
+                    const handleDeleteFromDetail = async (file) => {
+                        try {
+                            const res = await api.delete(`/file/${file.file_id}`);
+                            if (res.data.status === 'success') {
+                                const idx = files.value.findIndex(f => f.file_id === file.file_id);
+                                if (idx !== -1) files.value.splice(idx, 1);
+                                total.value = Math.max(0, total.value - 1);
+                                ElMessage?.success?.(`${file.filename} 已删除`);
+                                closeFileDetail();
+                            }
+                        } catch (err) { ElMessage?.error?.('删除失败'); }
+                    };
+
+                    // 加载站点统计
+                    const loadStats = async () => {
+                        try {
+                            const res = await axios.get('/api/stats', { timeout: 5000 });
+                            console.log('[Stats] API response:', res.data);
+                            if (res.data) {
+                                stats.total_users = res.data.total_users || 0;
+                                stats.total_files = res.data.total_files || 0;
+                                stats.total_images = res.data.total_images || 0;
+                                console.log('[Stats] Loaded:', stats);
+                            }
+                        } catch (e) {
+                            console.error('Stats load failed:', e);
+                        }
+                    };
+
+                    // API 初始化
+                    const api = axios.create({
+                        baseURL: API_BASE,
+                        timeout: 30000 // 30秒超时
+                    });
+
+                    api.interceptors.request.use(config => {
+                        // Skip auth for login/register endpoints
+                        if (config.url.includes('/auth/login') || config.url.includes('/auth/register')) {
+                            return config;
+                        }
+                        // Check both ref and localStorage for token
+                        const currentToken = token.value || localStorage.getItem('token') || '';
+                        if (currentToken) {
+                            config.headers.Authorization = `Bearer ${currentToken}`;
+                            console.log('[API Request] Adding token:', config.headers.Authorization.substring(0, 20) + '... for', config.url);
+                        } else {
+                            console.warn('[API Request] No token available for request:', config.url);
+                        }
+                        return config;
+                    });
+
+                    api.interceptors.response.use(
+                        response => {
+                            console.log('[API Response] Success for:', response.config.url, '- Status:', response.status);
+                            return response;
+                        },
+                        error => {
+                            const url = error.config?.url || 'unknown';
+                            console.error('[API Error] For', url, '- Status:', error.response?.status, '- Data:', error.response?.data);
+                            if (error.response?.status === 401) {
+                                // 对于登录/注册请求的 401 不处理（这是正常的）
+                                if (url.includes('/auth/login') || url.includes('/auth/register')) {
+                                    // 登录失败，正常处理
+                                    return Promise.reject(error);
+                                }
+                                console.warn('[API Error] 401 for protected resource:', url);
+                                // 清除认证状态
+                                const hadToken = localStorage.getItem('token');
+                                token.value = '';
+                                username.value = '';
+                                localStorage.removeItem('token');
+                                localStorage.removeItem('username');
+                                localStorage.removeItem('user_id');
+                                files.value = [];
+                                if (hadToken) {
+                                    ElMessage?.error?.('登录已过期，请重新登录');
+                                }
+                            }
+                            return Promise.reject(error);
+                        }
+                    );
+
+                    // 认证相关方法
+                    const handleLogin = async () => {
+                        if (!loginForm.account || !loginForm.password) {
+                            ElMessage?.error?.('请输入账号和密码');
+                            return;
+                        }
+
+                        loginLoading.value = true;
+                        try {
+                            console.log('[Login] Starting login for account:', loginForm.account);
+                            const res = await api.post('/auth/login', loginForm);
+                            console.log('[Login] Response data:', res.data);
+
+                            if (res.data?.error) {
+                                throw new Error(res.data.error);
+                            }
+
+                            token.value = res.data.token;
+                            username.value = res.data.account || loginForm.account;
+
+                            // 确保获取正确的user_id
+                            if (res.data.user_id) {
+                                user_id.value = res.data.user_id;
+                            } else {
+                                // 尝试从token解析user_id
+                                const tokenParts = token.value.split('-');
+                                if (tokenParts.length > 0) {
+                                    const parsedUserId = parseInt(tokenParts[0]);
+                                    if (!isNaN(parsedUserId)) {
+                                        user_id.value = parsedUserId;
+                                    }
+                                }
+                            }
+
+                            // 保存到localStorage
+                            localStorage.setItem('token', token.value);
+                            localStorage.setItem('username', username.value);
+                            localStorage.setItem('user_id', user_id.value.toString());
+
+                            console.log('[Login] Final - token:', token.value ? token.value.substring(0, 20) : 'EMPTY',
+                                        'user_id:', user_id.value, 'localStorage.user_id:', localStorage.getItem('user_id'));
+
+                            ElMessage?.success?.('登录成功');
+                            await loadFiles(true); // 强制刷新
+                        } catch (err) {
+                            const errorMsg = err.response?.data?.error || err.message || '登录失败';
+                            ElMessage?.error?.(errorMsg);
+                        } finally {
+                            loginLoading.value = false;
+                        }
+                    };
+
+                    const handleRegister = async () => {
+                        if (!registerForm.account || !registerForm.password) {
+                            ElMessage?.error?.('请输入账号和密码');
+                            return;
+                        }
+
+                        if (registerForm.password.length < 6) {
+                            ElMessage?.error?.('密码至少需要6个字符');
+                            return;
+                        }
+
+                        registerLoading.value = true;
+                        try {
+                            const res = await api.post('/auth/register', registerForm);
+                            if (res.data?.error) {
+                                throw new Error(res.data.error);
+                            }
+
+                            ElMessage?.success?.('注册成功，请登录');
+                            activeTab.value = 'login';
+                            loginForm.account = registerForm.account;
+                            registerForm.account = '';
+                            registerForm.password = '';
+                        } catch (err) {
+                            const errorMsg = err.response?.data?.error || err.message || '注册失败';
+                            ElMessage?.error?.(errorMsg);
+                        } finally {
+                            registerLoading.value = false;
+                        }
+                    };
+
+                    // 邮箱注册相关数据
+                    const emailRegisterForm = reactive({
+                        account: '',
+                        email: '',
+                        code: '',
+                        password: ''
+                    });
+
+                    const emailRegisterRules = {
+                        account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+                        email: [
+                            { required: true, message: '请输入邮箱', trigger: 'blur' },
+                            { type: 'email', message: '请输入正确的邮箱格式', trigger: ['blur', 'change'] }
+                        ],
+                        code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
+                        password: [
+                            { required: true, message: '请输入密码', trigger: 'blur' },
+                            { min: 6, message: '密码至少需要6个字符', trigger: 'blur' }
+                        ]
+                    };
+
+                    const emailRegisterLoading = ref(false);
+                    const codeSending = ref(false);
+                    const countdown = ref(0);
+                    let countdownTimer = null;
+
+                    // 发送验证码
+                    const sendVerificationCode = async () => {
+                        if (!emailRegisterForm.email) {
+                            ElMessage?.error?.('请输入邮箱');
+                            return;
+                        }
+
+                        // 简单的邮箱格式验证
+                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        if (!emailRegex.test(emailRegisterForm.email)) {
+                            ElMessage?.error?.('请输入正确的邮箱格式');
+                            return;
+                        }
+
+                        codeSending.value = true;
+                        try {
+                            const res = await api.post('/auth/send-code', { email: emailRegisterForm.email });
+                            if (res.data?.error) {
+                                throw new Error(res.data.error);
+                            }
+
+                            ElMessage?.success?.('验证码已发送，请查收邮箱');
+
+                            // 开始倒计时
+                            countdown.value = 60;
+                            countdownTimer = setInterval(() => {
+                                countdown.value--;
+                                if (countdown.value <= 0) {
+                                    clearInterval(countdownTimer);
+                                }
+                            }, 1000);
+                        } catch (err) {
+                            const errorMsg = err.response?.data?.error || err.message || '发送验证码失败';
+                            ElMessage?.error?.(errorMsg);
+                        } finally {
+                            codeSending.value = false;
+                        }
+                    };
+
+                    // 邮箱注册
+                    const handleEmailRegister = async () => {
+                        if (!emailRegisterForm.account || !emailRegisterForm.email ||
+                            !emailRegisterForm.code || !emailRegisterForm.password) {
+                            ElMessage?.error?.('请填写所有必填项');
+                            return;
+                        }
+
+                        // 验证邮箱格式
+                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        if (!emailRegex.test(emailRegisterForm.email)) {
+                            ElMessage?.error?.('请输入正确的邮箱格式');
+                            return;
+                        }
+
+                        emailRegisterLoading.value = true;
+                        try {
+                            const res = await api.post('/auth/register/email', emailRegisterForm);
+                            if (res.data?.error) {
+                                throw new Error(res.data.error);
+                            }
+
+                            ElMessage?.success?.('注册成功，请登录');
+                            activeTab.value = 'login';
+                            loginForm.account = emailRegisterForm.account;
+                            // 清空表单
+                            emailRegisterForm.account = '';
+                            emailRegisterForm.email = '';
+                            emailRegisterForm.code = '';
+                            emailRegisterForm.password = '';
+
+                            // 重置倒计时
+                            if (countdownTimer) {
+                                clearInterval(countdownTimer);
+                                countdown.value = 0;
+                            }
+                        } catch (err) {
+                            const errorMsg = err.response?.data?.error || err.message || '注册失败';
+                            ElMessage?.error?.(errorMsg);
+                        } finally {
+                            emailRegisterLoading.value = false;
+                        }
+                    };
+
+                    // 邮箱注册模态框处理
+                    const handleEmailRegisterModal = async () => {
+                        await handleEmailRegister();
+                    };
+
+                    const handleLogout = () => {
+                        token.value = '';
+                        username.value = '';
+                        user_id.value = 0;
+                        localStorage.clear();
+                        files.value = [];
+                        ElMessage?.success?.('已退出登录');
+                    };
+
+                    const handleLoginModal = async () => {
+                        let success = false;
+                        await handleLogin();
+                        if (token.value) {
+                            success = true;
+                            showAuthModal.value = false;
+                            loginForm.account = '';
+                            loginForm.password = '';
+                        }
+                        return success;
+                    };
+
+                    const handleRegisterModal = async () => {
+                        await handleRegister();
+                    };
+
+                    // 文件操作
+                    let isLoading = false;
+                    const loadFiles = async (forceRefresh = false) => {
+                        // 检查是否已有正在进行的请求
+                        if (isLoading && !forceRefresh) {
+                            return;
+                        }
+
+                        isLoading = true;
+                        fileListLoading.value = true;
+
+                        // 添加请求超时（工业级标准：5秒超时）
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                        try {
+                            // 详细调试：检查page、pageSize和user_id的值
+                            console.log('Before calculation - page.value:', page.value, 'pageSize.value:', pageSize.value, 'user_id.value:', user_id.value);
+
+                            // 确保page和pageSize有默认值，避免offset未定义
+                            const currentPage = page.value || 1;
+                            const currentPageSize = pageSize.value || 10;
+
+                            // 详细调试：检查计算前的值
+                            console.log('After default - currentPage:', currentPage, 'currentPageSize:', currentPageSize);
+
+                            const offset = (currentPage - 1) * currentPageSize;
+
+                            // 详细调试：检查offset的值
+                            console.log('Calculated offset:', offset, 'typeof offset:', typeof offset);
+
+                            // 详细调试：检查最终参数
+                            console.log('Final params:', { user_id: user_id.value, offset, limit: currentPageSize });
+
+                            // 检查token是否存在
+                            if (!token.value) {
+                                console.error('Error: No token, cannot load files');
+                                ElMessage?.error?.('用户未登录，请重新登录');
+                                fileListLoading.value = false;
+                                return;
+                            }
+
+                            console.log('Loading files with params:', { offset, limit: currentPageSize, search: searchKeyword.value.trim() });
+
+                            // 优化网络请求：使用缓存头和压缩
+                            const res = await api.get('/files', {
+                                params: { offset, limit: currentPageSize, search: searchKeyword.value.trim(), _t: Date.now() },
+                                signal: controller.signal,
+                                headers: {
+                                    'Cache-Control': 'no-cache',
+                                    'Pragma': 'no-cache'
+                                }
+                            });
+                            clearTimeout(timeoutId);
+                            console.log('Files response:', res.data);
+
+                            // 检查响应状态
+                            if (!res.data || typeof res.data !== 'object') {
+                                console.error('Invalid response format:', res.data);
+                                ElMessage?.error?.('服务器返回了无效的响应格式');
+                                fileListLoading.value = false;
+                                return;
+                            }
+
+                            // 检查错误信息
+                            if (res.data.error) {
+                                console.error('Server error:', res.data.error);
+                                // 如果是401错误，可能是token过期
+                                if (res.data.error.includes('Unauthorized') || res.data.error.includes('401')) {
+                                    token.value = '';
+                                    username.value = '';
+                                    localStorage.clear();
+                                    ElMessage?.error?.('登录已过期，请重新登录');
+                                } else {
+                                    ElMessage?.error?.(`加载文件列表失败: ${res.data.error}`);
+                                }
+                                fileListLoading.value = false;
+                                return;
+                            }
+
+                            // 检查数据完整性
+                            if (res.data.files && Array.isArray(res.data.files)) {
+                                // 直接使用后端返回的文件名（后端已经进行过URL解码）
+                                const processedFiles = res.data.files.map(f => ({
+                                    ...f,
+                                    is_public: !!f.is_public,
+                                    filename: f.filename || ''
+                                    // thumb_url 优先使用后端返回的，否则用旧逻辑生成
+                                }));
+
+                                // 更新文件列表
+                                if (forceRefresh) {
+                                    files.value = processedFiles;
+                                } else {
+                                    // 检查是否有新文件（只在第一页时添加新文件到列表顶部）
+                                    if (page.value === 1) {
+                                        const newFiles = processedFiles.filter(newFile =>
+                                            !files.value.some(existingFile => existingFile.file_id === newFile.file_id)
+                                        );
+                                        if (newFiles.length > 0) {
+                                            // 将新文件添加到列表顶部
+                                            files.value = [...newFiles, ...files.value];
+                                        }
+                                    } else {
+                                        // 如果不是第一页，完全替换列表（因为可能跨页）
+                                        files.value = processedFiles;
+                                    }
+                                }
+
+                                // 使用服务器返回的total，而不是files.length
+                                total.value = res.data.total || 0;
+
+                                if (total.value === 0 && files.value.length > 0) {
+                                    console.warn('Warning: Server returned files but total is 0');
+                                }
+
+                                console.log(`Loaded ${files.value.length} files, total: ${total.value}`);
+                            } else {
+                                console.error('Files response missing files array:', res.data);
+                                ElMessage?.error?.('服务器返回的文件列表格式不正确');
+                                files.value = [];
+                            }
+                        } catch (err) {
+                            console.error('Load files error:', err);
+                            clearTimeout(timeoutId);
+
+                            // 如果是取消错误，直接返回，不要重试
+                            if (err.name === 'AbortError' || err.message.includes('canceled')) {
+                                console.log('Request was aborted, not retrying');
+                                fileListLoading.value = false;
+                                isLoading = false;
+                                return;
+                            }
+
+                            // 如果是第一次加载且出现 401，延迟 1 秒后自动重试一次
+                            if (forceRefresh && page.value === 1 && err.response?.status === 401) {
+                                console.warn('[loadFiles] First load got 401, retrying after 1s...');
+                                setTimeout(() => {
+                                    loadFiles(true).catch(retryErr => {
+                                        console.error('Retry failed:', retryErr);
+                                        if (!retryErr.response || retryErr.response.status !== 401) {
+                                            fileListLoading.value = false;
+                                        }
+                                    });
+                                }, 1000);
+                                return;
+                            }
+
+                            // 工业级错误处理：3次重试机制
+                            let retryCount = 0;
+                            const maxRetries = 3;
+                            let lastError = err;
+
+                            // 重新计算offset，确保在catch块中可用
+                            const currentPage = page.value || 1;
+                            const currentPageSize = pageSize.value || 10;
+                            const offset = (currentPage - 1) * currentPageSize;
+
+                            while (retryCount < maxRetries) {
+                                retryCount++;
+                                console.log(`Retry ${retryCount}/${maxRetries} for loading files...`);
+
+                                // 为每次重试创建新的AbortController
+                                const retryController = new AbortController();
+                                const retryTimeoutId = setTimeout(() => retryController.abort(), 5000); // 增加超时时间到5秒
+
+                                try {
+                                    const res = await api.get('/files', {
+                                        params: { offset, limit: currentPageSize, search: searchKeyword.value.trim(), _t: Date.now() },
+                                        signal: retryController.signal,
+                                        headers: {
+                                            'Cache-Control': 'no-cache',
+                                            'Pragma': 'no-cache'
+                                        }
+                                    });
+                                    clearTimeout(retryTimeoutId);
+
+                                    if (res.data.files && Array.isArray(res.data.files)) {
+                                        const processedFiles = res.data.files.map(f => ({
+                                            ...f,
+                                            is_public: !!f.is_public,
+                                            filename: (f.filename && f.filename.includes('%')) ?
+                                                decodeURIComponent(f.filename) : (f.filename || '')
+                                        }));
+
+                                        if (forceRefresh) {
+                                            files.value = processedFiles;
+                                        } else {
+                                            const newFiles = processedFiles.filter(newFile =>
+                                                !files.value.some(existingFile => existingFile.file_id === newFile.file_id)
+                                            );
+                                            if (newFiles.length > 0) {
+                                                files.value = [...newFiles, ...files.value];
+                                            }
+                                        }
+
+                                        total.value = res.data.total || 0;
+                                        break;
+                                    }
+                                } catch (retryErr) {
+                                    lastError = retryErr;
+                                    if (retryCount >= maxRetries) break;
+                                    // 指数退避重试
+                                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+                                } finally {
+                                    // 确保清除重试的超时
+                                    clearTimeout(retryTimeoutId);
+                                }
+                            }
+
+                            // 如果重试失败，使用缓存数据或显示错误
+                            if (files.value.length > 0) {
+                                fileListLoading.value = false;
+                            } else {
+                                if (lastError.response?.status !== 401) {
+                                    ElMessage?.error?.('加载文件列表失败: ' + (lastError.response?.data?.error || lastError.message));
+                                }
+                            }
+                        } finally {
+                            fileListLoading.value = false;
+                            isLoading = false;
+                            clearTimeout(timeoutId);
+                        }
+                    };
+
+                    const copyLink = (fileId, fullUrl = false) => {
+                        const url = fullUrl ? window.location.origin + getFileUrl(fileId) : getFileUrl(fileId);
+
+                        if (navigator.clipboard && window.isSecureContext) {
+                            navigator.clipboard.writeText(url).then(() => {
+                                ElMessage?.success?.('链接已复制到剪贴板');
+                            }).catch(() => {
+                                fallbackCopy(url);
+                            });
+                        } else {
+                            fallbackCopy(url);
+                        }
+                    };
+
+                    const fallbackCopy = (text) => {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = text;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        try {
+                            document.execCommand('copy');
+                            ElMessage?.success?.('链接已复制');
+                        } catch (err) {
+                            ElMessage?.error?.('复制失败，请手动复制');
+                        }
+                        document.body.removeChild(textArea);
+                    };
+
+                    const togglePublic = async (file) => {
+                        try {
+                            const res = await api.put(`/file/${file.file_id}/public`);
+                            if (res.data.status === 'success') {
+                                const newState = !!res.data.is_public;
+                                file.is_public = newState;
+                                const idx = files.value.findIndex(f => f.file_id === file.file_id);
+                                if (idx !== -1) {
+                                    files.value[idx].is_public = newState;
+                                }
+                                ElMessage?.success?.(`文件已设为 ${newState ? '公开' : '私有'}`);
+                            } else {
+                                ElMessage?.error?.('操作失败');
+                            }
+                        } catch (err) {
+                            ElMessage?.error?.('操作失败');
+                        }
+                    };
+
+                    // 删除文件
+                    const handleDelete = async (file) => {
+                        try {
+                            const res = await api.delete(`/file/${file.file_id}`);
+                            if (res.data.status === 'success') {
+                                // 从列表中移除
+                                const idx = files.value.findIndex(f => f.file_id === file.file_id);
+                                if (idx !== -1) {
+                                    files.value.splice(idx, 1);
+                                }
+                                total.value = Math.max(0, total.value - 1);
+                                ElMessage?.success?.(`${file.filename} 已删除`);
+                                if (files.value.length === 0 && page.value > 1) {
+                                    page.value--;
+                                }
+                            } else {
+                                ElMessage?.error?.(res.data.error || '删除失败');
+                            }
+                        } catch (err) {
+                            const errorMsg = err.response?.data?.error || err.message || '删除失败';
+                            ElMessage?.error?.(errorMsg);
+                        }
+                    };
+
+                    // 搜索文件
+                    const handleSearch = async () => {
+                        page.value = 1;
+                        loadFiles(true);
+                    };
+
+                    const clearSearch = () => {
+                        searchKeyword.value = '';
+                        page.value = 1;
+                        loadFiles(true);
+                    };
+
+                    let searchTimer = null;
+                    const onSearchInput = () => {
+                        if (searchTimer) clearTimeout(searchTimer);
+                        searchTimer = setTimeout(handleSearch, 400);
+                    };
+
+                    // 上传功能
+                    const addToUploadQueue = (file) => {
+                        const item = {
+                            id: nextUploadId++,
+                            name: file.name,
+                            progress: 0,
+                            status: 'pending',
+                            file,
+                            speed: '',
+                            eta: '',
+                            statusText: '准备上传...'
+                        };
+                        uploadQueue.value.push(item);
+                        uploadFileItem(item);
+                    };
+
+                    const triggerFileInput = () => fileInput.value.click();
+                    const handleFileChange = (e) => {
+                        Array.from(e.target.files).forEach(f => addToUploadQueue(f));
+                        e.target.value = '';
+                    };
+
+                    const handleDrop = (e) => {
+                        dragOver.value = false;
+                        Array.from(e.dataTransfer.files).forEach(f => addToUploadQueue(f));
+                    };
+
+                    const handlePaste = (e) => {
+                        // Only handle paste when logged in and modal is not open
+                        if (!token.value || showAuthModal.value) return;
+
+                        const clipboardData = e.clipboardData || e.originalEvent?.clipboardData;
+                        if (!clipboardData) return;
+
+                        const items = clipboardData.items;
+                        for (let i = 0; i < items.length; i++) {
+                            const item = items[i];
+                            if (item.kind === 'file') {
+                                e.preventDefault();
+                                let file = item.getAsFile();
+                                if (!file) continue;
+
+                                // Handle pasted images without names
+                                if (!file.name || file.name === 'image.png') {
+                                    const ext = file.type.split('/').pop() || 'png';
+                                    file = new File([file], `粘贴_${dayjs().format('YYYYMMDD_HHmmss')}.${ext}`, { type: file.type });
+                                }
+                                addToUploadQueue(file);
+                            }
+                        }
+                    };
+
+                    const uploadFileItem = async (item) => {
+                        const { file, name } = item;
+                        item.status = 'uploading';
+                        item.statusText = '正在上传...';
+                        item.speed = '';
+                        item.eta = '';
+
+                        const startTime = Date.now();
+                        let isCancelled = false;
+
+                        // ========== 智能上传路由 ==========
+                        const shouldUseDirect = uploadOptimizer.shouldUseDirectUpload(file.size);
+                        console.log(`[Upload] ${name}: ${uploadOptimizer.formatFileSize(file.size)}, Strategy: ${shouldUseDirect ? 'Direct to MinIO' : 'Proxy via Backend'}`);
+
+                        try {
+                            let res;
+
+                            if (shouldUseDirect) {
+                                // ========== 大文件直传策略 ==========
+                                res = await uploadDirectWithRetry(file, name, item, () => isCancelled);
+                            } else {
+                                // ========== 小文件代理策略 ==========
+                                res = await uploadViaProxy(file, name, item, () => isCancelled);
+                            }
+
+                            if (res?.file_id) {
+                                const uploadDuration = Date.now() - startTime;
+                                const avgSpeed = Math.round((file.size / 1024) / (uploadDuration / 1000));
+
+                                item.status = 'success';
+                                item.progress = 100;
+                                item.speed = formatSpeed(avgSpeed);
+                                item.statusText = '上传完成';
+                                item.eta = '';
+
+                                // 从上传队列移除
+                                const idx = uploadQueue.value.findIndex(i => i.id === item.id);
+                                if (idx !== -1) uploadQueue.value.splice(idx, 1);
+
+                                // 创建文件对象并添加到列表
+                                const newFile = {
+                                    file_id: res.file_id,
+                                    filename: file.name,
+                                    size: file.size,
+                                    mime_type: res.mime_type || file.type || 'application/octet-stream',
+                                    upload_time: Math.floor(Date.now() / 1000),
+                                    is_public: false,
+                                    download_url: res.download_url || '',
+                                    presign_url: res.presign_url || ''
+                                };
+
+                                files.value.unshift(newFile);
+                                total.value += 1;
+
+                                Vue.nextTick(() => ElMessage?.success?.(`${file.name} 上传成功`));
+
+                                // 静默刷新文件列表
+                                setTimeout(async () => {
+                                    try {
+                                        const controller = new AbortController();
+                                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+                                        const refreshRes = await api.get('/files', {
+                                            params: { offset: 0, limit: pageSize.value, _t: Date.now() },
+                                            signal: controller.signal
+                                        });
+                                        clearTimeout(timeoutId);
+                                        if (refreshRes.data?.files) {
+                                            const serverFiles = refreshRes.data.files.map(f => ({
+                                                ...f, is_public: !!f.is_public, filename: f.filename || ''
+                                            }));
+                                            if (serverFiles.some(f => f.file_id === newFile.file_id)) {
+                                                files.value = serverFiles;
+                                                total.value = refreshRes.data.total || 0;
+                                            }
+                                        }
+                                    } catch (e) { console.log('Background refresh skipped'); }
+                                }, 500);
+                            } else {
+                                throw new Error(res?.error || '上传失败');
+                            }
+                        } catch (err) {
+                            item.status = 'error';
+                            item.statusText = '上传失败';
+                            const errorMsg = err.response?.data?.error || err.message || '上传失败';
+                            console.error('Upload error:', err);
+                            const idx = uploadQueue.value.findIndex(i => i.id === item.id);
+                            if (idx !== -1) uploadQueue.value.splice(idx, 1);
+                            Vue.nextTick(() => ElMessage?.error?.(`${name} ${errorMsg}`));
+                        }
+                    };
+
+                    // ========== 工业级上传优化辅助函数 ==========
+
+                    // 小文件代理上传
+                    const uploadViaProxy = async (file, name, item, isCancelledFn) => {
+                        return new Promise((resolve, reject) => {
+                            let lastLoaded = 0;
+                            let lastUpdateTime = Date.now();
+                            const xhr = new XMLHttpRequest();
+                            xhr.timeout = 60 * 60 * 1000;
+
+                            xhr.addEventListener('abort', () => reject(new Error('上传已取消')));
+
+                            xhr.upload.addEventListener('progress', (e) => {
+                                if (isCancelledFn() || !e.lengthComputable) return;
+
+                                const loaded = e.loaded;
+                                const total = e.total;
+                                const currentTime = Date.now();
+
+                                const currentProgress = Math.round((loaded * 100) / total);
+                                if (currentProgress !== item.progress) {
+                                    item.progress = currentProgress;
+                                    if (currentProgress === 100) {
+                                        item.statusText = '已上传，正在处理...';
+                                    }
+                                }
+
+                                if (currentTime - lastUpdateTime >= UPLOAD_CONFIG.SPEED_SAMPLE_WINDOW) {
+                                    const timeDiff = (currentTime - lastUpdateTime) / 1000;
+                                    const loadedDiff = loaded - lastLoaded;
+                                    if (loadedDiff > 0 && timeDiff > 0) {
+                                        const speedKB = Math.round((loadedDiff / 1024) / timeDiff * 10) / 10;
+                                        item.speed = formatSpeed(speedKB);
+                                        const remainingBytes = total - loaded;
+                                        if (speedKB > 0 && remainingBytes > 0) {
+                                            item.eta = formatETA(Math.round(remainingBytes / (speedKB * 1024)));
+                                        }
+                                    }
+                                    lastLoaded = loaded;
+                                    lastUpdateTime = currentTime;
+                                }
+                            });
+
+                            xhr.addEventListener('error', () => reject(new Error('网络错误')));
+                            xhr.addEventListener('timeout', () => reject(new Error('上传超时')));
+
+                            xhr.addEventListener('load', () => {
+                                if (isCancelledFn()) return;
+                                if (xhr.status >= 200 && xhr.status < 300) {
+                                    try {
+                                        resolve(JSON.parse(xhr.responseText));
+                                    } catch (e) {
+                                        reject(new Error('响应解析失败'));
+                                    }
+                                } else {
+                                    try {
+                                        const resp = JSON.parse(xhr.responseText);
+                                        reject(new Error(resp.error || `HTTP ${xhr.status}`));
+                                    } catch (e) {
+                                        reject(new Error(`HTTP ${xhr.status}`));
+                                    }
+                                }
+                            });
+
+                            xhr.open('POST', `${API_BASE}/upload?filename=${encodeURIComponent(name)}`, true);
+                            xhr.setRequestHeader('Authorization', `Bearer ${token.value}`);
+                            xhr.setRequestHeader('X-File-Name', encodeURIComponent(name));
+                            xhr.setRequestHeader('X-File-Size', file.size.toString());
+                            xhr.setRequestHeader('X-File-Type', file.type || 'application/octet-stream');
+                            xhr.send(file);
+                        });
+                    };
+
+                    // 单块直传
+                    const uploadSingleChunk = async (file, uploadUrl, item, isCancelledFn) => {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), UPLOAD_CONFIG.CHUNK_UPLOAD_TIMEOUT);
+
+                        try {
+                            // 模拟进度更新（直传没有内置进度）
+                            const progressInterval = setInterval(() => {
+                                if (isCancelledFn()) {
+                                    clearInterval(progressInterval);
+                                    return;
+                                }
+                                if (item.progress < 90) {
+                                    item.progress += Math.floor(Math.random() * 5) + 1;
+                                    item.statusText = '正在直传...';
+                                }
+                            }, 1000);
+
+                            const response = await fetch(uploadUrl, {
+                                method: 'PUT',
+                                body: file,
+                                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                                signal: controller.signal
+                            });
+
+                            clearInterval(progressInterval);
+                            clearTimeout(timeoutId);
+                            item.progress = 100;
+                            return response.ok;
+                        } catch (error) {
+                            clearTimeout(timeoutId);
+                            throw error;
+                        }
+                    };
+
+                    // 大文件直传（带重试）
+                    const uploadDirectWithRetry = async (file, name, item, isCancelledFn) => {
+                        const maxRetries = UPLOAD_CONFIG.MAX_RETRY_ATTEMPTS;
+
+                        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                            try {
+                                if (isCancelledFn()) throw new Error('上传已取消');
+
+                                // 步骤1：请求预签名URL
+                                item.statusText = '准备直传...';
+                                const presignRes = await api.post('/upload/request', {
+                                    filename: name,
+                                    content_type: file.type || 'application/octet-stream',
+                                    size: file.size
+                                });
+
+                                if (presignRes.data?.error) throw new Error(presignRes.data.error);
+
+                                const { file_id, upload_url } = presignRes.data;
+                                console.log(`[Direct Upload] Got URL for ${name}`);
+
+                                // 步骤2：直传到MinIO
+                                item.statusText = '正在直传...';
+                                const uploadSuccess = await uploadSingleChunk(file, upload_url, item, isCancelledFn);
+
+                                if (!uploadSuccess) throw new Error('直传失败');
+
+                                // 步骤3：确认上传
+                                item.statusText = '确认上传...';
+                                const confirmRes = await api.post('/upload/confirm', {
+                                    file_id,
+                                    filename: name,
+                                    content_type: file.type || 'application/octet-stream',
+                                    size: file.size
+                                });
+
+                                if (confirmRes.data?.error) throw new Error(confirmRes.data.error);
+                                return confirmRes.data;
+
+                            } catch (error) {
+                                console.error(`[Direct Upload] Attempt ${attempt + 1} failed:`, error.message);
+                                if (attempt >= maxRetries) throw error;
+                                const delay = uploadOptimizer.getRetryDelay(attempt);
+                                item.statusText = `上传失败，${Math.round(delay/1000)}秒后重试...`;
+                                await new Promise(r => setTimeout(r, delay));
+                            }
+                        }
+                    };
+
+                    // 用户命令处理
+                    const handleUserCommand = (cmd) => {
+                        switch (cmd) {
+                            case 'logout':
+                                handleLogout();
+                                break;
+                            case 'stats':
+                                const stats = {
+                                    totalFiles: files.value.length,
+                                    totalSize: files.value.reduce((s, f) => s + (f.size || 0), 0),
+                                    todayUploads: files.value.filter(f =>
+                                        dayjs(f.upload_time * 1000).isSame(dayjs(), 'day')
+                                    ).length
+                                };
+                                ElNotification?.success?.({
+                                    title: '使用统计',
+                                    message: `文件总数: ${stats.totalFiles}\n总大小: ${formatSize(stats.totalSize)}\n今日上传: ${stats.todayUploads}`,
+                                });
+                                break;
+                            case 'shortcuts':
+                                ElNotification?.info?.({
+                                    title: '快捷键',
+                                    message: 'Ctrl+K: 搜索\nCtrl+O: 上传文件\nCtrl+R: 刷新\nCtrl+S: 统计',
+                                    duration: 4000
+                                });
+                                break;
+                        }
+                    };
+
+                    // 分页处理方法
+                    const handlePageChange = (newPage) => {
+                        page.value = newPage;
+                        loadFiles(true);
+                    };
+
+                    const handlePageSizeChange = (newSize) => {
+                        pageSize.value = newSize;
+                        page.value = 1; // 重置到第一页
+                        loadFiles(true);
+                    };
+
+                    // 挂载时加载文件
+                    onMounted(() => {
+                        // 加载站点统计（无论登录与否）
+                        loadStats();
+
+                        // 设置粘贴事件监听
+                        document.addEventListener('paste', handlePaste);
+
+                        // 背景图片轮播
+                        const storedToken = localStorage.getItem('token');
+                        const storedUserId = localStorage.getItem('user_id');
+
+                        console.log('[onMounted] storedToken:', storedToken ? storedToken.substring(0, 20) + '...' : 'MISSING');
+                        console.log('[onMounted] token.value:', token.value ? token.value.substring(0, 20) + '...' : 'EMPTY');
+                        console.log('[onMounted] storedUserId:', storedUserId);
+                        console.log('[onMounted] user_id.value:', user_id.value);
+
+                        // 如果 localStorage 有 token 但 ref 没有，强制同步
+                        if (storedToken && !token.value) {
+                            console.log('[onMounted] Syncing token from localStorage');
+                            token.value = storedToken;
+                        }
+
+                        if (token.value) {
+                            // 从 localStorage 获取 user_id
+                            let storedUserIdNum = parseInt(storedUserId || '0');
+                            console.log('[onMounted] storedUserId from localStorage:', storedUserIdNum);
+
+                            // 如果 user_id 为 0，尝试从 token 解析
+                            if (storedUserIdNum === 0) {
+                                const tokenParts = token.value.split('-');
+                                if (tokenParts.length > 0) {
+                                    const parsedUserId = parseInt(tokenParts[0]);
+                                    if (!isNaN(parsedUserId) && parsedUserId > 0) {
+                                        user_id.value = parsedUserId;
+                                        console.log('[onMounted] Parsed user_id from token:', user_id.value);
+                                    } else {
+                                        console.warn('[onMounted] Could not parse user_id, parts:', tokenParts);
+                                    }
+                                }
+                            } else {
+                                user_id.value = storedUserIdNum;
+                                console.log('[onMounted] Using stored user_id:', user_id.value);
+                            }
+
+                            console.log('[onMounted] Final user_id:', user_id.value);
+
+                            // 只有 user_id 有效才加载文件
+                            if (user_id.value > 0) {
+                                loadFiles(true);
+                            } else {
+                                console.error('[onMounted] Invalid user_id:', user_id.value);
+                                ElMessage?.error?.('用户ID无效，请重新登录');
+                            }
+                        } else {
+                            console.log('[onMounted] No token - showing login screen');
+                        }
+                    });
+
+                    return {
+                        // 主题
+                        isDark, toggleTheme,
+
+                        // 认证
+                        token, username, activeTab, showAuthModal,
+                        loginLoading, registerLoading,
+                        loginForm, registerForm,
+                        loginRules, registerRules,
+
+                        // 统计
+                        stats,
+
+                        // 文件管理
+                        files, fileListLoading,
+                        page, pageSize, total,
+                        searchKeyword,
+                        uploadQueue, dragOver, fileInput,
+                        previewImage, detailFile,
+
+                        // 工具方法
+                        bgImages, currentBgIndex,
+                        formatDate, formatSize, formatSpeed, formatETA,
+                        isImageFile, getFileIconClass,
+                        getFileColor, getFileExtension,
+                        getFileUrl, getImageSrc, handleImageError,
+                        openImagePreview, closeImagePreview,
+                        openFileDetail, closeFileDetail, previewFromDetail,
+                        getShareUrl, copyText,
+                        togglePublicAndRefresh, handleDeleteFromDetail,
+
+                        // 操作方法
+                        handleLogin, handleLoginModal,
+                        handleRegister, handleRegisterModal,
+                        handleLogout, loadFiles,
+                        copyLink, togglePublic, handleDelete,
+                        triggerFileInput, handleFileChange,
+                        handleDrop, handlePaste,
+                        handleUserCommand,
+                        handlePageChange, handlePageSizeChange,
+                        handleSearch, clearSearch, onSearchInput,
+
+                        // 邮箱注册相关方法
+                        emailRegisterForm, emailRegisterRules,
+                        emailRegisterLoading, codeSending, countdown,
+                        sendVerificationCode, handleEmailRegister, handleEmailRegisterModal
+                    };
+                }
+            });
+
+            try {
+                app.use(ElementPlus);
+                app.mount('#app');
+                console.log('AeroImageHost 应用初始化成功');
+            } catch (e) {
+                console.error('应用挂载失败:', e);
+                showError(`应用初始化失败: ${e.message}`);
+            }
+        }
+
+        // 如果页面已经加载完成，立即初始化
+        if (document.readyState === 'complete') {
+            initAeroImageHost();
+        }
+    })();
+</script>
+</body>
+</html>
