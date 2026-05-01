@@ -189,7 +189,7 @@ class AeroQueue {
 | 场景 | 预期表现 | 说明 |
 |------|----------|------|
 | **小文件上传** | < 500ms | 1MB 以内文件，包含元数据存储 |
-| **大文件上传** | 网络带宽限制 | 100MB 文件约 8-10 秒（100Mbps 带宽）|
+| **大文件上传** | 网络带宽限制 | 100MB 文件约 3-4 秒（300Mbps 带宽）|
 | **文件列表查询** | < 200ms | 1000 文件以内，带分页 |
 | **文件搜索** | < 300ms | 基于文件名的模糊匹配 |
 | **并发处理** | 200-300 QPS | 4 核 4GB 环境下的稳定并发能力 |
@@ -339,6 +339,14 @@ cat > ../config.json << EOF
     "secret_key": "minioadmin",
     "bucket": "aero-images",
     "public_url": "http://localhost:8082/api/i/"
+  },
+  "smtp": {
+    "server": "smtp.qq.com",
+    "port": 465,
+    "username": "your_email@qq.com",
+    "password": "your_smtp_authorization_code",
+    "secure": true,
+    "from": "your_email@qq.com"
   },
   "log": {
     "file": "./logs/server.log",
@@ -530,12 +538,23 @@ Authorization: Bearer {your_token}
     "public_url": "http://localhost:8082/api/i/"
   },
 
+  "smtp": {
+    "server": "smtp.qq.com",
+    "port": 465,
+    "username": "your_email@qq.com",
+    "password": "your_smtp_authorization_code",
+    "secure": true,
+    "from": "your_email@qq.com"
+  },
+
   "log": {
     "file": "./logs/server.log",
     "flush_interval": 3
   }
 }
 ```
+
+> **注意**: `smtp` 配置用于邮箱验证码注册功能。`password` 填写邮箱的 SMTP 授权码（非登录密码），QQ 邮箱可在「设置 → 账户 → POP3/SMTP 服务」中开启并获取。
 
 ### 配置项说明
 
@@ -559,6 +578,12 @@ Authorization: Bearer {your_token}
 | `minio.public_url` | string | http://localhost:8082/api/i/ | 文件公开访问 URL 前缀 |
 | `log.file` | string | ./logs/server.log | 日志文件路径 |
 | `log.flush_interval` | integer | 3 | 日志刷新间隔（秒） |
+| `smtp.server` | string | smtp.qq.com | SMTP 服务器地址 |
+| `smtp.port` | integer | 465 | SMTP 端口（465 为 SSL，587 为 STARTTLS） |
+| `smtp.username` | string | - | 发件人邮箱地址 |
+| `smtp.password` | string | - | 邮箱 SMTP 授权码（非登录密码） |
+| `smtp.secure` | boolean | true | 是否使用 SSL 加密 |
+| `smtp.from` | string | - | 发件人显示邮箱（通常与 username 相同） |
 
 ## 🗃️ 数据库设计
 
