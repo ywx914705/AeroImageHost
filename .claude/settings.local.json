@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(curl -sL -o \"X:/AeroImageHost/docs/logo.png\" \"https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29\" --max-time 10)"
+      "Bash(curl -sL -o \"X:/AeroImageHost/docs/logo.png\" \"https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29\" --max-time 10)",
+      "Bash(apt list *)",
+      "Bash(dpkg -l)"
     ]
   }
 }
