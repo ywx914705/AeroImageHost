@@ -178,7 +178,7 @@ class AeroQueue {
 - **CPU**: 4 核 Intel Xeon (云服务器标准配置)
 - **内存**: 4GB RAM
 - **存储**: SSD 云盘
-- **网络**: 100Mbps 带宽
+- **网络**: 300Mbps 带宽
 - **OS**: Ubuntu 22.04 LTS
 - **部署方式**: Docker Compose 单机部署
 
@@ -358,6 +358,41 @@ EOF
 # 6. 启动服务
 ./AeroImageHost ../config.json
 ```
+
+### 方法三：Nginx 反向代理（生产推荐）
+
+本地编译或 Docker 部署后，建议使用 Nginx 反向代理，提供 HTTPS、静态资源缓存、请求限制等功能。
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    client_max_body_size 100M;  # 限制上传文件大小
+
+    # 静态资源缓存
+    location /assets/ {
+        alias /path/to/AeroImageHost/www/assets/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # API 反向代理
+    location /api/ {
+        proxy_pass http://127.0.0.1:8082/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # 前端页面
+    location / {
+        root /path/to/AeroImageHost/www;
+        try_files $uri /index.html;
+    }
+}
+```
+
+> **提示**: 如需 HTTPS，可通过 Let's Encrypt 申请免费证书，或使用 Cloudflare 等 CDN 服务。
 
 ## 📖 API 文档
 
@@ -807,7 +842,6 @@ redis-cli ping
 - [ ] 管理员面板增强
 - [ ] 图片 EXIF 信息提取
 - [ ] 用户配额管理
-- [ ] API 限流和频率控制
 - [ ] WebP/AVIF 自动转换
 - [ ] 文件预览功能
 
@@ -869,7 +903,7 @@ redis-cli ping
 **A**: MinIO 支持集群部署，可通过添加更多节点水平扩展。数据库支持读写分离，可通过主从复制扩展。
 
 ### Q6: 是否有 API 限流？
-**A**: 当前版本尚未实现 API 限流，计划在 v1.5 版本中添加。可通过 Nginx 等反向代理实现临时限流。
+**A**: 通过 Nginx 反向代理实现，配置 `client_max_body_size` 限制上传文件大小，同时可配置 `limit_req_zone` 实现请求频率限制。
 
 ## 📞 支持与反馈
 
