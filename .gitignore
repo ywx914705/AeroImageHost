@@ -17,6 +17,9 @@ Thumbs.db
 logs/
 *.log
 
+# Config (contains passwords)
+config.json
+
 # Package files (remove if you need to commit these)
 *.deb
 *.tar.gz

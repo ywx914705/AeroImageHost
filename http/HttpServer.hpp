@@ -21,6 +21,7 @@ private:
     void handleUpload(web::http::http_request request);
     void handleListFiles(web::http::http_request request);
     void handleDeleteFile(web::http::http_request request);
+    void handleBatchDeleteFiles(web::http::http_request request);
     void handleGetFile(web::http::http_request request);
     void handleShare(web::http::http_request request);
     void handleSetPublic(web::http::http_request request);  // 新增

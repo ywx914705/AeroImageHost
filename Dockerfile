@@ -49,5 +49,5 @@ RUN chown -R 1001:1001 /app
 USER 1001
 
 # 配置和启动
-EXPOSE 8080
+EXPOSE 8082
 CMD ["./AeroImageHost"]

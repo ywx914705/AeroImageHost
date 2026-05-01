@@ -1,5 +1,13 @@
 # 🚀 AeroImageHost - 高性能现代化图床系统
 
+<div align="center">
+  <img src="docs/logo.png" alt="AeroImageHost Logo" width="140" style="border-radius: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
+  <br><br>
+  <p><strong>极速 · 安全 · 可靠的现代化图床系统</strong></p>
+  <p>C++17 后端 · MinIO 分布式存储 · Redis 会话管理 · Docker 一键部署</p>
+  <br>
+</div>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus)](https://isocpp.org/)
 [![CMake](https://img.shields.io/badge/CMake-3.10+-064F8C.svg?logo=cmake)](https://cmake.org/)
@@ -9,14 +17,14 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker)](https://www.docker.com/)
 [![libvips](https://img.shields.io/badge/libvips-8.0+-f5a3b8.svg?logo=vips)](https://github.com/libvips/libvips)
 
-**AeroImageHost** 是一个用 **C++17** 编写的高性能现代化图床系统，采用微服务架构设计，集成了 MySQL、MinIO、Redis 等技术栈。系统提供完整的用户认证、文件管理、图片处理和分布式存储功能，支持 Docker 一键部署，适用于个人、团队和企业级文件托管需求。
+**AeroImageHost** 是一个用 **C++17** 编写的高性能现代化图床系统，采用组件化单体架构设计，集成了 MySQL、MinIO、Redis 等技术栈。系统提供完整的用户认证、文件管理、图片处理和分布式存储功能，支持 Docker 一键部署，适用于个人、团队和企业级文件托管需求。
 
 ## ✨ 核心亮点
 
 | 特性 | 描述 | 优势 |
 |------|------|------|
 | **⚡ 极速性能** | C++17 + 连接池 + 异步处理 | 轻量级设计，内存占用 < 100MB |
-| **🔒 双模式上传** | 直接上传 + 预签名 URL | 减轻服务端负载，支持大文件分片 |
+| **🔒 双模式上传** | 直接上传 + 预签名 URL | 减轻服务端负载，支持大文件直传 |
 | **🖼️ 智能图片处理** | libvips 驱动缩略图 | 内存占用少，处理速度比 ImageMagick 快 10 倍 |
 | **🎯 精准搜索** | 文件名模糊搜索 + 分页 | 支持复杂查询条件 |
 | **🌐 分布式存储** | MinIO 对象存储 | S3 兼容，支持水平扩展和高可用 |
@@ -33,14 +41,15 @@
 
 ### 📤 文件上传与管理
 - **双上传模式**: 
-  - **直接上传**: 适合小文件 (< 100MB)
+  - **直接上传**: 适合小文件 (< 100MB)，服务端中转上传
   - **预签名 URL**: 大文件直传 MinIO，减轻服务端负载
 - **文件类型检测**: 智能 MIME 类型识别，防止恶意文件
-- **批量操作**: 支持文件列表、搜索、删除、权限切换
+- **文件操作**: 支持文件列表、搜索、删除、公开/私有切换
+- **批量管理**: 支持多选、全选、批量删除文件
 - **智能缩略图**: 按需生成，支持自定义尺寸 (如 `?w=200&h=200`)
 
 ### 🏗️ 系统架构
-- **微服务设计**: 组件解耦，易于维护和扩展
+- **组件化设计**: 模块解耦，易于维护和扩展
 - **连接池管理**: MySQL (32 连接) + Redis (16 连接) 双连接池
 - **异步日志**: 高性能异步日志系统，不影响主业务
 - **健康检查**: 完善的 Docker 健康检查机制
@@ -49,7 +58,7 @@
 - **完整 API 文档**: RESTful 接口设计，易于集成
 - **Docker 化**: 生产环境一键部署
 - **详细日志**: 多级别日志输出，便于调试
-- **配置灵活**: JSON 配置文件，支持环境变量覆盖
+- **配置灵活**: JSON 配置文件，按需修改
 
 ## 🏗️ 系统架构详解
 
@@ -158,7 +167,7 @@ class RedisClient {
 // AeroQueue：基于并发队列的异步任务处理器
 class AeroQueue {
     // 多线程任务分发
-    // 任务优先级调度
+    // FIFO 队列处理
     // 优雅关闭机制
 };
 ```
@@ -173,7 +182,7 @@ class AeroQueue {
 - **OS**: Ubuntu 22.04 LTS
 - **部署方式**: Docker Compose 单机部署
 
-> 💡 **注意**: 以下性能数据基于实际代码架构分析得出，代表在标准云服务器上可稳定达到的性能水平。
+> 💡 **注意**: 以下性能数据基于实际代码架构分析得出，代表在标准云服务器上可稳定达到的性能水平。建议使用 wrk 或 ab 工具进行实际压测验证。
 
 ### 预期性能表现
 
@@ -237,15 +246,17 @@ class AeroQueue {
 | **连接池** | 自定义实现 | - | MySQL/Redis 连接管理 |
 | **异步任务** | 并发队列 | 自定义 | 异步处理 |
 | **日志系统** | 异步日志 | 自定义 | 结构化日志 |
+| **INI 解析** | iniparser | - | MinIO SDK 依赖 |
+| **XML 解析** | pugixml | - | XML 处理 |
+| **C++ CURL 封装** | curlpp | - | HTTP 客户端封装 |
 
 ### 前端技术栈
 | 组件 | 技术选型 | 版本 | 用途 |
 |------|----------|------|------|
-| **框架** | Vue.js | 3.x | 前端应用 |
-| **UI 组件** | Element Plus | 2.x | 现代化 UI |
-| **HTTP 客户端** | Axios | 1.x | API 请求 |
-| **构建工具** | Vite | 5.x | 构建和开发 |
-| **打包工具** | Rollup | 4.x | 生产打包 |
+| **框架** | Vue.js (CDN) | 3.x | 前端应用 |
+| **UI 组件** | Element Plus (CDN) | 2.x | 现代化 UI |
+| **HTTP 客户端** | Axios (CDN) | 1.x | API 请求 |
+| **图标库** | Font Awesome (CDN) | 6.x | 矢量图标 |
 
 ## 🚀 快速开始
 
@@ -391,6 +402,7 @@ curl -X POST http://localhost:8082/api/auth/login \
 | `POST` | `/api/upload/confirm` | 确认预签名上传完成 | 是 |
 | `GET` | `/api/files?offset=0&limit=20&search=` | 获取文件列表 | 是 |
 | `DELETE` | `/api/file/{file_id}` | 删除文件 | 是 |
+| `POST` | `/api/files/batch-delete` | 批量删除文件 | 是 |
 | `PUT` | `/api/file/{file_id}/public` | 切换文件公开/私有 | 是 |
 | `POST` | `/api/share/{file_id}` | 获取文件分享链接 | 否 |
 | `GET` | `/api/i/{file_id}?w=200&h=200` | 访问文件（支持缩略图） | 否* |
@@ -449,6 +461,23 @@ curl "http://localhost:8082/api/files?offset=0&limit=20&search=photo" \
     }
   ],
   "total": 42
+}
+```
+
+#### 示例：批量删除文件
+```bash
+curl -X POST http://localhost:8082/api/files/batch-delete \
+  -H "Authorization: Bearer your_token_here" \
+  -H "Content-Type: application/json" \
+  -d '{"file_ids": ["uuid1", "uuid2", "uuid3"]}'
+```
+
+**响应：**
+```json
+{
+  "status": "success",
+  "deleted_count": 3,
+  "failed_count": 0
 }
 ```
 
@@ -538,14 +567,16 @@ Authorization: Bearer {your_token}
 CREATE TABLE users (
     id INT NOT NULL AUTO_INCREMENT,
     account VARCHAR(64) NOT NULL,
-    password_hash VARCHAR(256) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY account (account),
     UNIQUE KEY email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
+
+> **注意**: `email` 字段由 `schema/email_verification.sql` 通过 `ALTER TABLE` 添加。`init.sql` 初始建表时不包含该字段。
 
 ### files 表 - 文件元数据
 ```sql
@@ -561,11 +592,17 @@ CREATE TABLE files (
     upload_time BIGINT NOT NULL,
     is_public TINYINT(1) DEFAULT 0,
     view_count BIGINT DEFAULT 0,
+    allow_domains VARCHAR(512) DEFAULT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY file_id (file_id),
-    KEY idx_user_id (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    KEY user_id (user_id),
+    KEY upload_time (upload_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
+
+> **注意**: 
+> - `allow_domains` 字段存在于数据库中，当前版本代码尚未使用此字段（预留扩展）
+> - `FileMeta.hpp` 中定义了 `md5` 字段，但数据库表和代码中均未使用（死代码，建议后续清理）
 
 ### email_verifications 表 - 邮箱验证码
 ```sql
@@ -577,8 +614,10 @@ CREATE TABLE email_verifications (
     created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     used TINYINT(1) DEFAULT 0,
     PRIMARY KEY (id),
-    INDEX idx_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    INDEX idx_email (email),
+    INDEX idx_code (verification_code),
+    INDEX idx_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
 ## 📁 项目结构
@@ -589,6 +628,7 @@ AeroImageHost/
 ├── Dockerfile                   # Docker 镜像构建
 ├── docker-compose.yml           # Docker 服务编排
 ├── .gitignore                   # Git 忽略规则
+├── config.json                  # 本地开发配置（.gitignore 排除，不提交到 Git）
 ├── main.cc                      # 主程序入口
 │
 ├── config/                      # 配置模块
@@ -597,8 +637,8 @@ AeroImageHost/
 │   └── config-docker.json       # Docker 环境配置
 │
 ├── http/                        # HTTP 服务层
-│   ├── HttpServer.cc            # 路由分发与请求处理
-│   ├── HttpServer.hpp
+│   ├── HttpServer.cc            # HTTP 服务器实现
+│   ├── HttpServer.hpp           # HTTP 服务器头文件
 │   ├── Handlers.cc              # 业务逻辑处理函数
 │   ├── Handlers.hpp
 │   ├── Auth.cc                  # Token 认证模块
@@ -617,16 +657,11 @@ AeroImageHost/
 │   └── ImageProcessor.hpp
 │
 ├── src/                         # 基础设施
-│   ├── AeroQueue.cc             # 异步任务队列
-│   ├── AeroQueue.hpp
-│   ├── ConnectionPool.cc        # MySQL 连接池
-│   ├── ConnectionPool.hpp
+│   ├── AeroQueue.cc             # 异步任务队列实现
+│   ├── ConnectionPool.cc        # MySQL 连接池实现
 │   ├── DBManager.cc             # 数据库管理器
-│   ├── DBManager.hpp
-│   ├── Log.cc                   # 异步日志系统
-│   ├── Log.hpp
-│   ├── RedisClient.cc           # Redis 客户端
-│   └── RedisClient.hpp
+│   ├── Log.cc                   # 异步日志系统实现
+│   └── RedisClient.cc           # Redis 客户端实现
 │
 ├── utils/                       # 工具类
 │   ├── Utils.cc                 # URL 编解码、UUID 生成等
@@ -634,62 +669,67 @@ AeroImageHost/
 │   ├── EmailSender.cpp          # 邮件发送
 │   └── EmailSender.hpp
 │
-├── include/                     # 第三方头文件
-│   ├── rapidjson/               # JSON 解析库
-│   ├── concurrentqueue.hpp      # 并发队列
+├── include/                     # 第三方/公共头文件
+│   ├── AeroQueue.hpp            # 异步任务队列头文件
 │   ├── ConnectionPool.hpp       # 连接池接口
-│   ├── DBManager.hpp
-│   ├── Handlers.hpp
-│   └── Log.hpp
+│   ├── DBManager.hpp            # 数据库管理器头文件
+│   ├── Log.hpp                  # 日志系统头文件
+│   ├── RedisClient.hpp          # Redis 客户端头文件
+│   ├── Handlers.hpp             # 处理器头文件（旧版本，已被 http/Handlers.hpp 替代）
+│   ├── concurrentqueue.hpp      # 无锁并发队列库
+│   └── rapidjson/               # RapidJSON 库
+│       ├── document.h           # JSON 文档解析
+│       ├── writer.h             # JSON 写入
+│       ├── schema.h             # JSON Schema 验证
+│       └── ...                  # 其他 RapidJSON 组件
 │
 ├── schema/                      # SQL 脚本
-│   ├── init.sql                 # 基础表结构
+│   ├── init.sql                 # 基础表结构（users, files）
 │   ├── email_verification.sql   # 邮箱验证表
-│   └── migrate.sql              # 迁移脚本
+│   ├── migrate.sql              # 迁移脚本
+│   └── clean_data.sql           # 数据清理脚本
 │
 └── www/                         # 前端页面
-    ├── index.html               # SPA 入口
-    ├── assets/                  # 静态资源
-    └── js/                      # JavaScript 文件
+    ├── index.html               # Vue 3 SPA 入口 (使用在线 CDN 引入依赖)
+    └── assets/                  # 前端静态资源备份（实际使用在线 CDN）
+        ├── vue.global.prod.js   # Vue 3 生产版本（本地备份）
+        ├── index.full.js        # Element Plus 完整版（本地备份）
+        ├── element-plus.js      # Element Plus JS（本地备份）
+        ├── element-plus.css     # Element Plus 样式（本地备份）
+        ├── axios.min.js         # Axios HTTP 客户端（本地备份）
+        ├── dayjs.min.js         # Day.js 时间处理（本地备份）
+        ├── all.min.css          # Font Awesome 样式（本地备份）
+        ├── font-awesome.css     # Font Awesome 自定义样式（本地备份）
+        └── fa-*.woff2           # Font Awesome 字体文件（本地备份）
 ```
 
 ## 📈 性能优化详解
 
 ### 1. 连接池优化
-- **智能连接验证**: 每次获取连接时自动检查连接有效性
+- **智能连接验证**: 每次获取连接时自动检查连接有效性 (`ensureValidConnection`)
 - **超时保护**: 连接获取超时设置为 5 秒，避免死锁
 - **自动重连**: 连接失效时自动重建
 - **泄漏预防**: 使用 RAII 模式确保连接释放
 
 ### 2. 异步处理架构
 - **任务队列**: 基于 `concurrentqueue.hpp` 的无锁队列
-- **线程池**: 固定大小线程池处理异步任务
+- **线程池**: 默认 4 个工作线程处理异步任务（可配置）
 - **非阻塞 I/O**: 使用异步 HTTP 处理，支持高并发
-- **批处理**: 数据库操作批量执行，减少网络开销
 
 ### 3. 内存管理
-- **智能缓冲**: 文件上传使用流式处理，避免大内存占用
-- **对象池**: 常用对象缓存复用
-- **智能释放**: 使用智能指针管理资源生命周期
+- **流式处理**: 文件上传使用流式读取，避免大内存占用
+- **RAII 资源管理**: 使用智能指针和 RAII 模式确保资源释放（如 `std::shared_ptr<UserInfo>`、`std::unique_ptr<http_listener>`）
 
 ### 4. 图像处理优化
 - **libvips 优势**: 使用 libvips 替代 ImageMagick，内存占用减少 90%
-- **懒加载**: 缩略图按需生成，缓存结果
+- **按需生成**: 缩略图在请求时实时生成，不预先处理
 - **多格式支持**: 支持 JPEG、PNG、WebP 等多种格式
 
 ## 🔍 监控与日志
 
 ### 日志系统
 - **异步写入**: 日志异步写入，不影响业务性能
-- **多级别**: DEBUG、INFO、WARN、ERROR 四级日志
-- **结构化**: 结构化日志格式，便于分析
-- **自动轮转**: 支持日志文件自动轮转
-
-### 监控指标
-- **系统指标**: CPU、内存、磁盘使用率
-- **业务指标**: QPS、响应时间、错误率
-- **存储指标**: 文件数量、总存储量、用户数量
-- **网络指标**: 带宽使用、连接数、请求分布
+- **多级别输出**: DEBUG、INFO、WARN、ERROR 四个级别
 
 ### 健康检查
 ```bash
@@ -732,11 +772,11 @@ redis-cli ping
 - [x] MySQL + Redis 双连接池
 - [x] Docker 一键部署
 - [x] RESTful API 设计
-- [x] 异步日志系统
-- [x] 多线程异步任务队列
+- [x] 异步日志系统（双缓冲机制）
+- [x] 异步任务队列（4 工作线程 + 无锁 FIFO 队列）
+- [x] 批量文件管理（多选、全选、批量删除）
 
 ### 🚧 v1.5 规划中
-- [ ] 批量文件管理功能
 - [ ] 文件分类和标签系统
 - [ ] 上传进度监控
 - [ ] 管理员面板增强
@@ -771,21 +811,6 @@ redis-cli ping
 - **注释要求**: 关键算法和复杂逻辑需要注释
 - **提交信息**: 使用 Conventional Commits 格式
 
-### 开发环境搭建
-```bash
-# 1. 安装依赖
-./scripts/install-deps.sh
-
-# 2. 配置环境
-cp config.json.example config.json
-
-# 3. 启动开发服务
-./scripts/dev-start.sh
-
-# 4. 运行测试
-./scripts/run-tests.sh
-```
-
 ## 📚 学习资源
 
 ### 技术文档
@@ -810,7 +835,7 @@ cp config.json.example config.json
 **A**: 预签名 URL 允许客户端直接上传到 MinIO，绕过服务器中转，大大减轻服务器负载，特别适合大文件上传和 CDN 集成。
 
 ### Q3: 如何保证文件安全性？
-**A**: 1) 私有文件需要 Token 认证访问；2) 支持文件类型检测；3) 使用 UUID 作为文件名防止猜测；4) 支持 HTTPS 传输加密。
+**A**: 1) 私有文件需要 Token 认证访问；2) 支持文件类型检测；3) 使用 UUID 作为文件名防止猜测；4) 建议通过 Nginx 反向代理启用 HTTPS。
 
 ### Q4: 支持哪些图片格式？
 **A**: 支持 JPEG、PNG、GIF、WebP 等常见格式。使用 libvips 处理，支持格式丰富，处理速度快。
@@ -826,12 +851,6 @@ cp config.json.example config.json
 ### 问题反馈
 1. **GitHub Issues**: 报告 Bug 或提出功能请求
 2. **讨论区**: 参与技术讨论
-3. **邮件**: 发送邮件至 support@aeroimagehost.com
-
-### 社区支持
-- **QQ 群**: [待创建]
-- **Telegram**: [待创建]
-- **Discord**: [待创建]
 
 ## 📄 开源协议
 
@@ -847,11 +866,6 @@ cp config.json.example config.json
 - ⚠️ 保留版权声明
 - ⚠️ 包含许可证副本
 
-### 注意事项
-- 本项目不承担任何直接或间接的使用风险
-- 贡献代码即表示您同意按照 MIT 协议授权
-- 商标和品牌名称归各自所有者所有
-
 ## 🙏 致谢
 
 感谢所有为 AeroImageHost 做出贡献的开发者！
@@ -864,8 +878,8 @@ cp config.json.example config.json
 - [RapidJSON](https://rapidjson.org/) - 快速 JSON 解析器
 
 ### 贡献者
-<a href="https://github.com/your-username/AeroImageHost/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=your-username/AeroImageHost" />
+<a href="https://github.com/ywx914705/AeroImageHost/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ywx914705/AeroImageHost" />
 </a>
 
 ---
@@ -876,11 +890,10 @@ cp config.json.example config.json
 
 **高性能 · 现代化 · 易于部署**
 
-[📖 查看文档](https://github.com/your-username/AeroImageHost/wiki) |
-[🐛 报告问题](https://github.com/your-username/AeroImageHost/issues) |
-[💬 参与讨论](https://github.com/your-username/AeroImageHost/discussions)
+[🐛 报告问题](https://github.com/ywx914705/AeroImageHost/issues) |
+[💬 参与讨论](https://github.com/ywx914705/AeroImageHost/discussions)
 
-[![GitHub stars](https://img.shields.io/github/stars/your-username/AeroImageHost?style=social)](https://github.com/your-username/AeroImageHost/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/your-username/AeroImageHost?style=social)](https://github.com/your-username/AeroImageHost/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/network/members)
 
 </div>

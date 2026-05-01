@@ -72,6 +72,7 @@ target_link_libraries(${PROJECT_NAME}
     miniocpp
     curlpp
     pugixml
+    iniparser
     curl
     z
 )

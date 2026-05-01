@@ -268,6 +268,92 @@
     .skeleton-line.short { width: 60%; }
     .skeleton-line.tiny { width: 35%; height: 10px; }
 
+    /* 批量操作工具栏 */
+    .batch-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.8rem 1.2rem;
+        margin-bottom: 1rem;
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 1rem;
+        border: 1px solid var(--border-card);
+        box-shadow: var(--shadow-sm);
+    }
+    .batch-toolbar-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .batch-toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .selected-count {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--accent);
+        background: var(--accent-light);
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        border: 1px solid var(--accent-border);
+    }
+    .batch-toolbar .action-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .batch-toolbar .action-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .batch-toolbar .action-btn.danger:not(:disabled) {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    .batch-toolbar .action-btn.danger:not(:disabled):hover {
+        background: #ef4444;
+        color: white;
+    }
+
+    /* 文件卡片复选框 */
+    .file-card { position: relative; }
+    .file-checkbox {
+        position: absolute;
+        top: 0.8rem;
+        left: 0.8rem;
+        z-index: 10;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    .file-card:hover .file-checkbox,
+    .file-checkbox .el-checkbox--checked {
+        opacity: 1;
+    }
+    .file-checkbox .el-checkbox__inner {
+        border-radius: 6px;
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(4px);
+    }
+    .file-checkbox .el-checkbox__input.is-checked .el-checkbox__inner {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
+    [data-theme="dark"] .file-checkbox .el-checkbox__inner {
+        border-color: rgba(30, 41, 59, 0.8);
+        background: rgba(30, 41, 59, 0.6);
+    }
+
     .image-preview-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; cursor: zoom-out; animation: fadeIn 0.25s ease; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     .image-preview-overlay img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
@@ -1231,6 +1317,18 @@
                             <span class="landing-tag">毛玻璃效果</span>
                         </div>
                     </div>
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(239,68,68,0.12); color: #ef4444;">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <h3 class="landing-feature-title">批量管理</h3>
+                        <p class="landing-feature-desc">支持文件多选、全选、批量删除，一键管理多个文件，高效清理存储空间。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">多选操作</span>
+                            <span class="landing-tag">全选/反选</span>
+                            <span class="landing-tag">批量删除</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1525,12 +1623,33 @@
 
                 <!-- 文件列表 -->
                 <div v-loading="fileListLoading">
+                    <!-- 批量操作工具栏 -->
+                    <div v-if="files.length > 0" class="batch-toolbar">
+                        <div class="batch-toolbar-left">
+                            <el-checkbox v-model="isAllSelected" @change="handleSelectAll">全选</el-checkbox>
+                            <span v-if="selectedFiles.length > 0" class="selected-count">已选择 {{ selectedFiles.length }} 个文件</span>
+                        </div>
+                        <div class="batch-toolbar-right">
+                            <el-popconfirm title="确定要删除选中的文件吗？此操作不可恢复。" confirm-button-text="确定删除" cancel-button-text="取消" confirm-button-type="danger" @confirm="handleBatchDelete">
+                                <template #reference>
+                                    <button class="action-btn danger" :disabled="selectedFiles.length === 0">
+                                        <i class="fas fa-trash-alt"></i>
+                                        <span>批量删除</span>
+                                    </button>
+                                </template>
+                            </el-popconfirm>
+                        </div>
+                    </div>
+
                     <div v-if="files.length === 0" class="empty-state">
                         <i class="fas fa-cloud-upload-alt" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;"></i>
                         <p style="font-size: 1.1rem; font-weight: 500;">还没有文件，快来上传第一个吧 ✨</p>
                     </div>
                     <div v-else class="file-grid">
                         <div v-for="file in files" :key="file.file_id" class="file-card" @click="openFileDetail(file)">
+                            <div class="file-checkbox" @click.stop>
+                                <el-checkbox v-model="file.selected" @change="handleFileSelect(file)"></el-checkbox>
+                            </div>
                             <div class="file-thumb">
                                 <img v-if="isImageFile(file)" :src="getImageSrc(file)" :alt="file.filename" loading="lazy" @error="handleImageError" />
                                 <div v-else class="file-icon-container">
@@ -2100,6 +2219,10 @@
                     const showAuthModal = ref(false); // 登录/注册弹窗
                     const stats = reactive({ total_users: 0, total_files: 0, total_images: 0 }); // 站点统计
 
+                    // 批量操作
+                    const isAllSelected = ref(false);
+                    const selectedFiles = ref([]);
+
                     // 时间格式化
                     const formatDate = (timestamp) => {
                         if (!timestamp) return '';
@@ -2639,7 +2762,8 @@
                                 const processedFiles = res.data.files.map(f => ({
                                     ...f,
                                     is_public: !!f.is_public,
-                                    filename: f.filename || ''
+                                    filename: f.filename || '',
+                                    selected: false
                                     // thumb_url 优先使用后端返回的，否则用旧逻辑生成
                                 }));
 
@@ -2735,7 +2859,8 @@
                                             ...f,
                                             is_public: !!f.is_public,
                                             filename: (f.filename && f.filename.includes('%')) ?
-                                                decodeURIComponent(f.filename) : (f.filename || '')
+                                                decodeURIComponent(f.filename) : (f.filename || ''),
+                                            selected: false
                                         }));
 
                                         if (forceRefresh) {
@@ -2845,6 +2970,49 @@
                             }
                         } catch (err) {
                             const errorMsg = err.response?.data?.error || err.message || '删除失败';
+                            ElMessage?.error?.(errorMsg);
+                        }
+                    };
+
+                    // 批量操作方法
+                    const handleSelectAll = (val) => {
+                        files.value.forEach(f => { f.selected = val; });
+                        if (val) {
+                            selectedFiles.value = files.value.map(f => f.file_id);
+                        } else {
+                            selectedFiles.value = [];
+                        }
+                    };
+
+                    const handleFileSelect = (file) => {
+                        if (file.selected) {
+                            if (!selectedFiles.value.includes(file.file_id)) {
+                                selectedFiles.value.push(file.file_id);
+                            }
+                        } else {
+                            const idx = selectedFiles.value.indexOf(file.file_id);
+                            if (idx !== -1) selectedFiles.value.splice(idx, 1);
+                        }
+                        isAllSelected.value = selectedFiles.value.length === files.value.length;
+                    };
+
+                    const handleBatchDelete = async () => {
+                        if (selectedFiles.value.length === 0) return;
+                        try {
+                            const res = await api.post('/files/batch-delete', { file_ids: selectedFiles.value });
+                            if (res.data.status === 'success') {
+                                ElMessage?.success?.(`成功删除 ${res.data.deleted_count} 个文件`);
+                                if (res.data.failed_count > 0) {
+                                    ElMessage?.warning?.(`${res.data.failed_count} 个文件删除失败`);
+                                }
+                                selectedFiles.value = [];
+                                isAllSelected.value = false;
+                                loadFiles(true);
+                            } else {
+                                ElMessage?.error?.(res.data.error || '批量删除失败');
+                            }
+                        } catch (err) {
+                            const errorMsg = err.response?.data?.error || err.message || '批量删除失败';
                             ElMessage?.error?.(errorMsg);
                         }
                     };
@@ -3286,6 +3454,10 @@
                         searchKeyword,
                         uploadQueue, dragOver, fileInput,
                         previewImage, detailFile,
+
+                        // 批量操作
+                        isAllSelected, selectedFiles,
+                        handleSelectAll, handleFileSelect, handleBatchDelete,
 
                         // 工具方法
                         bgImages, currentBgIndex,

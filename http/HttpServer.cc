@@ -90,6 +90,9 @@ void HttpServer::handleAll(http_request request) {
     else if (method == methods::DEL && path_str.find("/api/file/") == 0) {
         handleDeleteFile(request);
     }
+    else if (method == methods::POST && path_str == "/api/files/batch-delete") {
+        handleBatchDeleteFiles(request);
+    }
     else if (method == methods::GET && path_str.find("/api/i/") == 0) {
         handleGetFile(request);
     }
@@ -258,6 +261,35 @@ void HttpServer::handleDeleteFile(http_request request) {
 
     auto respJson = ::handleDeleteFile(user->user_id, file_id);
     replyJsonWithCors(request, status_codes::OK, respJson);
+}
+
+void HttpServer::handleBatchDeleteFiles(http_request request) {
+    auto user = Auth::verify(request);
+    if (!user) {
+        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
+
+    request.extract_json().then([=](json::value json) {
+        if (!json.has_field(U("file_ids")) || !json[U("file_ids")].is_array()) {
+            replyErrorWithCors(request, status_codes::BadRequest, U("Missing file_ids array"));
+            return;
+        }
+
+        std::vector<std::string> file_ids;
+        auto file_ids_json = json[U("file_ids")].as_array();
+        for (const auto& id : file_ids_json) {
+            file_ids.push_back(utility::conversions::to_utf8string(id.as_string()));
+        }
+
+        if (file_ids.empty()) {
+            replyErrorWithCors(request, status_codes::BadRequest, U("file_ids is empty"));
+            return;
+        }
+
+        auto respJson = ::handleBatchDeleteFiles(user->user_id, file_ids);
+        replyJsonWithCors(request, status_codes::OK, respJson);
+    }).wait();
 }
 
 void HttpServer::handleShare(http_request request) {

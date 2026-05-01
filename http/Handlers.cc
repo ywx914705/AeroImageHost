@@ -189,6 +189,38 @@ web::json::value handleDeleteFile(int user_id, const std::string& file_id) {
     return docToJsonValue(resp);
 }
 
+web::json::value handleBatchDeleteFiles(int user_id, const std::vector<std::string>& file_ids) {
+    Document resp; resp.SetObject();
+    int success_count = 0;
+    int fail_count = 0;
+
+    for (const auto& file_id : file_ids) {
+        FileMeta meta = FileMetaDAO::instance().get(file_id);
+        if (meta.file_id.empty()) {
+            fail_count++;
+            continue;
+        }
+        if (meta.user_id != user_id) {
+            fail_count++;
+            continue;
+        }
+        if (!MinIOClient::instance().deleteObject(file_id)) {
+            fail_count++;
+            continue;
+        }
+        if (!FileMetaDAO::instance().del(file_id)) {
+            fail_count++;
+            continue;
+        }
+        success_count++;
+    }
+
+    resp.AddMember("status", "success", resp.GetAllocator());
+    resp.AddMember("deleted_count", success_count, resp.GetAllocator());
+    resp.AddMember("failed_count", fail_count, resp.GetAllocator());
+    return docToJsonValue(resp);
+}
+
 std::pair<std::vector<char>, std::string> handleGetFile(const std::string& file_id, bool check_auth, int user_id, const std::string& user_agent) {
     FileMeta meta = FileMetaDAO::instance().get(file_id);
     if (meta.file_id.empty()) return { {}, "" };
