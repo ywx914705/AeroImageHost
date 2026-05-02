@@ -26,6 +26,10 @@ public:
     // 下载对象到内存（用于缩略图生成）
     bool getObject(const std::string& key, std::vector<char>& data);
 
+    // 拼接多个对象为一个（用于分片上传合并）
+    bool composeObjects(const std::string& destKey, const std::string& contentType,
+                        const std::vector<std::string>& sourceKeys);
+
 private:
     std::string endpoint_;
     std::string accessKey_;

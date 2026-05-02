@@ -111,7 +111,6 @@ std::string urlDecode(const std::string& value) {
 // 根据文件扩展名获取正确的 MIME 类型
 bool isAttachmentType(const std::string& mime_type) {
     static const std::unordered_set<std::string> attachmentMimes = {
-        "application/pdf",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.ms-excel",

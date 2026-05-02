@@ -20,5 +20,9 @@ web::json::value handleConfirmUpload(int user_id, const std::string& file_id, co
 web::json::value handleStats();
 web::json::value handleSendVerificationCode(const std::string& email);
 web::json::value handleEmailRegister(const std::string& account, const std::string& password, const std::string& email, const std::string& code);
+web::json::value handleMultipartInit(int user_id, const std::string& filename, const std::string& content_type, size_t file_size);
+web::json::value handleMultipartComplete(int user_id, const std::string& upload_id, const std::string& filename, const std::string& content_type, size_t file_size, int total_chunks);
+web::json::value handleMultipartCleanup(int user_id, const std::string& upload_id);
+web::json::value handleGetPresignUrl(int user_id, const std::string& file_id);
 
 #endif

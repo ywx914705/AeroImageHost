@@ -32,4 +32,9 @@ private:
     // 邮箱注册相关
     void handleSendVerificationCode(web::http::http_request request);
     void handleEmailRegister(web::http::http_request request);
+    // 分片上传
+    void handleMultipartInit(web::http::http_request request);
+    void handleMultipartComplete(web::http::http_request request);
+    void handleMultipartCleanup(web::http::http_request request);
+    void handleGetPresignUrlRoute(web::http::http_request request);
 };

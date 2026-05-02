@@ -13,11 +13,15 @@
 #include "EmailSender.hpp"
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
+#include <chrono>
 #include <rapidjson/stringbuffer.h>
 #include <openssl/evp.h>
 #include <sstream>
 #include <iomanip>
 #include <cpprest/json.h>
+#include <future>
+#include <utility>
+#include "AeroQueue.hpp"
 
 using namespace rapidjson;
 
@@ -30,7 +34,14 @@ web::json::value docToJsonValue(const Document& doc) {
     try {
         return web::json::value::parse(json);
     } catch (const std::exception& e) {
-        LOG_ERROR("docToJsonValue parse error: " + std::string(e.what()) + ", json: " + json.substr(0, 200));
+        LOG_ERROR("docToJsonValue parse error: " + std::string(e.what()) + ", json_len=" + std::to_string(json.size()));
+        // 打印完整 JSON 用于调试（截断保护）
+        if (json.size() > 500) {
+            LOG_ERROR("docToJsonValue json head: " + json.substr(0, 500));
+            LOG_ERROR("docToJsonValue json tail: " + json.substr(json.size() - 200));
+        } else {
+            LOG_ERROR("docToJsonValue json: " + json);
+        }
         web::json::value err;
         err["error"] = web::json::value::string("JSON parse error");
         return err;
@@ -74,6 +85,7 @@ static bool uploadFileToMinIO(const std::string& file_id, const std::vector<char
 }
 
 web::json::value handleUpload(int user_id, const std::string& filename, const std::vector<char>& file_data, const std::string& content_type) {
+    auto uploadStart = std::chrono::steady_clock::now();
     size_t maxSize = static_cast<size_t>(Config::instance().getInt("max_file_size", 100 * 1024 * 1024));
     if (file_data.size() > maxSize) {
         Document resp; resp.SetObject();
@@ -82,7 +94,7 @@ web::json::value handleUpload(int user_id, const std::string& filename, const st
     }
 
     std::string ext = getFileExtension(filename);
-    std::vector<std::string> allowed = {"jpg","jpeg","png","gif","webp","pdf","doc","docx","xls","xlsx","ppt","pptx","txt","zip","rar","7z"};
+    std::vector<std::string> allowed = {"jpg","jpeg","png","gif","webp","pdf","doc","docx","xls","xlsx","ppt","pptx","txt","zip","rar","7z","mp4","mov","avi","mkv","webm","mp3","wav","flac","ogg"};
     if (!isAllowedExtension(ext, allowed)) {
         Document resp; resp.SetObject();
         resp.AddMember("error", "File type not allowed", resp.GetAllocator());
@@ -110,27 +122,44 @@ web::json::value handleUpload(int user_id, const std::string& filename, const st
     meta.upload_time = time(nullptr);
     meta.is_public = false;
 
-    if (!FileMetaDAO::instance().save(meta)) {
+    // 并行执行：MySQL 元数据保存 + MinIO 文件上传
+    auto mysqlFuture = std::async(std::launch::async, [&meta]() {
+        return FileMetaDAO::instance().save(meta);
+    });
+    auto minioFuture = std::async(std::launch::async, [&file_id, &file_data, &detected_mime]() {
+        return uploadFileToMinIO(file_id, file_data, detected_mime);
+    });
+
+    bool mysqlOk = mysqlFuture.get();
+    bool minioOk = minioFuture.get();
+    auto afterParallel = std::chrono::steady_clock::now();
+
+    if (!mysqlOk) {
         Document resp; resp.SetObject();
         resp.AddMember("error", "Failed to save metadata", resp.GetAllocator());
         return docToJsonValue(resp);
     }
-
-    if (!uploadFileToMinIO(file_id, file_data, detected_mime)) {
+    if (!minioOk) {
         FileMetaDAO::instance().del(file_id);
         Document resp; resp.SetObject();
         resp.AddMember("error", "MinIO upload failed", resp.GetAllocator());
         return docToJsonValue(resp);
     }
+    auto afterMinio = afterParallel;
+
+    auto totalMs = std::chrono::duration_cast<std::chrono::milliseconds>(afterMinio - uploadStart).count();
+    LOG_INFO("[Upload] " + filename + " (" + std::to_string(file_data.size()) + " bytes) - total:" +
+             std::to_string(totalMs) + "ms (parallel mysql+minio)");
 
     std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600);
+    std::string downloadUrl = Config::instance().getString("minio.public_url") + file_id;
     Document resp; resp.SetObject();
     resp.AddMember("file_id", StringRef(file_id.c_str()), resp.GetAllocator());
     resp.AddMember("presign_url", StringRef(presignUrl.c_str()), resp.GetAllocator());
     resp.AddMember("filename", StringRef(filename.c_str()), resp.GetAllocator());
     resp.AddMember("size", static_cast<uint64_t>(file_data.size()), resp.GetAllocator());
     resp.AddMember("mime_type", StringRef(detected_mime.c_str()), resp.GetAllocator());
-    resp.AddMember("download_url", StringRef((Config::instance().getString("minio.public_url") + file_id).c_str()), resp.GetAllocator());
+    resp.AddMember("download_url", StringRef(downloadUrl.c_str()), resp.GetAllocator());
     return docToJsonValue(resp);
 }
 
@@ -152,8 +181,19 @@ web::json::value handleListFiles(int user_id, int offset, int limit, const std::
         obj.AddMember("upload_time", static_cast<int64_t>(f.upload_time), resp.GetAllocator());
         obj.AddMember("is_public", (f.is_public != 0), resp.GetAllocator());
         obj.AddMember("view_count", static_cast<uint64_t>(f.view_count), resp.GetAllocator());
-        std::string pubUrl = Config::instance().getString("minio.public_url") + f.file_id;
-        obj.AddMember("download_url", StringRef(pubUrl.c_str()), resp.GetAllocator());
+        // 使用 Value 拷贝构造，避免 StringRef 悬空指针
+        {
+            std::string pubUrl = Config::instance().getString("minio.public_url") + f.file_id;
+            Value downloadUrlVal;
+            downloadUrlVal.SetString(pubUrl.c_str(), pubUrl.size(), resp.GetAllocator());
+            obj.AddMember("download_url", downloadUrlVal, resp.GetAllocator());
+        }
+        // 标记需要预览的文件类型（前端按需请求 presign_url）
+        std::string mime = f.mime_type;
+        bool needsPreview = (mime.find("pdf") != std::string::npos ||
+                             mime.find("video") != std::string::npos ||
+                             mime.find("audio") != std::string::npos);
+        obj.AddMember("needs_preview", needsPreview, resp.GetAllocator());
         filesArr.PushBack(obj, resp.GetAllocator());
     }
     resp.AddMember("files", filesArr, resp.GetAllocator());
@@ -191,29 +231,91 @@ web::json::value handleDeleteFile(int user_id, const std::string& file_id) {
 
 web::json::value handleBatchDeleteFiles(int user_id, const std::vector<std::string>& file_ids) {
     Document resp; resp.SetObject();
-    int success_count = 0;
-    int fail_count = 0;
 
-    for (const auto& file_id : file_ids) {
-        FileMeta meta = FileMetaDAO::instance().get(file_id);
-        if (meta.file_id.empty()) {
-            fail_count++;
-            continue;
+    // 1. 批量查询验证归属权（1次SQL替代N次）
+    MYSQL* conn = ConnectionPool::getInstance().getConnection();
+    std::vector<std::string> valid_ids;
+    if (conn && !file_ids.empty()) {
+        std::string placeholders;
+        for (size_t i = 0; i < file_ids.size(); ++i) {
+            if (i > 0) placeholders += ",";
+            placeholders += "?";
         }
-        if (meta.user_id != user_id) {
-            fail_count++;
-            continue;
+        std::string sql = "SELECT file_id FROM files WHERE file_id IN (" + placeholders + ") AND user_id = ?";
+        MYSQL_STMT* stmt = mysql_stmt_init(conn);
+        if (stmt && mysql_stmt_prepare(stmt, sql.c_str(), sql.length()) == 0) {
+            std::vector<MYSQL_BIND> params(file_ids.size() + 1);
+            memset(params.data(), 0, params.size() * sizeof(MYSQL_BIND));
+            std::vector<std::string> id_copies(file_ids);
+            for (size_t i = 0; i < file_ids.size(); ++i) {
+                params[i].buffer_type = MYSQL_TYPE_STRING;
+                params[i].buffer = (char*)id_copies[i].c_str();
+                params[i].buffer_length = id_copies[i].size();
+            }
+            params[file_ids.size()].buffer_type = MYSQL_TYPE_LONG;
+            params[file_ids.size()].buffer = &user_id;
+            mysql_stmt_bind_param(stmt, params.data());
+
+            if (mysql_stmt_execute(stmt) == 0) {
+                char fid_buf[64] = {0};
+                MYSQL_BIND result; memset(&result, 0, sizeof(result));
+                result.buffer_type = MYSQL_TYPE_STRING;
+                result.buffer = fid_buf;
+                result.buffer_length = sizeof(fid_buf);
+                mysql_stmt_bind_result(stmt, &result);
+                mysql_stmt_store_result(stmt);
+                while (mysql_stmt_fetch(stmt) == 0) {
+                    valid_ids.push_back(fid_buf);
+                }
+            }
+            mysql_stmt_close(stmt);
         }
-        if (!MinIOClient::instance().deleteObject(file_id)) {
-            fail_count++;
-            continue;
-        }
-        if (!FileMetaDAO::instance().del(file_id)) {
-            fail_count++;
-            continue;
-        }
-        success_count++;
+        ConnectionPool::getInstance().releaseConnection(conn);
     }
+
+    // 2. 并行删除 MinIO 对象
+    std::vector<std::future<bool>> deleteFutures;
+    deleteFutures.reserve(valid_ids.size());
+    for (const auto& fid : valid_ids) {
+        std::string key = fid;  // 拷贝一份，避免引用被循环覆盖
+        deleteFutures.push_back(std::async(std::launch::async, [key]() {
+            return MinIOClient::instance().deleteObject(key);
+        }));
+    }
+    for (auto& f : deleteFutures) {
+        f.get();
+    }
+
+    // 3. 批量删除 MySQL 记录（1次SQL替代N次）
+    if (!valid_ids.empty()) {
+        conn = ConnectionPool::getInstance().getConnection();
+        if (conn) {
+            std::string placeholders;
+            for (size_t i = 0; i < valid_ids.size(); ++i) {
+                if (i > 0) placeholders += ",";
+                placeholders += "?";
+            }
+            std::string sql = "DELETE FROM files WHERE file_id IN (" + placeholders + ")";
+            MYSQL_STMT* stmt = mysql_stmt_init(conn);
+            if (stmt && mysql_stmt_prepare(stmt, sql.c_str(), sql.length()) == 0) {
+                std::vector<MYSQL_BIND> params(valid_ids.size());
+                memset(params.data(), 0, params.size() * sizeof(MYSQL_BIND));
+                std::vector<std::string> id_copies(valid_ids);
+                for (size_t i = 0; i < valid_ids.size(); ++i) {
+                    params[i].buffer_type = MYSQL_TYPE_STRING;
+                    params[i].buffer = (char*)id_copies[i].c_str();
+                    params[i].buffer_length = id_copies[i].size();
+                }
+                mysql_stmt_bind_param(stmt, params.data());
+                mysql_stmt_execute(stmt);
+            }
+            if (stmt) mysql_stmt_close(stmt);
+            ConnectionPool::getInstance().releaseConnection(conn);
+        }
+    }
+
+    int success_count = static_cast<int>(valid_ids.size());
+    int fail_count = static_cast<int>(file_ids.size()) - success_count;
 
     resp.AddMember("status", "success", resp.GetAllocator());
     resp.AddMember("deleted_count", success_count, resp.GetAllocator());
@@ -441,7 +543,7 @@ web::json::value handleRequestUploadUrl(int user_id, const std::string& filename
     }
 
     std::string ext = getFileExtension(filename);
-    std::vector<std::string> allowed = {"jpg","jpeg","png","gif","webp","pdf","doc","docx","xls","xlsx","ppt","pptx","txt","zip","rar","7z"};
+    std::vector<std::string> allowed = {"jpg","jpeg","png","gif","webp","pdf","doc","docx","xls","xlsx","ppt","pptx","txt","zip","rar","7z","mp4","mov","avi","mkv","webm","mp3","wav","flac","ogg"};
     if (!isAllowedExtension(ext, allowed)) {
         Document resp; resp.SetObject();
         resp.AddMember("error", "File type not allowed", resp.GetAllocator());
@@ -493,18 +595,21 @@ web::json::value handleConfirmUpload(int user_id, const std::string& file_id,
     }
 
     std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600);
+    std::string downloadUrl = Config::instance().getString("minio.public_url") + file_id;
     Document resp; resp.SetObject();
     resp.AddMember("file_id", StringRef(file_id.c_str()), resp.GetAllocator());
     resp.AddMember("presign_url", StringRef(presignUrl.c_str()), resp.GetAllocator());
     resp.AddMember("filename", StringRef(filename.c_str()), resp.GetAllocator());
     resp.AddMember("size", static_cast<uint64_t>(file_size), resp.GetAllocator());
     resp.AddMember("mime_type", StringRef(mime_type.c_str()), resp.GetAllocator());
-    resp.AddMember("download_url", StringRef(
-        (Config::instance().getString("minio.public_url") + file_id).c_str()), resp.GetAllocator());
+    resp.AddMember("download_url", StringRef(downloadUrl.c_str()), resp.GetAllocator());
     return docToJsonValue(resp);
 }
 
 web::json::value handleStats() {
+    int total_users = 0, total_files = 0, total_images = 0;
+    long long total_size = 0;
+
     MYSQL* conn = ConnectionPool::getInstance().getConnection();
     if (!conn) {
         LOG_ERROR("handleStats: failed to get database connection");
@@ -513,46 +618,48 @@ web::json::value handleStats() {
         return docToJsonValue(resp);
     }
 
-    int total_users = 0, total_files = 0, total_images = 0;
-    struct { const char* sql; int* out; } queries[] = {
-        {"SELECT COUNT(*) FROM users", &total_users},
-        {"SELECT COUNT(*) FROM files", &total_files},
-        {"SELECT COUNT(*) FROM files WHERE mime_type LIKE 'image/%'", &total_images},
-    };
-
-    for (auto& q : queries) {
+    // 单次查询获取文件统计（数量 + 图片数 + 总大小）
+    {
+        const char* sql = "SELECT COUNT(*), COUNT(CASE WHEN mime_type LIKE 'image/%' THEN 1 END), COALESCE(SUM(size), 0) FROM files";
         MYSQL_STMT* stmt = mysql_stmt_init(conn);
-        if (!stmt) continue;
-        if (mysql_stmt_prepare(stmt, q.sql, strlen(q.sql)) != 0) {
-            LOG_ERROR(std::string("handleStats prepare failed: ") + mysql_stmt_error(stmt));
-            mysql_stmt_close(stmt);
-            continue;
+        if (stmt && mysql_stmt_prepare(stmt, sql, strlen(sql)) == 0 && mysql_stmt_execute(stmt) == 0) {
+            MYSQL_BIND result[3]; memset(result, 0, sizeof(result));
+            result[0].buffer_type = MYSQL_TYPE_LONG; result[0].buffer = &total_files;
+            result[1].buffer_type = MYSQL_TYPE_LONG; result[1].buffer = &total_images;
+            result[2].buffer_type = MYSQL_TYPE_LONGLONG; result[2].buffer = &total_size;
+            mysql_stmt_bind_result(stmt, result);
+            mysql_stmt_store_result(stmt);
+            mysql_stmt_fetch(stmt);
         }
-        if (mysql_stmt_execute(stmt) != 0) {
-            LOG_ERROR(std::string("handleStats execute failed: ") + mysql_stmt_error(stmt));
-            mysql_stmt_close(stmt);
-            continue;
-        }
-        MYSQL_BIND result; memset(&result, 0, sizeof(result));
-        result.buffer_type = MYSQL_TYPE_LONG;
-        result.buffer = q.out;
-        mysql_stmt_bind_result(stmt, &result);
-        mysql_stmt_store_result(stmt);
-        if (mysql_stmt_fetch(stmt) != 0) {
-            LOG_ERROR(std::string("handleStats fetch failed: ") + mysql_stmt_error(stmt));
-        }
-        mysql_stmt_close(stmt);
+        if (stmt) mysql_stmt_close(stmt);
     }
+
+    // 用户统计（复用同一连接）
+    {
+        const char* sql = "SELECT COUNT(*) FROM users";
+        MYSQL_STMT* stmt = mysql_stmt_init(conn);
+        if (stmt && mysql_stmt_prepare(stmt, sql, strlen(sql)) == 0 && mysql_stmt_execute(stmt) == 0) {
+            MYSQL_BIND result; memset(&result, 0, sizeof(result));
+            result.buffer_type = MYSQL_TYPE_LONG; result.buffer = &total_users;
+            mysql_stmt_bind_result(stmt, &result);
+            mysql_stmt_store_result(stmt);
+            mysql_stmt_fetch(stmt);
+        }
+        if (stmt) mysql_stmt_close(stmt);
+    }
+
     ConnectionPool::getInstance().releaseConnection(conn);
 
     LOG_INFO("handleStats: users=" + std::to_string(total_users) +
              " files=" + std::to_string(total_files) +
-             " images=" + std::to_string(total_images));
+             " images=" + std::to_string(total_images) +
+             " size=" + std::to_string(total_size));
 
     Document resp; resp.SetObject();
     resp.AddMember("total_users", total_users, resp.GetAllocator());
     resp.AddMember("total_files", total_files, resp.GetAllocator());
     resp.AddMember("total_images", total_images, resp.GetAllocator());
+    resp.AddMember("total_size", static_cast<int64_t>(total_size), resp.GetAllocator());
     return docToJsonValue(resp);
 }
 
@@ -580,12 +687,14 @@ web::json::value handleSendVerificationCode(const std::string& email) {
         return docToJsonValue(resp);
     }
 
-    // 发送验证码邮件
-    if (!EmailSender::instance().sendVerificationEmail(email, code)) {
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "Failed to send verification email", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
+    // 异步发送验证码邮件（不阻塞请求）
+    std::string emailCopy = email;
+    std::string codeCopy = code;
+    AeroQueue::instance().post([emailCopy, codeCopy]() {
+        if (!EmailSender::instance().sendVerificationEmail(emailCopy, codeCopy)) {
+            LOG_ERROR("[Email] Failed to send verification code to: " + emailCopy);
+        }
+    });
 
     Document resp; resp.SetObject();
     resp.AddMember("status", "success", resp.GetAllocator());
@@ -805,5 +914,139 @@ web::json::value handleEmailRegister(const std::string& account, const std::stri
     Document resp; resp.SetObject();
     resp.AddMember("status", "success", resp.GetAllocator());
     resp.AddMember("message", "Registration successful", resp.GetAllocator());
+    return docToJsonValue(resp);
+}
+
+// ========== 分片上传接口 ==========
+
+web::json::value handleMultipartInit(int user_id, const std::string& filename,
+                                     const std::string& content_type, size_t file_size) {
+    size_t maxSize = static_cast<size_t>(Config::instance().getInt("max_file_size", 100 * 1024 * 1024));
+    if (file_size > maxSize) {
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "File too large", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
+    std::string ext = getFileExtension(filename);
+    std::vector<std::string> allowed = {"jpg","jpeg","png","gif","webp","pdf","doc","docx","xls","xlsx","ppt","pptx","txt","zip","rar","7z","mp4","mov","avi","mkv","webm","mp3","wav","flac","ogg"};
+    if (!isAllowedExtension(ext, allowed)) {
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "File type not allowed", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
+    std::string upload_id = generateUUID();
+    size_t chunk_size = 5 * 1024 * 1024; // 5MB per chunk
+    int total_chunks = static_cast<int>((file_size + chunk_size - 1) / chunk_size);
+
+    Document resp; resp.SetObject();
+    resp.AddMember("upload_id", StringRef(upload_id.c_str()), resp.GetAllocator());
+    resp.AddMember("chunk_size", static_cast<uint64_t>(chunk_size), resp.GetAllocator());
+    resp.AddMember("total_chunks", total_chunks, resp.GetAllocator());
+
+    Value chunksArr(kArrayType);
+    for (int i = 0; i < total_chunks; ++i) {
+        std::string chunk_key = "chunks/" + upload_id + "/" + std::to_string(i);
+        std::string presign_url = MinIOClient::instance().presignPutUrl(chunk_key, 7200);
+
+        Value chunkObj(kObjectType);
+        chunkObj.AddMember("part_number", i, resp.GetAllocator());
+        chunkObj.AddMember("presign_url", StringRef(presign_url.c_str()), resp.GetAllocator());
+        chunksArr.PushBack(chunkObj, resp.GetAllocator());
+    }
+    resp.AddMember("chunks", chunksArr, resp.GetAllocator());
+    return docToJsonValue(resp);
+}
+
+web::json::value handleMultipartComplete(int user_id, const std::string& upload_id,
+                                         const std::string& filename, const std::string& content_type,
+                                         size_t file_size, int total_chunks) {
+    // 直接根据 total_chunks 构造分片 key，避免逐个 objectExists 检查
+    std::vector<std::string> chunk_keys;
+    for (int i = 0; i < total_chunks; ++i) {
+        chunk_keys.push_back("chunks/" + upload_id + "/" + std::to_string(i));
+    }
+
+    if (chunk_keys.empty()) {
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "No chunks found for upload", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
+    std::string file_id = generateUUID();
+    std::string detected_mime = content_type.empty() ? getMimeTypeFromExtension(filename) : content_type;
+
+    // 拼接分片并上传到最终路径
+    if (!MinIOClient::instance().composeObjects(file_id, detected_mime, chunk_keys)) {
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Failed to compose chunks", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
+    // 保存元数据
+    FileMeta meta;
+    meta.file_id = file_id;
+    meta.user_id = user_id;
+    meta.filename = filename;
+    meta.size = file_size;
+    meta.mime_type = detected_mime;
+    meta.width = 0;
+    meta.height = 0;
+    meta.upload_time = time(nullptr);
+    meta.is_public = false;
+
+    if (!FileMetaDAO::instance().save(meta)) {
+        MinIOClient::instance().deleteObject(file_id);
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Failed to save metadata", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
+    // 清理临时分片
+    for (const auto& key : chunk_keys) {
+        MinIOClient::instance().deleteObject(key);
+    }
+
+    std::string presign_url = MinIOClient::instance().presignGetUrl(file_id, 3600);
+    std::string pub_url = Config::instance().getString("minio.public_url") + file_id;
+
+    Document resp; resp.SetObject();
+    resp.AddMember("file_id", StringRef(file_id.c_str()), resp.GetAllocator());
+    resp.AddMember("presign_url", StringRef(presign_url.c_str()), resp.GetAllocator());
+    resp.AddMember("filename", StringRef(filename.c_str()), resp.GetAllocator());
+    resp.AddMember("size", static_cast<uint64_t>(file_size), resp.GetAllocator());
+    resp.AddMember("mime_type", StringRef(detected_mime.c_str()), resp.GetAllocator());
+    resp.AddMember("download_url", StringRef(pub_url.c_str()), resp.GetAllocator());
+    return docToJsonValue(resp);
+}
+
+web::json::value handleMultipartCleanup(int user_id, const std::string& upload_id) {
+    for (int i = 0; i < 1000; ++i) {
+        std::string chunk_key = "chunks/" + upload_id + "/" + std::to_string(i);
+        if (!MinIOClient::instance().objectExists(chunk_key)) break;
+        MinIOClient::instance().deleteObject(chunk_key);
+    }
+    Document resp; resp.SetObject();
+    resp.AddMember("status", "success", resp.GetAllocator());
+    return docToJsonValue(resp);
+}
+
+// 按需获取预签名 URL（避免文件列表时批量生成）
+web::json::value handleGetPresignUrl(int user_id, const std::string& file_id) {
+    FileMeta meta = FileMetaDAO::instance().get(file_id);
+    if (meta.file_id.empty()) {
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "File not found", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+    if (!meta.is_public && meta.user_id != user_id) {
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Permission denied", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+    std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600);
+    Document resp; resp.SetObject();
+    resp.AddMember("presign_url", StringRef(presignUrl.c_str()), resp.GetAllocator());
     return docToJsonValue(resp);
 }

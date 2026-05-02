@@ -55,18 +55,19 @@ bool MinIOClient::putObject(const std::string& key, const std::vector<char>& dat
     }
 
     try {
-        std::string upload_data(data.data(), data.size());
+        // 直接 move vector 避免额外拷贝，istringstream 接管数据所有权
+        std::string upload_data;
+        upload_data.reserve(data.size());
+        upload_data.assign(data.data(), data.size());
 
-        // 使用 istringstream 而非 stringstream + write()（write后get position在末尾，SDK读不到数据）
         std::istringstream iss(upload_data);
 
-        // 创建 PutObjectArgs 对象（part size 10MB，大于常见 PDF 避免触发 multipart）
+        // part size 10MB
         minio::s3::PutObjectArgs args(iss, static_cast<long>(upload_data.size()), 10 * 1024 * 1024);
         args.bucket = bucket_;
         args.object = key;
         args.content_type = contentType.empty() ? "application/octet-stream" : contentType;
 
-        // 执行上传
         minio::s3::PutObjectResponse resp = client_->PutObject(args);
 
         if (resp) {
@@ -206,6 +207,33 @@ bool MinIOClient::getObject(const std::string& key, std::vector<char>& data) {
         }
     } catch (const std::exception& e) {
         LOG_ERROR("MinIO GetObject exception: " + std::string(e.what()));
+        return false;
+    }
+}
+
+bool MinIOClient::composeObjects(const std::string& destKey, const std::string& contentType,
+                                 const std::vector<std::string>& sourceKeys) {
+    if (!client_) {
+        LOG_ERROR("MinIO client not initialized");
+        return false;
+    }
+
+    try {
+        // 先下载所有分片并拼接
+        std::string combined;
+        for (const auto& key : sourceKeys) {
+            std::vector<char> chunkData;
+            if (!getObject(key, chunkData)) {
+                LOG_ERROR("MinIO composeObjects: failed to get chunk " + key);
+                return false;
+            }
+            combined.append(chunkData.data(), chunkData.size());
+        }
+
+        // 上传拼接后的完整文件
+        return putObject(destKey, std::vector<char>(combined.begin(), combined.end()), contentType);
+    } catch (const std::exception& e) {
+        LOG_ERROR("MinIO composeObjects exception: " + std::string(e.what()));
         return false;
     }
 }

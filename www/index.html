@@ -360,6 +360,14 @@
     .image-preview-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: rgba(0,0,0,0.5); color: white; font-size: 1.4rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
     .image-preview-close:hover { background: rgba(255,255,255,0.2); border-color: white; }
 
+    /* PDF 全屏预览 */
+    .pdf-fullscreen-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center; animation: fadeIn 0.25s ease; }
+    .pdf-fullscreen-overlay embed { width: 100%; height: 100%; border: none; }
+    .pdf-fullscreen-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: rgba(0,0,0,0.5); color: white; font-size: 1.4rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; z-index: 10001; }
+    .pdf-fullscreen-close:hover { background: rgba(255,255,255,0.2); border-color: white; }
+    .pdf-expand-btn { position: absolute; bottom: 12px; right: 12px; padding: 6px 12px; border-radius: 8px; background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3); cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; z-index: 10; }
+    .pdf-expand-btn:hover { background: rgba(59,130,246,0.8); border-color: var(--accent); }
+
     /* 文件详情弹窗 */
     .file-detail-overlay {
         position: fixed; inset: 0; z-index: 9998;
@@ -370,7 +378,7 @@
     .file-detail-card {
         background: var(--bg-primary); backdrop-filter: blur(20px);
         border: 1px solid var(--border-card); border-radius: 1.5rem;
-        width: 90%; max-width: 480px; max-height: 85vh; overflow-y: auto;
+        width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
         box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
         animation: slideUp 0.3s ease;
     }
@@ -384,9 +392,45 @@
         display: flex; align-items: center; justify-content: center;
         flex-shrink: 0; overflow: hidden;
     }
+    .file-detail-preview.file-preview-frame {
+        width: 100%; height: 400px; border-radius: 12px; margin-bottom: 1rem;
+    }
+    .file-detail-preview.file-preview-audio {
+        width: 100%; height: auto; min-height: 120px; margin-bottom: 1rem;
+    }
+    .file-detail-large-preview {
+        width: 100%; height: 400px; border-radius: 1.5rem 1.5rem 0 0;
+        background: var(--thumb-bg); overflow: hidden;
+        border-bottom: 1px solid var(--border-subtle);
+        position: relative;
+    }
     .file-detail-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; transition: transform 0.2s ease; }
     .file-detail-preview[style*="cursor"]:hover img { transform: scale(1.05); }
     .file-detail-preview i { font-size: 2rem; }
+
+    /* 文件预览样式 */
+    .file-preview-frame {
+        width: 100% !important; height: 200px !important; border-radius: 12px;
+    }
+    .file-preview-frame iframe,
+    .file-preview-frame video {
+        width: 100%; height: 100%; border-radius: 12px; border: none;
+    }
+    .file-preview-audio {
+        width: 100% !important; height: auto !important; min-height: 100px;
+        flex-direction: column; padding: 1rem;
+    }
+    .file-preview-code {
+        width: 100% !important; height: 200px !important;
+        align-items: flex-start; justify-content: flex-start;
+        padding: 0.8rem; overflow: auto;
+    }
+    .file-preview-code pre {
+        margin: 0; font-size: 0.7rem; line-height: 1.4;
+        font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+        white-space: pre-wrap; word-break: break-all;
+        color: var(--text-primary);
+    }
     .file-detail-title { flex: 1; min-width: 0; }
     .file-detail-title h3 {
         font-size: 1.1rem; font-weight: 600; color: var(--text-primary);
@@ -497,21 +541,44 @@
         background: var(--bg-card);
         border-radius: 1rem;
         padding: 1.5rem;
-        border: 1px solid var(--border-card);
+        border: 1px solid var(--accent);
+        box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15);
     }
 
     .upload-queue {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.8rem;
     }
 
     .upload-item {
         background: var(--bg-primary);
         border-radius: 0.8rem;
-        padding: 1rem;
+        padding: 0.8rem 1rem;
         border: 1px solid var(--border-subtle);
         transition: all 0.3s ease;
+        min-height: 60px;
+    }
+
+    .upload-item.uploading {
+        border-color: var(--accent);
+        background: var(--accent-light);
+        animation: upload-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes upload-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.1); }
+        50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.08); }
+    }
+
+    .upload-item.success {
+        border-color: #22c55e;
+        background: rgba(34, 197, 94, 0.05);
+    }
+
+    .upload-item.error {
+        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.05);
     }
 
     .upload-item:hover {
@@ -582,21 +649,6 @@
         cursor: not-allowed;
     }
 
-    .upload-item.uploading {
-        border-color: var(--accent);
-        background: var(--accent-light);
-    }
-
-    .upload-item.success {
-        border-color: #22c55e;
-        background: rgba(34, 197, 94, 0.05);
-    }
-
-    .upload-item.error {
-        border-color: #ef4444;
-        background: rgba(239, 68, 68, 0.05);
-    }
-
     .upload-info {
         margin-bottom: 0.8rem;
     }
@@ -624,13 +676,19 @@
     .upload-progress {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.8rem;
+    }
+
+    .upload-progress .el-progress {
+        flex: 1;
     }
 
     .progress-text {
         font-size: 0.85rem;
         color: var(--text-secondary);
-        font-weight: 500;
+        font-weight: 600;
+        min-width: 40px;
+        text-align: right;
         min-width: 45px;
         text-align: right;
     }
@@ -1213,7 +1271,7 @@
                         你的文件，<span class="gradient-text">即刻分享</span>
                     </h1>
                     <p class="landing-subtitle">
-                        支持图片、文档、压缩包等多种文件类型，拖拽粘贴一键上传，支持批量上传和智能搜索，永久链接轻松分享。
+                        图片、视频、文档、音频一站托管，拖拽粘贴秒传，大文件断点续传不怕断网，在线预览无需下载，永久链接一键分享。
                         <br>无需注册即可浏览公开内容，注册后享受完整功能。
                     </p>
                 </div>
@@ -1250,11 +1308,11 @@
                             <i class="fas fa-bolt"></i>
                         </div>
                         <h3 class="landing-feature-title">极速上传</h3>
-                        <p class="landing-feature-desc">支持拖拽上传、点击上传、粘贴上传等多种方式，批量上传功能让你一次处理多个文件。</p>
+                        <p class="landing-feature-desc">拖拽、粘贴、点击上传，大文件自动分片，断网重连自动继续，上传进度实时可见。</p>
                         <div class="landing-feature-tags">
+                            <span class="landing-tag">断点续传</span>
+                            <span class="landing-tag">真实进度</span>
                             <span class="landing-tag">拖拽上传</span>
-                            <span class="landing-tag">粘贴上传</span>
-                            <span class="landing-tag">批量上传</span>
                         </div>
                     </div>
                     <div class="landing-feature-card">
@@ -1262,11 +1320,11 @@
                             <i class="fas fa-shield-alt"></i>
                         </div>
                         <h3 class="landing-feature-title">安全可靠</h3>
-                        <p class="landing-feature-desc">基于 MinIO 分布式对象存储，数据多副本备份，支持私有/公开权限控制，保障文件安全。</p>
+                        <p class="landing-feature-desc">数据多副本备份不丢失，私有/公开权限一键切换，登录态安全加密保护。</p>
                         <div class="landing-feature-tags">
-                            <span class="landing-tag">分布式存储</span>
+                            <span class="landing-tag">多副本备份</span>
                             <span class="landing-tag">权限控制</span>
-                            <span class="landing-tag">数据加密</span>
+                            <span class="landing-tag">安全加密</span>
                         </div>
                     </div>
                     <div class="landing-feature-card">
@@ -1274,23 +1332,23 @@
                             <i class="fas fa-search"></i>
                         </div>
                         <h3 class="landing-feature-title">智能搜索</h3>
-                        <p class="landing-feature-desc">支持按文件名搜索，快速定位需要的文件，支持分页浏览，高效管理海量文件。</p>
+                        <p class="landing-feature-desc">输入文件名即时过滤，支持分页浏览，海量文件也能快速找到。</p>
                         <div class="landing-feature-tags">
-                            <span class="landing-tag">文件名搜索</span>
+                            <span class="landing-tag">实时搜索</span>
                             <span class="landing-tag">分页浏览</span>
                             <span class="landing-tag">快速定位</span>
                         </div>
                     </div>
                     <div class="landing-feature-card">
                         <div class="landing-feature-icon" style="background: rgba(249,115,22,0.12); color: #f97316;">
-                            <i class="fas fa-share-alt"></i>
+                            <i class="fas fa-link"></i>
                         </div>
-                        <h3 class="landing-feature-title">轻松分享</h3>
-                        <p class="landing-feature-desc">一键生成永久分享链接，支持直接查看和下载，无需登录即可访问公开文件。</p>
+                        <h3 class="landing-feature-title">永久链接</h3>
+                        <p class="landing-feature-desc">每个文件自动生成永久分享链接，链接不过期、不失效，嵌入博客或直接发给朋友。</p>
                         <div class="landing-feature-tags">
-                            <span class="landing-tag">永久链接</span>
-                            <span class="landing-tag">在线预览</span>
-                            <span class="landing-tag">直接下载</span>
+                            <span class="landing-tag">永不过期</span>
+                            <span class="landing-tag">外链可用</span>
+                            <span class="landing-tag">一键复制</span>
                         </div>
                     </div>
                     <div class="landing-feature-card">
@@ -1298,23 +1356,23 @@
                             <i class="fas fa-images"></i>
                         </div>
                         <h3 class="landing-feature-title">图片管理</h3>
-                        <p class="landing-feature-desc">自动缩略图生成、图片在线预览、EXIF 信息查看，让你的图片井井有条。</p>
+                        <p class="landing-feature-desc">自动生成缩略图，网格瀑布流浏览，图片在线预览，支持 JPEG/PNG/WebP 等格式。</p>
                         <div class="landing-feature-tags">
                             <span class="landing-tag">自动缩略图</span>
                             <span class="landing-tag">在线预览</span>
-                            <span class="landing-tag">网格浏览</span>
+                            <span class="landing-tag">多格式</span>
                         </div>
                     </div>
                     <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(6,182,212,0.12); color: #06b6d4;">
-                            <i class="fas fa-palette"></i>
+                        <div class="landing-feature-icon" style="background: rgba(236,72,153,0.12); color: #ec4899;">
+                            <i class="fas fa-eye"></i>
                         </div>
-                        <h3 class="landing-feature-title">深色模式</h3>
-                        <p class="landing-feature-desc">支持亮色/暗色主题切换，毛玻璃拟态设计，为你的视觉体验精心设计每一个细节。</p>
+                        <h3 class="landing-feature-title">多格式预览</h3>
+                        <p class="landing-feature-desc">PDF 全屏查看、视频在线播放、音频直接试听，无需下载即可预览文件内容。</p>
                         <div class="landing-feature-tags">
-                            <span class="landing-tag">亮色模式</span>
-                            <span class="landing-tag">暗色模式</span>
-                            <span class="landing-tag">毛玻璃效果</span>
+                            <span class="landing-tag">PDF 全屏</span>
+                            <span class="landing-tag">视频播放</span>
+                            <span class="landing-tag">音频试听</span>
                         </div>
                     </div>
                     <div class="landing-feature-card">
@@ -1322,11 +1380,35 @@
                             <i class="fas fa-tasks"></i>
                         </div>
                         <h3 class="landing-feature-title">批量管理</h3>
-                        <p class="landing-feature-desc">支持文件多选、全选、批量删除，一键管理多个文件，高效清理存储空间。</p>
+                        <p class="landing-feature-desc">多选、全选、批量删除，一键管理多个文件，高效清理存储空间。</p>
                         <div class="landing-feature-tags">
                             <span class="landing-tag">多选操作</span>
                             <span class="landing-tag">全选/反选</span>
                             <span class="landing-tag">批量删除</span>
+                        </div>
+                    </div>
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(6,182,212,0.12); color: #06b6d4;">
+                            <i class="fas fa-share-alt"></i>
+                        </div>
+                        <h3 class="landing-feature-title">轻松分享</h3>
+                        <p class="landing-feature-desc">公开文件无需登录即可查看和下载，一键分享给任何人，分享就是这么简单。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">无需登录</span>
+                            <span class="landing-tag">在线查看</span>
+                            <span class="landing-tag">直接下载</span>
+                        </div>
+                    </div>
+                    <div class="landing-feature-card">
+                        <div class="landing-feature-icon" style="background: rgba(245,158,11,0.12); color: #f59e0b;">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                        <h3 class="landing-feature-title">极致性能</h3>
+                        <p class="landing-feature-desc">毫秒级接口响应，图片智能缓存重复访问零延迟，文件列表秒开不卡顿。</p>
+                        <div class="landing-feature-tags">
+                            <span class="landing-tag">毫秒响应</span>
+                            <span class="landing-tag">智能缓存</span>
+                            <span class="landing-tag">秒开体验</span>
                         </div>
                     </div>
                 </div>
@@ -1343,21 +1425,52 @@
                         <div class="landing-step-number">1</div>
                         <div class="landing-step-icon"><i class="fas fa-user-plus"></i></div>
                         <h4 class="landing-step-title">注册账号</h4>
-                        <p class="landing-step-desc">免费快速注册，无需邮箱验证</p>
+                        <p class="landing-step-desc">支持普通注册 / 邮箱验证码注册</p>
                     </div>
                     <div class="landing-step-arrow"><i class="fas fa-chevron-right"></i></div>
                     <div class="landing-step">
                         <div class="landing-step-number">2</div>
                         <div class="landing-step-icon"><i class="fas fa-cloud-upload-alt"></i></div>
                         <h4 class="landing-step-title">上传文件</h4>
-                        <p class="landing-step-desc">拖拽、点击或粘贴，支持批量上传</p>
+                        <p class="landing-step-desc">拖拽 / 粘贴 / 点击，大文件自动分片断点续传</p>
                     </div>
                     <div class="landing-step-arrow"><i class="fas fa-chevron-right"></i></div>
                     <div class="landing-step">
                         <div class="landing-step-number">3</div>
                         <div class="landing-step-icon"><i class="fas fa-link"></i></div>
                         <h4 class="landing-step-title">分享链接</h4>
-                        <p class="landing-step-desc">一键复制永久链接，轻松分享</p>
+                        <p class="landing-step-desc">一键生成永久链接，支持在线预览 / 直接下载</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 技术架构 -->
+            <div class="landing-section">
+                <div class="landing-section-header">
+                    <h2 class="landing-section-title"><i class="fas fa-microchip"></i> 技术架构</h2>
+                    <p class="landing-section-desc">每一层都为性能而设计</p>
+                </div>
+                <div class="landing-grid-3">
+                    <div class="landing-feature-card" style="text-align: center;">
+                        <div class="landing-feature-icon" style="background: rgba(59,130,246,0.12); color: #3b82f6; margin: 0 auto 1rem;">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <h3 class="landing-feature-title">C++17 后端</h3>
+                        <p class="landing-feature-desc">cpprestsdk 异步 HTTP 处理，内存占用 &lt; 100MB，无 GC 停顿</p>
+                    </div>
+                    <div class="landing-feature-card" style="text-align: center;">
+                        <div class="landing-feature-icon" style="background: rgba(34,197,94,0.12); color: #22c55e; margin: 0 auto 1rem;">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <h3 class="landing-feature-title">MinIO 分布式存储</h3>
+                        <p class="landing-feature-desc">S3 兼容对象存储，支持水平扩展，数据多副本高可用</p>
+                    </div>
+                    <div class="landing-feature-card" style="text-align: center;">
+                        <div class="landing-feature-icon" style="background: rgba(168,85,247,0.12); color: #a855f7; margin: 0 auto 1rem;">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <h3 class="landing-feature-title">MySQL + Redis</h3>
+                        <p class="landing-feature-desc">双连接池 + 定时验证，Redis 会话管理，毫秒级响应</p>
                     </div>
                 </div>
             </div>
@@ -1407,8 +1520,18 @@
                     </div>
                     <div class="landing-file-type">
                         <i class="fas fa-file-pdf" style="color: #ef4444;"></i>
-                        <span>PDF</span>
-                        <small>PDF 文档</small>
+                        <span>PDF 文档</span>
+                        <small>支持在线预览</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-video" style="color: #8b5cf6;"></i>
+                        <span>视频</span>
+                        <small>MP4 / WebM / MOV</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-music" style="color: #ec4899;"></i>
+                        <span>音频</span>
+                        <small>MP3 / WAV / FLAC</small>
                     </div>
                     <div class="landing-file-type">
                         <i class="fas fa-file-word" style="color: #2563eb;"></i>
@@ -1426,14 +1549,14 @@
                         <small>PPT / PPTX</small>
                     </div>
                     <div class="landing-file-type">
-                        <i class="fas fa-file-alt" style="color: #6b7280;"></i>
-                        <span>文本</span>
-                        <small>TXT</small>
-                    </div>
-                    <div class="landing-file-type">
                         <i class="fas fa-file-archive" style="color: #f59e0b;"></i>
                         <span>压缩包</span>
                         <small>ZIP / RAR / 7Z</small>
+                    </div>
+                    <div class="landing-file-type">
+                        <i class="fas fa-file-alt" style="color: #6b7280;"></i>
+                        <span>文本</span>
+                        <small>TXT / JSON / XML</small>
                     </div>
                     <div class="landing-file-type">
                         <i class="fas fa-file-code" style="color: #06b6d4;"></i>
@@ -1486,27 +1609,27 @@
                 <div class="landing-faq">
                     <div class="landing-faq-item">
                         <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 支持哪些文件格式？</div>
-                        <div class="landing-faq-answer">支持 JPG、PNG、GIF、WebP 图片，PDF、DOC、DOCX、PPT、PPTX 文档，以及 ZIP、RAR、7Z 压缩包等多种格式。</div>
+                        <div class="landing-faq-answer">支持图片（JPG/PNG/GIF/WebP）、文档（PDF/DOC/DOCX/PPT/XLS）、视频（MP4/WebM/MOV）、音频（MP3/WAV/FLAC）以及压缩包（ZIP/RAR/7Z）等。PDF/视频/音频支持在线预览。</div>
+                    </div>
+                    <div class="landing-faq-item">
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 大文件上传中途断网怎么办？</div>
+                        <div class="landing-faq-answer">支持断点续传！大文件自动分片上传，页面刷新或断网后重新上传同一文件，会自动跳过已完成的分片，从断点处继续。</div>
+                    </div>
+                    <div class="landing-faq-item">
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 上传进度是真实的吗？</div>
+                        <div class="landing-faq-answer">是的！进度条基于 XMLHttpRequest 的 upload.onprogress 实时回调，反映真实的网络传输进度，不是模拟数据。</div>
                     </div>
                     <div class="landing-faq-item">
                         <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 单个文件大小限制是多少？</div>
-                        <div class="landing-faq-answer">单个文件最大支持 100MB，足以满足日常图片、文档的上传需求。</div>
-                    </div>
-                    <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 文件是否永久保存？</div>
-                        <div class="landing-faq-answer">上传的文件存储在高可用云存储系统中，确保文件的安全与持久保存。</div>
+                        <div class="landing-faq-answer">单个文件最大支持 100MB。大文件自动使用分片上传，确保稳定可靠。</div>
                     </div>
                     <div class="landing-faq-item">
                         <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 如何保护我的隐私？</div>
-                        <div class="landing-faq-answer">默认设置为私有模式，只有您自己可以查看，可选择公开分享给他人。</div>
+                        <div class="landing-faq-answer">默认私有模式，只有您自己可以查看。Token 鉴权 + Redis 会话管理，可随时切换为公开分享。</div>
                     </div>
                     <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 支持批量上传吗？</div>
-                        <div class="landing-faq-answer">支持多文件同时上传，可拖拽文件夹或使用 Ctrl+V 粘贴上传。</div>
-                    </div>
-                    <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 是否需要付费？</div>
-                        <div class="landing-faq-answer">基础功能完全免费，免费注册即可开始使用。</div>
+                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 技术栈是什么？</div>
+                        <div class="landing-faq-answer">C++17 后端（cpprestsdk）、MinIO 分布式对象存储、MySQL 8.0 数据库、Redis 7.x 会话缓存、libvips 图像处理，Docker 一键部署。</div>
                     </div>
                 </div>
             </div>
@@ -1587,35 +1710,53 @@
 
                 <!-- 上传队列 -->
                 <div v-if="uploadQueue.length > 0" class="upload-queue-container">
-                    <h3 style="margin-bottom: 1rem; color: var(--text-primary);">
-                        <i class="fas fa-upload"></i> 上传队列 ({{ uploadQueue.length }})
-                    </h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="color: var(--text-primary); margin: 0;">
+                            <i class="fas fa-upload"></i> 上传队列 ({{ uploadQueue.length }})
+                        </h3>
+                        <button v-if="uploadQueue.some(i => i.status === 'success' || i.status === 'error')" @click="clearFinishedUploads" style="background: none; border: 1px solid var(--border-subtle); color: var(--text-secondary); padding: 0.3rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.8rem;">
+                            <i class="fas fa-broom"></i> 清除已完成
+                        </button>
+                    </div>
                     <div class="upload-queue">
                         <div v-for="item in uploadQueue" :key="item.id" class="upload-item" :class="item.status">
                             <div class="upload-info">
                                 <div class="upload-name">
                                     <i v-if="item.status === 'pending'" class="fas fa-clock"></i>
                                     <i v-else-if="item.status === 'uploading'" class="fas fa-spinner fa-spin"></i>
-                                    <i v-else-if="item.status === 'success'" class="fas fa-check-circle"></i>
-                                    <i v-else-if="item.status === 'error'" class="fas fa-exclamation-circle"></i>
+                                    <i v-else-if="item.status === 'success'" class="fas fa-check-circle" style="color: #22c55e;"></i>
+                                    <i v-else-if="item.status === 'error'" class="fas fa-exclamation-circle" style="color: #ef4444;"></i>
                                     {{ item.name }}
+                                    <span v-if="item.status === 'error'" style="margin-left: auto; display: inline-flex; gap: 0.5rem;">
+                                        <button @click.stop="retryUpload(item)" style="background: rgba(59,130,246,0.1); color: #3b82f6; border: none; padding: 0.2rem 0.6rem; border-radius: 0.4rem; cursor: pointer; font-size: 0.75rem;"><i class="fas fa-redo"></i> 重试</button>
+                                        <button @click.stop="removeUploadItem(item)" style="background: rgba(239,68,68,0.1); color: #ef4444; border: none; padding: 0.2rem 0.6rem; border-radius: 0.4rem; cursor: pointer; font-size: 0.75rem;"><i class="fas fa-times"></i></button>
+                                    </span>
                                 </div>
-                                <div class="upload-status">{{ item.statusText }}</div>
+                                <div class="upload-status" :style="item.status === 'error' ? 'color: #ef4444;' : ''">{{ item.statusText }}</div>
                                 <div class="upload-speed" v-if="item.status === 'uploading'">
                                     <span v-if="item.speed">{{ item.speed }}</span>
                                     <span v-if="item.eta">· {{ item.eta }}</span>
                                 </div>
                             </div>
                             <div class="upload-progress">
-                                <el-progress
-                                    :percentage="item.progress"
-                                    :status="item.status === 'success' ? 'success' : item.status === 'error' ? 'exception' : ''"
-                                    :stroke-width="8"
-                                    :show-text="false"
-                                    :format="() => `${item.progress}%`"
-                                    :color="item.progress === 100 ? '#22c55e' : undefined"
-                                />
-                                <span class="progress-text">{{ item.progress }}%</span>
+                                <!-- 小文件没收到 progress 事件时显示 spinner -->
+                                <template v-if="item.status === 'uploading' && !item._progressReceived && item.progress === 0">
+                                    <div style="flex: 1; display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-spinner fa-spin" style="color: var(--accent);"></i>
+                                        <span style="font-size: 0.85rem; color: var(--text-secondary);">上传中...</span>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <el-progress
+                                        :percentage="item.progress"
+                                        :status="item.status === 'success' ? 'success' : item.status === 'error' ? 'exception' : ''"
+                                        :stroke-width="8"
+                                        :show-text="false"
+                                        :format="() => `${item.progress}%`"
+                                        :color="item.progress === 100 ? '#22c55e' : undefined"
+                                    />
+                                    <span class="progress-text">{{ item.progress }}%</span>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -1702,11 +1843,37 @@
         <!-- 文件详情弹窗 -->
         <div v-if="detailFile" class="file-detail-overlay" @click="closeFileDetail">
             <div class="file-detail-card" @click.stop>
+                <!-- 大文件预览区域（PDF/视频/音频/代码） -->
+                <div v-if="isPdfFile(detailFile) || isVideoFile(detailFile) || isAudioFile(detailFile) || isTextFile(detailFile)" class="file-detail-large-preview">
+                    <!-- PDF 预览 -->
+                    <div v-if="isPdfFile(detailFile)" style="position: relative; width: 100%; height: 100%;">
+                        <embed :src="detailFile._presignUrl || getFileUrl(detailFile.file_id)" type="application/pdf" style="width: 100%; height: 100%; border: none;">
+                        <button class="pdf-expand-btn" @click="openFullscreenPdf">
+                            <i class="fas fa-expand"></i> 全屏查看
+                        </button>
+                    </div>
+                    <!-- 视频预览 -->
+                    <video v-else-if="isVideoFile(detailFile)" :src="detailFile._presignUrl || getFileUrl(detailFile.file_id)" controls preload="metadata" style="width: 100%; height: 100%;"></video>
+                    <!-- 音频预览 -->
+                    <div v-else-if="isAudioFile(detailFile)" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem;">
+                        <i class="fas fa-music" style="font-size: 4rem; margin-bottom: 1.5rem; color: var(--accent);"></i>
+                        <audio :src="detailFile._presignUrl || getFileUrl(detailFile.file_id)" controls style="width: 100%; max-width: 400px;"></audio>
+                    </div>
+                    <!-- 代码/文本预览 -->
+                    <pre v-else-if="isTextFile(detailFile)" style="margin: 0; padding: 1rem; font-size: 0.8rem; line-height: 1.5; overflow: auto; width: 100%; height: 100%; font-family: 'Monaco', 'Menlo', monospace; white-space: pre-wrap; word-break: break-all;">{{ textPreviewContent || '加载中...' }}</pre>
+                    <!-- 关闭按钮 -->
+                    <button class="file-detail-close" @click="closeFileDetail" style="position: absolute; top: 12px; right: 12px; z-index: 10;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
                 <div class="file-detail-header">
+                    <!-- 图片预览 -->
                     <div class="file-detail-preview" v-if="isImageFile(detailFile)" @click="previewFromDetail(detailFile)" style="cursor: pointer;">
                         <img :src="getImageSrc(detailFile)" />
                     </div>
-                    <div class="file-detail-preview" v-else>
+                    <!-- 其他文件图标 -->
+                    <div class="file-detail-preview" v-else-if="!isPdfFile(detailFile) && !isVideoFile(detailFile) && !isAudioFile(detailFile) && !isTextFile(detailFile)">
                         <i :class="getFileIconClass(detailFile)" :style="{ color: getFileColor(detailFile) }"></i>
                     </div>
                     <div class="file-detail-title">
@@ -1765,6 +1932,18 @@
                         </template>
                     </el-popconfirm>
                 </div>
+            </div>
+        </div>
+
+        <!-- PDF 全屏预览弹窗 -->
+        <div v-if="fullscreenPdf" class="pdf-fullscreen-overlay" @click="closeFullscreenPdf">
+            <embed :src="fullscreenPdf.url" type="application/pdf" style="width: 100%; height: 100%; border: none;">
+            <div class="pdf-fullscreen-close" @click="closeFullscreenPdf">
+                <i class="fas fa-times"></i>
+            </div>
+            <div style="position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); padding: 0.8rem 1.5rem; border-radius: 1rem; color: white; text-align: center; backdrop-filter: blur(10px);">
+                <div style="font-weight: 600; margin-bottom: 0.3rem;">{{ fullscreenPdf.filename }}</div>
+                <div style="font-size: 0.85rem; opacity: 0.8;">{{ formatSize(fullscreenPdf.size) }}</div>
             </div>
         </div>
 
@@ -2129,7 +2308,8 @@
                     // ESC 键关闭预览/详情
                     const handleEscKey = (e) => {
                         if (e.key === 'Escape') {
-                            if (previewImage.value) closeImagePreview();
+                            if (fullscreenPdf.value) closeFullscreenPdf();
+                            else if (previewImage.value) closeImagePreview();
                             else if (detailFile.value) closeFileDetail();
                         }
                     };
@@ -2216,6 +2396,7 @@
                     const pageSizeOptions = ref([5, 10, 20, 50]);
                     const previewImage = ref(null); // 图片预览状态
                     const detailFile = ref(null); // 文件详情弹窗状态
+                    const fullscreenPdf = ref(null); // PDF 全屏预览状态
                     const showAuthModal = ref(false); // 登录/注册弹窗
                     const stats = reactive({ total_users: 0, total_files: 0, total_images: 0 }); // 站点统计
 
@@ -2269,6 +2450,38 @@
                     // 文件类型判断
                     const isImageFile = (file) => {
                         return file.mime_type && file.mime_type.startsWith('image/');
+                    };
+
+                    const isPdfFile = (file) => {
+                        return file.mime_type === 'application/pdf';
+                    };
+
+                    const isVideoFile = (file) => {
+                        return file.mime_type && file.mime_type.startsWith('video/');
+                    };
+
+                    const isAudioFile = (file) => {
+                        return file.mime_type && file.mime_type.startsWith('audio/');
+                    };
+
+                    const isTextFile = (file) => {
+                        const textTypes = ['text/', 'application/json', 'application/javascript', 'application/xml'];
+                        return file.mime_type && (textTypes.some(t => file.mime_type.startsWith(t)) || file.mime_type === 'text/plain');
+                    };
+
+                    const textPreviewContent = ref('');
+
+                    const loadTextPreview = async (file) => {
+                        if (!isTextFile(file) || file.size > 1024 * 1024) {
+                            textPreviewContent.value = '文件过大，无法预览';
+                            return;
+                        }
+                        try {
+                            const res = await axios.get(getFileUrl(file.file_id), { responseType: 'text' });
+                            textPreviewContent.value = res.data;
+                        } catch (e) {
+                            textPreviewContent.value = '加载失败';
+                        }
                     };
 
                     const getFileExtension = (filename) => {
@@ -2338,11 +2551,37 @@
 
                     // 文件详情弹窗
                     const openFileDetail = (file) => {
-                        detailFile.value = file;
+                        detailFile.value = { ...file, _presignUrl: '' };
+                        textPreviewContent.value = '';
+                        if (isTextFile(file)) {
+                            loadTextPreview(file);
+                        }
+                        // PDF/视频/音频：按需获取 presign_url，直连 MinIO 预览，减轻服务器压力
+                        if (isPdfFile(file) || isVideoFile(file) || isAudioFile(file)) {
+                            api.get(`/file/${file.file_id}/presign`).then(res => {
+                                if (detailFile.value && detailFile.value.file_id === file.file_id) {
+                                    detailFile.value._presignUrl = res.data.presign_url || '';
+                                }
+                            }).catch(() => {});
+                        }
                     };
                     const closeFileDetail = () => {
                         detailFile.value = null;
                     };
+
+                    // PDF 全屏预览
+                    const openFullscreenPdf = () => {
+                        if (!detailFile.value) return;
+                        fullscreenPdf.value = {
+                            url: detailFile.value._presignUrl || getFileUrl(detailFile.value.file_id),
+                            filename: detailFile.value.filename,
+                            size: detailFile.value.size
+                        };
+                    };
+                    const closeFullscreenPdf = () => {
+                        fullscreenPdf.value = null;
+                    };
+
                     const previewFromDetail = (file) => {
                         if (isImageFile(file)) {
                             detailFile.value = null;
@@ -3045,7 +3284,8 @@
                             file,
                             speed: '',
                             eta: '',
-                            statusText: '准备上传...'
+                            statusText: '准备上传...',
+                            _startTime: Date.now()
                         };
                         uploadQueue.value.push(item);
                         uploadFileItem(item);
@@ -3093,8 +3333,9 @@
                         item.statusText = '正在上传...';
                         item.speed = '';
                         item.eta = '';
+                        item._startTime = Date.now();
+                        item._progressReceived = false; // 标记是否收到过真实进度
 
-                        const startTime = Date.now();
                         let isCancelled = false;
 
                         // ========== 智能上传路由 ==========
@@ -3113,7 +3354,7 @@
                             }
 
                             if (res?.file_id) {
-                                const uploadDuration = Date.now() - startTime;
+                                const uploadDuration = Date.now() - item._startTime;
                                 const avgSpeed = Math.round((file.size / 1024) / (uploadDuration / 1000));
 
                                 item.status = 'success';
@@ -3122,9 +3363,11 @@
                                 item.statusText = '上传完成';
                                 item.eta = '';
 
-                                // 从上传队列移除
-                                const idx = uploadQueue.value.findIndex(i => i.id === item.id);
-                                if (idx !== -1) uploadQueue.value.splice(idx, 1);
+                                // 1.5 秒后自动移除完成项
+                                setTimeout(() => {
+                                    const idx = uploadQueue.value.findIndex(i => i.id === item.id);
+                                    if (idx !== -1) uploadQueue.value.splice(idx, 1);
+                                }, 1500);
 
                                 // 创建文件对象并添加到列表
                                 const newFile = {
@@ -3169,13 +3412,33 @@
                             }
                         } catch (err) {
                             item.status = 'error';
-                            item.statusText = '上传失败';
                             const errorMsg = err.response?.data?.error || err.message || '上传失败';
+                            item.statusText = errorMsg;
                             console.error('Upload error:', err);
-                            const idx = uploadQueue.value.findIndex(i => i.id === item.id);
-                            if (idx !== -1) uploadQueue.value.splice(idx, 1);
                             Vue.nextTick(() => ElMessage?.error?.(`${name} ${errorMsg}`));
                         }
+                    };
+
+                    // 重试失败的上传
+                    const retryUpload = (item) => {
+                        item.status = 'pending';
+                        item.progress = 0;
+                        item.statusText = '准备重试...';
+                        item.speed = '';
+                        item.eta = '';
+                        item._startTime = Date.now();
+                        uploadFileItem(item);
+                    };
+
+                    // 清除单个上传项
+                    const removeUploadItem = (item) => {
+                        const idx = uploadQueue.value.findIndex(i => i.id === item.id);
+                        if (idx !== -1) uploadQueue.value.splice(idx, 1);
+                    };
+
+                    // 清除已完成/失败的上传项
+                    const clearFinishedUploads = () => {
+                        uploadQueue.value = uploadQueue.value.filter(i => i.status === 'uploading' || i.status === 'pending');
                     };
 
                     // ========== 工业级上传优化辅助函数 ==========
@@ -3193,17 +3456,14 @@
                             xhr.upload.addEventListener('progress', (e) => {
                                 if (isCancelledFn() || !e.lengthComputable) return;
 
+                                item._progressReceived = true;
                                 const loaded = e.loaded;
                                 const total = e.total;
                                 const currentTime = Date.now();
 
-                                const currentProgress = Math.round((loaded * 100) / total);
-                                if (currentProgress !== item.progress) {
-                                    item.progress = currentProgress;
-                                    if (currentProgress === 100) {
-                                        item.statusText = '已上传，正在处理...';
-                                    }
-                                }
+                                const pct = Math.round((loaded * 100) / total);
+                                item.progress = Math.min(pct, 99);
+                                if (pct >= 90) item.statusText = '已上传，正在处理...';
 
                                 if (currentTime - lastUpdateTime >= UPLOAD_CONFIG.SPEED_SAMPLE_WINDOW) {
                                     const timeDiff = (currentTime - lastUpdateTime) / 1000;
@@ -3227,6 +3487,7 @@
                             xhr.addEventListener('load', () => {
                                 if (isCancelledFn()) return;
                                 if (xhr.status >= 200 && xhr.status < 300) {
+                                    item.progress = 100;
                                     try {
                                         resolve(JSON.parse(xhr.responseText));
                                     } catch (e) {
@@ -3251,82 +3512,141 @@
                         });
                     };
 
-                    // 单块直传
-                    const uploadSingleChunk = async (file, uploadUrl, item, isCancelledFn) => {
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), UPLOAD_CONFIG.CHUNK_UPLOAD_TIMEOUT);
-
-                        try {
-                            // 模拟进度更新（直传没有内置进度）
-                            const progressInterval = setInterval(() => {
-                                if (isCancelledFn()) {
-                                    clearInterval(progressInterval);
-                                    return;
+                    // 单块上传（XHR + 真实进度）
+                    const uploadChunkViaXHR = (chunkData, uploadUrl, contentType, onProgress) => {
+                        return new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.timeout = UPLOAD_CONFIG.CHUNK_UPLOAD_TIMEOUT;
+                            xhr.upload.addEventListener('progress', (e) => {
+                                if (e.lengthComputable) {
+                                    onProgress(Math.round((e.loaded / e.total) * 100), e.loaded, e.total);
                                 }
-                                if (item.progress < 90) {
-                                    item.progress += Math.floor(Math.random() * 5) + 1;
-                                    item.statusText = '正在直传...';
-                                }
-                            }, 1000);
-
-                            const response = await fetch(uploadUrl, {
-                                method: 'PUT',
-                                body: file,
-                                headers: { 'Content-Type': file.type || 'application/octet-stream' },
-                                signal: controller.signal
                             });
-
-                            clearInterval(progressInterval);
-                            clearTimeout(timeoutId);
-                            item.progress = 100;
-                            return response.ok;
-                        } catch (error) {
-                            clearTimeout(timeoutId);
-                            throw error;
-                        }
+                            xhr.addEventListener('load', () => {
+                                if (xhr.status >= 200 && xhr.status < 300) {
+                                    resolve(true);
+                                } else {
+                                    reject(new Error(`HTTP ${xhr.status}`));
+                                }
+                            });
+                            xhr.addEventListener('error', () => reject(new Error('网络错误')));
+                            xhr.addEventListener('abort', () => reject(new Error('上传已取消')));
+                            xhr.addEventListener('timeout', () => reject(new Error('上传超时')));
+                            xhr.open('PUT', uploadUrl, true);
+                            xhr.setRequestHeader('Content-Type', contentType || 'application/octet-stream');
+                            xhr.send(chunkData);
+                        });
                     };
 
-                    // 大文件直传（带重试）
+                    // 大文件分片上传（断点续传 + 真实进度）
                     const uploadDirectWithRetry = async (file, name, item, isCancelledFn) => {
                         const maxRetries = UPLOAD_CONFIG.MAX_RETRY_ATTEMPTS;
+                        const contentType = file.type || 'application/octet-stream';
+                        const chunkSize = UPLOAD_CONFIG.CHUNK_SIZE;
+                        const totalChunks = Math.ceil(file.size / chunkSize);
 
                         for (let attempt = 0; attempt <= maxRetries; attempt++) {
                             try {
                                 if (isCancelledFn()) throw new Error('上传已取消');
 
-                                // 步骤1：请求预签名URL
-                                item.statusText = '准备直传...';
-                                const presignRes = await api.post('/upload/request', {
+                                // 步骤1：初始化分片上传
+                                item.statusText = '初始化分片上传...';
+                                const initRes = await api.post('/upload/multipart/init', {
                                     filename: name,
-                                    content_type: file.type || 'application/octet-stream',
+                                    content_type: contentType,
                                     size: file.size
                                 });
 
-                                if (presignRes.data?.error) throw new Error(presignRes.data.error);
+                                if (initRes.data?.error) throw new Error(initRes.data.error);
 
-                                const { file_id, upload_url } = presignRes.data;
-                                console.log(`[Direct Upload] Got URL for ${name}`);
+                                const { upload_id, chunks } = initRes.data;
+                                console.log(`[Multipart] Initialized: ${upload_id}, ${totalChunks} chunks`);
 
-                                // 步骤2：直传到MinIO
-                                item.statusText = '正在直传...';
-                                const uploadSuccess = await uploadSingleChunk(file, upload_url, item, isCancelledFn);
+                                // 检查 localStorage 中是否有断点续传记录
+                                const storageKey = `upload_progress:${upload_id}`;
+                                let completedChunks = [];
+                                try {
+                                    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                                    completedChunks = saved.completed_chunks || [];
+                                } catch (e) {}
 
-                                if (!uploadSuccess) throw new Error('直传失败');
+                                // 步骤2：逐片上传
+                                let bytesUploaded = completedChunks.reduce((sum, idx) => sum + Math.min(chunkSize, file.size - idx * chunkSize), 0);
 
-                                // 步骤3：确认上传
-                                item.statusText = '确认上传...';
-                                const confirmRes = await api.post('/upload/confirm', {
-                                    file_id,
+                                for (let i = 0; i < chunks.length; i++) {
+                                    if (isCancelledFn()) {
+                                        // 保存进度到 localStorage
+                                        localStorage.setItem(storageKey, JSON.stringify({
+                                            upload_id, filename: name, content_type: contentType,
+                                            file_size: file.size, completed_chunks: completedChunks
+                                        }));
+                                        throw new Error('上传已取消');
+                                    }
+
+                                    // 跳过已完成的分片
+                                    if (completedChunks.includes(i)) {
+                                        const chunkProgress = Math.round(((i + 1) / totalChunks) * 100);
+                                        item.progress = chunkProgress;
+                                        item.statusText = `恢复上传中... (${i + 1}/${totalChunks})`;
+                                        continue;
+                                    }
+
+                                    const start = i * chunkSize;
+                                    const end = Math.min(start + chunkSize, file.size);
+                                    const chunkBlob = file.slice(start, end);
+
+                                    item.statusText = `上传分片 ${i + 1}/${totalChunks}`;
+
+                                    await uploadChunkViaXHR(chunkBlob, chunks[i].presign_url, contentType,
+                                        (chunkProgress, loaded) => {
+                                            const totalProgress = Math.round(((bytesUploaded + loaded) / file.size) * 100);
+                                            item.progress = Math.min(totalProgress, 99);
+                                            const totalKB = (bytesUploaded + loaded) / 1024;
+                                            const elapsed = (Date.now() - item._startTime) / 1000;
+                                            if (elapsed > 0) {
+                                                item.speed = formatSpeed(Math.round(totalKB / elapsed));
+                                                const remainingBytes = file.size - bytesUploaded - loaded;
+                                                const remainingKB = remainingBytes / 1024;
+                                                const speedKB = totalKB / elapsed;
+                                                if (speedKB > 0) {
+                                                    const etaSec = Math.round(remainingKB / speedKB);
+                                                    item.eta = formatETA(etaSec);
+                                                }
+                                            }
+                                        }
+                                    );
+
+                                    bytesUploaded += (end - start);
+                                    completedChunks.push(i);
+
+                                    // 每片完成后保存进度到 localStorage
+                                    localStorage.setItem(storageKey, JSON.stringify({
+                                        upload_id, filename: name, content_type: contentType,
+                                        file_size: file.size, completed_chunks: completedChunks
+                                    }));
+                                }
+
+                                // 步骤3：合并分片
+                                item.statusText = '合并分片中...';
+                                item.progress = 99;
+                                const completeRes = await api.post('/upload/multipart/complete', {
+                                    upload_id,
                                     filename: name,
-                                    content_type: file.type || 'application/octet-stream',
-                                    size: file.size
+                                    content_type: contentType,
+                                    size: file.size,
+                                    total_chunks: totalChunks
                                 });
 
-                                if (confirmRes.data?.error) throw new Error(confirmRes.data.error);
-                                return confirmRes.data;
+                                if (completeRes.data?.error) throw new Error(completeRes.data.error);
+
+                                // 清理 localStorage
+                                localStorage.removeItem(storageKey);
+
+                                return completeRes.data;
 
                             } catch (error) {
-                                console.error(`[Direct Upload] Attempt ${attempt + 1} failed:`, error.message);
+                                console.error(`[Multipart] Attempt ${attempt + 1} failed:`, error.message);
+                                if (isCancelledFn()) throw error;
                                 if (attempt >= maxRetries) throw error;
                                 const delay = uploadOptimizer.getRetryDelay(attempt);
                                 item.statusText = `上传失败，${Math.round(delay/1000)}秒后重试...`;
@@ -3462,12 +3782,13 @@
                         // 工具方法
                         bgImages, currentBgIndex,
                         formatDate, formatSize, formatSpeed, formatETA,
-                        isImageFile, getFileIconClass,
-                        getFileColor, getFileExtension,
+                        isImageFile, isPdfFile, isVideoFile, isAudioFile, isTextFile,
+                        getFileIconClass, getFileColor, getFileExtension,
                         getFileUrl, getImageSrc, handleImageError,
                         openImagePreview, closeImagePreview,
                         openFileDetail, closeFileDetail, previewFromDetail,
-                        getShareUrl, copyText,
+                        fullscreenPdf, openFullscreenPdf, closeFullscreenPdf,
+                        getShareUrl, copyText, textPreviewContent,
                         togglePublicAndRefresh, handleDeleteFromDetail,
 
                         // 操作方法
@@ -3477,6 +3798,7 @@
                         copyLink, togglePublic, handleDelete,
                         triggerFileInput, handleFileChange,
                         handleDrop, handlePaste,
+                        retryUpload, removeUploadItem, clearFinishedUploads,
                         handleUserCommand,
                         handlePageChange, handlePageSizeChange,
                         handleSearch, clearSearch, onSearchInput,

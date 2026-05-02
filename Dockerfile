@@ -39,7 +39,7 @@ RUN apt-get update && apt-get install -y \
 # 复制应用和配置
 WORKDIR /app
 COPY --from=build /app/build/AeroImageHost .
-COPY --from=build /app/config/config.json.example ./config.json
+COPY --from=build /app/config/config-docker.json ./config.json
 
 # 创建数据目录
 RUN mkdir -p /app/logs

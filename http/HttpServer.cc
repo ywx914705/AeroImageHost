@@ -6,6 +6,7 @@
 #include "MinIOClient.hpp"
 #include "Utils.hpp"
 #include "ImageProcessor.hpp"
+#include "AeroQueue.hpp"
 #include <cpprest/http_listener.h>
 #include <cpprest/json.h>
 #include <cpprest/http_headers.h>
@@ -111,6 +112,18 @@ void HttpServer::handleAll(http_request request) {
     else if (method == methods::POST && path_str == "/api/auth/send-code") {
         handleSendVerificationCode(request);
     }
+    else if (method == methods::POST && path_str == "/api/upload/multipart/init") {
+        handleMultipartInit(request);
+    }
+    else if (method == methods::POST && path_str == "/api/upload/multipart/complete") {
+        handleMultipartComplete(request);
+    }
+    else if (method == methods::POST && path_str == "/api/upload/multipart/cleanup") {
+        handleMultipartCleanup(request);
+    }
+    else if (method == methods::GET && path_str.find("/api/file/") == 0 && path_str.find("/presign") != std::string::npos) {
+        handleGetPresignUrlRoute(request);
+    }
     else {
         LOG_WARN("Unhandled route: " + method_str + " " + path_str);
         replyErrorWithCors(request, status_codes::NotFound, U("Not Found"));
@@ -128,7 +141,7 @@ void HttpServer::handleRegister(http_request request) {
 
         auto respJson = ::handleRegister(account, password);
         replyJsonWithCors(request, status_codes::OK, respJson);
-    }).wait();
+    });
 }
 
 void HttpServer::handleLogin(http_request request) {
@@ -142,7 +155,7 @@ void HttpServer::handleLogin(http_request request) {
 
         auto respJson = ::handleLogin(account, password);
         replyJsonWithCors(request, status_codes::OK, respJson);
-    }).wait();
+    });
 }
 
 void HttpServer::handleUpload(http_request request) {
@@ -180,7 +193,7 @@ void HttpServer::handleUpload(http_request request) {
         std::vector<char> file_data(data.begin(), data.end());
         auto respJson = ::handleUpload(user->user_id, filename, file_data, content_type);
         replyJsonWithCors(request, status_codes::OK, respJson);
-    }).wait();
+    });
 }
 
 void HttpServer::handleListFiles(http_request request) {
@@ -289,7 +302,7 @@ void HttpServer::handleBatchDeleteFiles(http_request request) {
 
         auto respJson = ::handleBatchDeleteFiles(user->user_id, file_ids);
         replyJsonWithCors(request, status_codes::OK, respJson);
-    }).wait();
+    });
 }
 
 void HttpServer::handleShare(http_request request) {
@@ -385,6 +398,21 @@ void HttpServer::handleGetFile(http_request request) {
         return;
     }
 
+    // If-None-Match: 图片命中缓存直接返回 304，省去 MinIO 网络往返
+    if (isImage(meta.mime_type) && !download && !isThumbRequest) {
+        auto ifNoneMatch = request.headers().find(U("If-None-Match"));
+        if (ifNoneMatch != request.headers().end()) {
+            std::string etag = "W/\"" + file_id + "\"";
+            if (utility::conversions::to_utf8string(ifNoneMatch->second) == etag) {
+                http_response response(status_codes::NotModified);
+                response.headers().add(U("Cache-Control"), U("public, max-age=3600"));
+                response.set_body(U(""));
+                request.reply(response);
+                return;
+            }
+        }
+    }
+
     // 使用完整的 RFC 3986 URL 编码文件名
     std::string encodedFilename = urlEncode(meta.filename);
 
@@ -397,16 +425,34 @@ void HttpServer::handleGetFile(http_request request) {
         disp = "inline; filename=\"" + meta.filename + "\"; filename*=UTF-8''" + encodedFilename;
     }
 
-    // 如果请求缩略图且是图片，生成缩略图
+    // 如果请求缩略图且是图片，生成缩略图（带 MinIO 缓存）
     if ((thumb_width > 0 || thumb_height > 0) && isImage(meta.mime_type)) {
-        // 从 MinIO 获取原始文件
+        int tw = thumb_width > 0 ? thumb_width : 200;
+        int th = thumb_height > 0 ? thumb_height : 200;
+        std::string thumbKey = "thumbs/" + file_id + "_" + std::to_string(tw) + "_" + std::to_string(th);
+
+        // 1. 检查 MinIO 缓存
+        std::vector<char> thumbData;
+        if (MinIOClient::instance().getObject(thumbKey, thumbData)) {
+            http_response response(status_codes::OK);
+            response.headers().add(U("Content-Type"), U("image/jpeg"));
+            response.headers().add(U("Cache-Control"), U("public, max-age=86400"));
+            response.set_body(std::vector<unsigned char>(thumbData.begin(), thumbData.end()));
+            request.reply(response);
+            return;
+        }
+
+        // 2. 缓存未命中，从 MinIO 获取原图并生成缩略图
         std::vector<char> fileData;
         if (MinIOClient::instance().getObject(file_id, fileData)) {
-            std::vector<char> thumbData;
-            int tw = thumb_width > 0 ? thumb_width : 200;
-            int th = thumb_height > 0 ? thumb_height : 200;
             if (ImageProcessor::generateThumbnail(fileData, thumbData, tw, th)) {
-                // 直接返回缩略图数据
+                // 异步缓存缩略图到 MinIO，不阻塞响应
+                std::string cacheKey = thumbKey;
+                std::vector<char> cacheData = thumbData;
+                AeroQueue::instance().post([cacheKey, cacheData]() {
+                    MinIOClient::instance().putObject(cacheKey, cacheData, "image/jpeg");
+                });
+
                 http_response response(status_codes::OK);
                 response.headers().add(U("Content-Type"), U("image/jpeg"));
                 response.headers().add(U("Cache-Control"), U("public, max-age=86400"));
@@ -441,23 +487,37 @@ void HttpServer::handleGetFile(http_request request) {
         return;
     }
 
-    // 对于非下载请求，使用重定向
-    std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600);
-    if (presignUrl.empty()) {
+    // 非图片文件（视频/PDF/音频等）使用 presigned URL 重定向，避免大文件读入内存导致 OOM
+    if (!isImage(meta.mime_type)) {
+        std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600, disp);
+        if (!presignUrl.empty()) {
+            http_response response(status_codes::Found);
+            response.headers().add(U("Location"), utility::conversions::to_string_t(presignUrl));
+            response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
+            response.headers().add(U("Cache-Control"), U("private, max-age=0"));
+            response.set_body(U(""));
+            request.reply(response);
+            return;
+        }
+        // presign 失败则回退到直接读取
+    }
+
+    // 图片直接返回内容（支持 ETag 缓存和内联显示）
+    std::vector<char> fileData;
+    if (!MinIOClient::instance().getObject(file_id, fileData)) {
         replyErrorWithCors(request, status_codes::NotFound, U("File not found"));
         return;
     }
 
-    http_response response(status_codes::Found);
-    response.headers().add(U("Location"), utility::conversions::to_string_t(presignUrl));
+    http_response response(status_codes::OK);
+    response.headers().add(U("Content-Type"), utility::conversions::to_string_t(meta.mime_type));
     response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
+    response.headers().add(U("Content-Disposition"), utility::conversions::to_string_t(disp));
+    response.headers().add(U("Cache-Control"), U("public, max-age=3600"));
+    std::string etag = "W/\"" + file_id + "\"";
+    response.headers().add(U("ETag"), utility::conversions::to_string_t(etag));
 
-    // 添加缓存头提升性能
-    if (isImage(meta.mime_type)) {
-        response.headers().add(U("Cache-Control"), U("public, max-age=3600"));
-    }
-
-    response.set_body(U(""));
+    response.set_body(std::vector<unsigned char>(fileData.begin(), fileData.end()));
     request.reply(response);
 }
 
@@ -480,7 +540,7 @@ void HttpServer::handleRequestUploadUrl(http_request request) {
 
         auto respJson = ::handleRequestUploadUrl(user->user_id, filename, content_type, file_size);
         replyJsonWithCors(request, status_codes::OK, respJson);
-    }).wait();
+    });
 }
 
 void HttpServer::handleConfirmUpload(http_request request) {
@@ -503,7 +563,7 @@ void HttpServer::handleConfirmUpload(http_request request) {
 
         auto respJson = ::handleConfirmUpload(user->user_id, file_id, filename, content_type, file_size);
         replyJsonWithCors(request, status_codes::OK, respJson);
-    }).wait();
+    });
 }
 
 void HttpServer::handleCleanup(http_request request) {
@@ -550,7 +610,7 @@ void HttpServer::handleSendVerificationCode(http_request request) {
 
         auto respJson = ::handleSendVerificationCode(email);
         replyJsonWithCors(request, status_codes::OK, respJson);
-    }).wait();
+    });
 }
 
 void HttpServer::handleEmailRegister(http_request request) {
@@ -567,5 +627,90 @@ void HttpServer::handleEmailRegister(http_request request) {
 
         auto respJson = ::handleEmailRegister(account, password, email, code);
         replyJsonWithCors(request, status_codes::OK, respJson);
-    }).wait();
+    });
+}
+
+void HttpServer::handleMultipartInit(http_request request) {
+    auto user = Auth::verify(request);
+    if (!user) {
+        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
+
+    request.extract_json().then([=](json::value json) {
+        if (!json.has_field(U("filename")) || !json.has_field(U("size"))) {
+            replyErrorWithCors(request, status_codes::BadRequest, U("Missing filename or size"));
+            return;
+        }
+        std::string filename = utility::conversions::to_utf8string(json.at(U("filename")).as_string());
+        std::string content_type = json.has_field(U("content_type")) ?
+            utility::conversions::to_utf8string(json.at(U("content_type")).as_string()) : "";
+        size_t file_size = static_cast<size_t>(json.at(U("size")).as_number().to_uint64());
+
+        auto respJson = ::handleMultipartInit(user->user_id, filename, content_type, file_size);
+        replyJsonWithCors(request, status_codes::OK, respJson);
+    });
+}
+
+void HttpServer::handleMultipartComplete(http_request request) {
+    auto user = Auth::verify(request);
+    if (!user) {
+        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
+
+    request.extract_json().then([=](json::value json) {
+        if (!json.has_field(U("upload_id")) || !json.has_field(U("filename")) || !json.has_field(U("size")) || !json.has_field(U("total_chunks"))) {
+            replyErrorWithCors(request, status_codes::BadRequest, U("Missing required fields"));
+            return;
+        }
+        std::string upload_id = utility::conversions::to_utf8string(json.at(U("upload_id")).as_string());
+        std::string filename = utility::conversions::to_utf8string(json.at(U("filename")).as_string());
+        std::string content_type = json.has_field(U("content_type")) ?
+            utility::conversions::to_utf8string(json.at(U("content_type")).as_string()) : "";
+        size_t file_size = static_cast<size_t>(json.at(U("size")).as_number().to_uint64());
+        int total_chunks = json.at(U("total_chunks")).as_number().to_int32();
+
+        auto respJson = ::handleMultipartComplete(user->user_id, upload_id, filename, content_type, file_size, total_chunks);
+        replyJsonWithCors(request, status_codes::OK, respJson);
+    });
+}
+
+void HttpServer::handleMultipartCleanup(http_request request) {
+    auto user = Auth::verify(request);
+    if (!user) {
+        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
+
+    request.extract_json().then([=](json::value json) {
+        if (!json.has_field(U("upload_id"))) {
+            replyErrorWithCors(request, status_codes::BadRequest, U("Missing upload_id"));
+            return;
+        }
+        std::string upload_id = utility::conversions::to_utf8string(json.at(U("upload_id")).as_string());
+
+        auto respJson = ::handleMultipartCleanup(user->user_id, upload_id);
+        replyJsonWithCors(request, status_codes::OK, respJson);
+    });
+}
+
+void HttpServer::handleGetPresignUrlRoute(http_request request) {
+    auto user = Auth::verify(request);
+    int user_id = user ? user->user_id : 0;
+
+    auto path = request.request_uri().path();
+    std::string path_str = utility::conversions::to_utf8string(path);
+    std::string prefix = "/api/file/";
+    size_t start = path_str.find(prefix);
+    if (start == std::string::npos) {
+        replyErrorWithCors(request, status_codes::BadRequest, U("Invalid path"));
+        return;
+    }
+    std::string remaining = path_str.substr(start + prefix.length());
+    size_t slash_pos = remaining.find('/');
+    std::string file_id = (slash_pos == std::string::npos) ? remaining : remaining.substr(0, slash_pos);
+
+    auto respJson = ::handleGetPresignUrl(user_id, file_id);
+    replyJsonWithCors(request, status_codes::OK, respJson);
 }

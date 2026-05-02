@@ -6,6 +6,9 @@
 #include <unistd.h>
 #include <chrono>
 
+// 连接验证间隔（秒），避免每次获取连接都 mysql_ping
+static const int CONNECTION_VALIDATION_INTERVAL = 30;
+
 ConnectionPool& ConnectionPool::getInstance() {
     static ConnectionPool instance;
     return instance;
@@ -28,15 +31,17 @@ bool ConnectionPool::init(const std::string& host, const std::string& user,
     stopped_ = false;
 
     std::lock_guard<std::mutex> lock(mutex_);
+    auto now = std::chrono::steady_clock::now();
     for (int i = 0; i < poolSize_; ++i) {
-        MYSQL* conn = createConnection();//初始化连接池,循环调用CreateConnection()建立连接,
-        if (conn) {                      //放入connections_队列m如果 
-            connections_.push(conn);
+        MYSQL* conn = createConnection();
+        if (conn) {
+            connections_.push({conn, now});
         } else {
             LOG_ERROR("[ConnectionPool] 创建第" + std::to_string(i+1) + "个连接失败");
             while (!connections_.empty()) {
 				//出错的时候清理已经成功创建的连接,避免资源泄露
-                mysql_close(connections_.front());
+                auto [c, t] = connections_.front();
+                mysql_close(c);
                 connections_.pop();
             }
             return false;
@@ -70,18 +75,20 @@ MYSQL* ConnectionPool::createConnection() {
 }
 
 //这个函数保证了用户拿到的连接始终可用！！！
-MYSQL* ConnectionPool::ensureValidConnection(MYSQL* conn) {
-    if (!conn) {   //确保传入的连接是有效的,如果无效则重新创建
+//优化：只在距离上次验证超过30秒时才真正 ping，减少无效网络往返
+MYSQL* ConnectionPool::ensureValidConnection(MYSQL* conn, std::chrono::steady_clock::time_point lastCheck) {
+    if (!conn) {
         return createConnection();
     }
-      //mysql_ping可以检测新连接是否存活,如果断开会尝试自动重连
-    if (mysql_ping(conn) != 0) { //返回0说明连接有效,非0说明连接失败,先调用mysql_close()关闭
-                                 //再调用createConnection()新建一个连接返回
+    auto elapsed = std::chrono::steady_clock::now() - lastCheck;
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() < CONNECTION_VALIDATION_INTERVAL) {
+        return conn; // 30秒内已验证过，直接信任
+    }
+    if (mysql_ping(conn) != 0) {
         LOG_WARN("[ConnectionPool] 连接失效，重建连接: " + std::string(mysql_error(conn)));
         mysql_close(conn);
         return createConnection();
     }
-
     return conn;
 }
 //顾名思义就是从连接池中取出一个可用连接,如果当前没有空闲连接,调用线程会阻塞等待,知道有连接归还
@@ -98,12 +105,10 @@ MYSQL* ConnectionPool::getConnection() {
         LOG_ERROR("[ConnectionPool] 连接池已停止");
         return nullptr;
     }
-	 //如果队列非空或者连接池已停止,立刻返回true并继续  否则线程阻塞,最多等待5秒,期间如果其他线程调用releaseConnection()
-	 //归还连接就唤醒该线程
 
-    MYSQL* conn = connections_.front();
+    auto [conn, lastCheck] = connections_.front();
     connections_.pop();
-    conn = ensureValidConnection(conn);
+    conn = ensureValidConnection(conn, lastCheck);
 
     int retry = 3;
     while (!conn && retry-- > 0) {
@@ -113,9 +118,9 @@ MYSQL* ConnectionPool::getConnection() {
             }
         }
         if (!connections_.empty()) {
-            conn = connections_.front();
+            auto [c, t] = connections_.front();
             connections_.pop();
-            conn = ensureValidConnection(conn);
+            conn = ensureValidConnection(c, t);
         }
     }
 
@@ -133,23 +138,19 @@ void ConnectionPool::releaseConnection(MYSQL* conn) {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    conn = ensureValidConnection(conn);
-    if (conn) { //如果连接有效就放入队列并调用cv_notify_one()唤醒一个等待获取连接的线程
-        connections_.push(conn);
-        cv_.notify_one();
-    } else {
-        LOG_ERROR("[ConnectionPool] 归还无效连接，已关闭");//否则直接关闭,但不归还(因为无效连接不可用！！！)
-        mysql_close(conn);
-    }
+    auto now = std::chrono::steady_clock::now();
+    // 归还时直接放入队列，不验证（验证延迟到 getConnection 时按需执行）
+    connections_.push({conn, now});
+    cv_.notify_one();
 }
 
 void ConnectionPool::close() {  //关闭所有的连接
     std::lock_guard<std::mutex> lock(mutex_);
     stopped_ = true;
-    cv_.notify_all();//唤醒所有正在等待getConnection的线程,让它们意识到连接池已经关闭了
+    cv_.notify_all();
 
     while (!connections_.empty()) {
-        MYSQL* conn = connections_.front();//循环清空队列,并对每个连接mysql_close();
+        auto [conn, t] = connections_.front();
         connections_.pop();
         mysql_close(conn);
     }
