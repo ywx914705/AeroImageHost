@@ -20,9 +20,49 @@ RUN apt-get update && apt-get install -y \
     libcurlpp-dev \
     libpugixml-dev \
     libinih-dev \
+    nlohmann-json3-dev \
     git \
     wget \
     ca-certificates
+
+# 为 miniocpp 创建 CMake config 文件（Ubuntu apt 包不提供 vcpkg 风格的 config）
+RUN mkdir -p /usr/lib/cmake/unofficial-curlpp && \
+    echo 'include(CMakeFindDependencyMacro)
+add_library(unofficial::curlpp::curlpp SHARED IMPORTED)
+set_target_properties(unofficial::curlpp::curlpp PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libcurlpp.so"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+    INTERFACE_LINK_LIBRARIES "CURL::libcurl"
+)' > /usr/lib/cmake/unofficial-curlpp/unofficial-curlpp-config.cmake && \
+    mkdir -p /usr/lib/cmake/unofficial-inih && \
+    echo 'add_library(unofficial::inih::inih SHARED IMPORTED)
+set_target_properties(unofficial::inih::inih PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.so"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+)
+add_library(unofficial::inih::inireader STATIC IMPORTED)
+set_target_properties(unofficial::inih::inireader PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.a"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+    INTERFACE_LINK_LIBRARIES "unofficial::inih::inih"
+)' > /usr/lib/cmake/unofficial-inih/unofficial-inih-config.cmake && \
+    mkdir -p /usr/lib/cmake/nlohmann_json && \
+    echo 'include(CMakeFindDependencyMacro)
+add_library(nlohmann_json::nlohmann_json INTERFACE IMPORTED)
+set_target_properties(nlohmann_json::nlohmann_json PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+)' > /usr/lib/cmake/nlohmann_json/nlohmann_jsonConfig.cmake && \
+    mkdir -p /usr/lib/cmake/pugixml && \
+    echo 'add_library(pugixml::pugixml SHARED IMPORTED)
+set_target_properties(pugixml::pugixml PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.so"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+)
+add_library(pugixml::pugixml-static STATIC IMPORTED)
+set_target_properties(pugixml::pugixml-static PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.a"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+)' > /usr/lib/cmake/pugixml/pugixmlConfig.cmake
 
 # 编译安装 miniocpp（MinIO C++ SDK，Ubuntu 源中没有）
 RUN git clone --depth 1 https://github.com/minio/minio-cpp.git /tmp/minio-cpp && \

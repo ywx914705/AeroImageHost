@@ -321,20 +321,20 @@ git clone https://github.com/ywx914705/AeroImageHost.git
 cd AeroImageHost
 
 # 2. 启动所有服务（MySQL + Redis + MinIO + App，首次需要编译约 5~15 分钟）
-sudo docker-compose up -d
+sudo docker compose up -d
 
 # 3. 查看服务状态（等待所有服务 healthy）
-docker-compose ps
+docker compose ps
 
 # 4. 查看构建日志（如遇问题可排查）
-docker-compose logs -f app
+docker compose logs -f app
 
 # 5. 访问服务
 # Web 界面: http://localhost:8082
 # MinIO 控制台: http://localhost:9090 (用户名: minioadmin, 密码: minioadmin)
 ```
 
-> **从其他机器访问？** 需修改 `config/config-docker.json` 中的 `minio.public_url`，将 `localhost` 替换为服务器实际 IP，然后重启：`docker-compose restart app`
+> **从其他机器访问？** 需修改 `config/config-docker.json` 中的 `minio.public_url`，将 `localhost` 替换为服务器实际 IP，然后重启：`docker compose restart app`
 
 ### 方法二：本地编译部署
 
@@ -352,25 +352,68 @@ docker-compose logs -f app
 sudo apt-get update
 sudo apt-get install -y build-essential cmake pkg-config git \
     libssl-dev libcurl4-openssl-dev libmysqlclient-dev libvips-dev \
-    libcpprest-dev libhiredis-dev libcurlpp-dev libpugixml-dev libinih-dev
+    libcpprest-dev libhiredis-dev libcurlpp-dev libpugixml-dev libinih-dev \
+    nlohmann-json3-dev
 
-# 2. 编译安装 miniocpp（MinIO C++ SDK，Ubuntu 源中没有）
+# 2. 为 miniocpp 创建 CMake config 文件（Ubuntu apt 包不提供 vcpkg 风格的 config）
+sudo mkdir -p /usr/lib/cmake/unofficial-curlpp
+echo 'include(CMakeFindDependencyMacro)
+add_library(unofficial::curlpp::curlpp SHARED IMPORTED)
+set_target_properties(unofficial::curlpp::curlpp PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libcurlpp.so"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+    INTERFACE_LINK_LIBRARIES "CURL::libcurl"
+)' | sudo tee /usr/lib/cmake/unofficial-curlpp/unofficial-curlpp-config.cmake > /dev/null
+
+sudo mkdir -p /usr/lib/cmake/unofficial-inih
+echo 'add_library(unofficial::inih::inih SHARED IMPORTED)
+set_target_properties(unofficial::inih::inih PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.so"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+)
+add_library(unofficial::inih::inireader STATIC IMPORTED)
+set_target_properties(unofficial::inih::inireader PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.a"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+    INTERFACE_LINK_LIBRARIES "unofficial::inih::inih"
+)' | sudo tee /usr/lib/cmake/unofficial-inih/unofficial-inih-config.cmake > /dev/null
+
+sudo mkdir -p /usr/lib/cmake/nlohmann_json
+echo 'include(CMakeFindDependencyMacro)
+add_library(nlohmann_json::nlohmann_json INTERFACE IMPORTED)
+set_target_properties(nlohmann_json::nlohmann_json PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+)' | sudo tee /usr/lib/cmake/nlohmann_json/nlohmann_jsonConfig.cmake > /dev/null
+
+sudo mkdir -p /usr/lib/cmake/pugixml
+echo 'add_library(pugixml::pugixml SHARED IMPORTED)
+set_target_properties(pugixml::pugixml PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.so"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+)
+add_library(pugixml::pugixml-static STATIC IMPORTED)
+set_target_properties(pugixml::pugixml-static PROPERTIES
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.a"
+    INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
+)' | sudo tee /usr/lib/cmake/pugixml/pugixmlConfig.cmake > /dev/null
+
+# 3. 编译安装 miniocpp（MinIO C++ SDK，Ubuntu 源中没有）
 git clone --depth 1 https://github.com/minio/minio-cpp.git /tmp/minio-cpp
 cd /tmp/minio-cpp && mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release .. && make -j$(nproc) && sudo make install
 cd ~ && rm -rf /tmp/minio-cpp
 
-# 3. 数据库初始化
+# 4. 数据库初始化
 mysql -u root -p < schema/01_init.sql
 mysql -u root -p < schema/02_email_verification.sql
 
-# 4. 编译项目
+# 5. 编译项目
 cd AeroImageHost
 mkdir -p build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j$(nproc)
 
-# 5. 创建配置文件
+# 6. 创建配置文件
 cat > ../config.json << EOF
 {
   "http_port": 8082,
@@ -409,7 +452,7 @@ cat > ../config.json << EOF
 }
 EOF
 
-# 6. 启动服务
+# 7. 启动服务
 ./AeroImageHost ../config.json
 ```
 
