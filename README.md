@@ -321,7 +321,7 @@ git clone https://github.com/ywx914705/AeroImageHost.git
 cd AeroImageHost
 
 # 2. 启动所有服务（MySQL + Redis + MinIO + App，首次需要编译约 5~15 分钟）
-docker-compose up -d
+sudo docker-compose up -d
 
 # 3. 查看服务状态（等待所有服务 healthy）
 docker-compose ps
