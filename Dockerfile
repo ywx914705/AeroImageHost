@@ -70,10 +70,10 @@ RUN apt-get update && apt-get install -y \
     libmysqlclient21 \
     libvips42 \
     libhiredis0.14 \
-    libcpprest4.10 \
+    libcpprest2.10 \
     libcurlpp1 \
-    libpugixml1v5 \
-    libinih5
+    libpugixml1.13 \
+    libinih1
 
 # 复制 miniocpp 运行时库（从构建阶段）
 COPY --from=build /usr/local/lib/libminiocpp.so* /usr/local/lib/
