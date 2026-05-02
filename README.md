@@ -333,7 +333,7 @@ class AeroQueue {
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-username/AeroImageHost.git
+git clone https://github.com/ywx914705/AeroImageHost.git
 cd AeroImageHost
 
 # 2. 启动所有服务（MySQL + Redis + MinIO + App）
