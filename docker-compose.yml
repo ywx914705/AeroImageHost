@@ -7,16 +7,6 @@ services:
     restart: unless-stopped
     ports:
       - "8082:8082"
-    environment:
-      - MYSQL_HOST=db
-      - MYSQL_USER=aero_user
-      - MYSQL_PASSWORD=aero_password
-      - MYSQL_DB=imagehost
-      - REDIS_HOST=redis
-      - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET=aero-images
     volumes:
       - aeroimagehost-logs:/app/logs
       - ./config/config-docker.json:/app/config.json
@@ -90,7 +80,7 @@ services:
       /bin/sh -c "
         mc config host add minio http://minio:9000 minioadmin minioadmin &&
         mc mb minio/aero-images --region us-east-1 &&
-        mc policy set download minio/aero-images
+        mc anonymous set download minio/aero-images
       "
 
 volumes:

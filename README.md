@@ -322,8 +322,8 @@ make -j$(nproc)
 sudo make install
 
 # 3. 数据库初始化
-mysql -u root -p < schema/init.sql
-mysql -u root -p < schema/email_verification.sql
+mysql -u root -p < schema/01_init.sql
+mysql -u root -p < schema/02_email_verification.sql
 
 # 4. 编译项目
 cd AeroImageHost
@@ -716,7 +716,7 @@ CREATE TABLE users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
-> **注意**: `email` 字段由 `schema/email_verification.sql` 通过 `ALTER TABLE` 添加，用于邮箱验证码注册功能。`init.sql` 初始建表时不包含该字段。
+> **注意**: `email` 字段由 `schema/02_email_verification.sql` 通过 `ALTER TABLE` 添加，用于邮箱验证码注册功能。`01_init.sql` 初始建表时不包含该字段。
 
 ### files 表 - 文件元数据
 ```sql
@@ -823,11 +823,11 @@ AeroImageHost/
 │       ├── schema.h             # JSON Schema 验证
 │       └── ...                  # 其他 RapidJSON 组件
 │
-├── schema/                      # SQL 脚本
-│   ├── init.sql                 # 基础表结构（users, files）
-│   ├── email_verification.sql   # 邮箱验证表
-│   ├── migrate.sql              # 迁移脚本
-│   └── clean_data.sql           # 数据清理脚本
+├── schema/                      # SQL 脚本（按数字前缀顺序执行）
+│   ├── 01_init.sql              # 基础表结构（users, files）
+│   ├── 02_email_verification.sql # 邮箱验证表
+│   ├── 03_migrate.sql           # 迁移脚本
+│   └── 04_clean_data.sql        # 数据清理脚本
 │
 └── www/                         # 前端页面
     ├── index.html               # Vue 3 SPA 入口 (使用在线 CDN 引入依赖)

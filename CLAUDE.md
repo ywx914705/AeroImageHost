@@ -23,8 +23,8 @@ docker-compose ps          # check status
 docker-compose logs -f app # follow app logs
 
 # Database initialization (local dev only)
-mysql -u root -p < schema/init.sql
-mysql -u root -p < schema/email_verification.sql
+mysql -u root -p < schema/01_init.sql
+mysql -u root -p < schema/02_email_verification.sql
 ```
 
 There are no automated tests in this project.
@@ -51,7 +51,7 @@ The codebase follows a layered component architecture:
   - `AsyncLog` — Async logger with dual-buffer flushing.
 - **`utils/`** — URL encoding/decoding, UUID generation, MIME detection, `EmailSender` (SMTP).
 - **`www/`** — Static frontend. Vue 3 + Element Plus + Axios via CDN. Served directly by cpprestsdk.
-- **`schema/`** — SQL DDL scripts (run in order: `init.sql`, `email_verification.sql`).
+- **`schema/`** — SQL DDL scripts (run in order: `01_init.sql`, `02_email_verification.sql`).
 
 ## Key Patterns
 
