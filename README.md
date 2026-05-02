@@ -311,9 +311,14 @@ docker info | grep -A 5 "Registry Mirrors"
 curl -fsSL https://get.docker.com | sh
 sudo systemctl enable --now docker
 
-# 安装 Docker Compose（V2 版本，随 Docker 自带，验证即可）
+# 安装 Docker Compose 插件（V2 版本）
+sudo apt-get install -y docker-compose-plugin
+
+# 验证安装（应输出版本号，如 Docker Compose version v2.x.x）
 docker compose version
 ```
+
+> **提示**: 如果 `docker compose` 命令不可用（提示 unknown shorthand flag），说明未安装 Compose 插件，请执行上面的安装命令。旧版系统可能使用 `docker-compose`（带连字符），以下命令两种写法均可。
 
 ```bash
 # 1. 克隆项目
@@ -321,7 +326,7 @@ git clone https://github.com/ywx914705/AeroImageHost.git
 cd AeroImageHost
 
 # 2. 启动所有服务（MySQL + Redis + MinIO + App，首次需要编译约 5~15 分钟）
-sudo docker compose up -d
+docker compose up -d
 
 # 3. 查看服务状态（等待所有服务 healthy）
 docker compose ps
