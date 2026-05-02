@@ -10,13 +10,28 @@ RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    pkg-config \
     libssl-dev \
     libcurl4-openssl-dev \
     libmysqlclient-dev \
     libvips-dev \
+    libcpprest-dev \
+    libhiredis-dev \
+    libcurlpp-dev \
+    libpugixml-dev \
+    libinih-dev \
     git \
     wget \
     ca-certificates
+
+# 编译安装 miniocpp（MinIO C++ SDK，Ubuntu 源中没有）
+RUN git clone --depth 1 https://github.com/minio/minio-cpp.git /tmp/minio-cpp && \
+    cd /tmp/minio-cpp && \
+    mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/minio-cpp
 
 # 复制项目代码
 WORKDIR /app
@@ -40,7 +55,15 @@ RUN apt-get update && apt-get install -y \
     libcurl4 \
     libmysqlclient21 \
     libvips42 \
-    libhiredis16
+    libhiredis0.14 \
+    libcpprest4.10 \
+    libcurlpp1 \
+    libpugixml1v5 \
+    libinih5
+
+# 复制 miniocpp 运行时库（从构建阶段）
+COPY --from=build /usr/local/lib/libminiocpp.so* /usr/local/lib/
+RUN ldconfig
 
 # 复制应用和配置
 WORKDIR /app

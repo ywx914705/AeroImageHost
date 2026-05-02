@@ -304,21 +304,37 @@ docker info | grep -A 5 "Registry Mirrors"
 
 ### 方法一：Docker 一键部署（推荐）
 
+> **前置条件**: 服务器需已安装 Docker 和 Docker Compose。如未安装，请先执行以下命令：
+
+```bash
+# 安装 Docker（适用于 Ubuntu / Debian）
+curl -fsSL https://get.docker.com | sh
+sudo systemctl enable --now docker
+
+# 安装 Docker Compose（V2 版本，随 Docker 自带，验证即可）
+docker compose version
+```
+
 ```bash
 # 1. 克隆项目
 git clone https://github.com/ywx914705/AeroImageHost.git
 cd AeroImageHost
 
-# 2. 启动所有服务（MySQL + Redis + MinIO + App）
+# 2. 启动所有服务（MySQL + Redis + MinIO + App，首次需要编译约 5~15 分钟）
 docker-compose up -d
 
-# 3. 查看服务状态
+# 3. 查看服务状态（等待所有服务 healthy）
 docker-compose ps
 
-# 4. 访问服务
+# 4. 查看构建日志（如遇问题可排查）
+docker-compose logs -f app
+
+# 5. 访问服务
 # Web 界面: http://localhost:8082
 # MinIO 控制台: http://localhost:9090 (用户名: minioadmin, 密码: minioadmin)
 ```
+
+> **从其他机器访问？** 需修改 `config/config-docker.json` 中的 `minio.public_url`，将 `localhost` 替换为服务器实际 IP，然后重启：`docker-compose restart app`
 
 ### 方法二：本地编译部署
 
@@ -334,18 +350,15 @@ docker-compose ps
 # 1. 安装系统依赖
 # Ubuntu/Debian
 sudo apt-get update
-sudo apt-get install -y build-essential cmake \
-    libssl-dev libcurl4-openssl-dev \
-    libmysqlclient-dev libvips-dev libhiredis-dev \
-    pkg-config git
+sudo apt-get install -y build-essential cmake pkg-config git \
+    libssl-dev libcurl4-openssl-dev libmysqlclient-dev libvips-dev \
+    libcpprest-dev libhiredis-dev libcurlpp-dev libpugixml-dev libinih-dev
 
-# 2. 安装 cpprestsdk (Casablanca)
-git clone https://github.com/microsoft/cpprestsdk.git
-cd cpprestsdk
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc)
-sudo make install
+# 2. 编译安装 miniocpp（MinIO C++ SDK，Ubuntu 源中没有）
+git clone --depth 1 https://github.com/minio/minio-cpp.git /tmp/minio-cpp
+cd /tmp/minio-cpp && mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release .. && make -j$(nproc) && sudo make install
+cd ~ && rm -rf /tmp/minio-cpp
 
 # 3. 数据库初始化
 mysql -u root -p < schema/01_init.sql
@@ -1087,3 +1100,4 @@ redis-cli ping
 [![GitHub forks](https://img.shields.io/github/forks/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/network/members)
 
 </div>
+
