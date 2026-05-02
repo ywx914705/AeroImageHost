@@ -40,9 +40,9 @@ set_target_properties(unofficial::inih::inih PROPERTIES
     IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.so"
     INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
 )
-add_library(unofficial::inih::inireader STATIC IMPORTED)
+add_library(unofficial::inih::inireader SHARED IMPORTED)
 set_target_properties(unofficial::inih::inireader PROPERTIES
-    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.a"
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.so"
     INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
     INTERFACE_LINK_LIBRARIES "unofficial::inih::inih"
 )' > /usr/lib/cmake/unofficial-inih/unofficial-inih-config.cmake && \

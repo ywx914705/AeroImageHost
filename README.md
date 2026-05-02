@@ -276,12 +276,52 @@ class AeroQueue {
 
 ## 🚀 快速开始
 
-> **国内用户须知**: Docker Hub 在国内可能无法直接访问，拉取镜像时会超时。首次部署前请先配置 Docker 镜像加速，否则 `docker-compose up -d` 会失败。
+### 方法一：Docker 一键部署（推荐）
 
-### 国内 Docker 镜像加速配置
+> 适用于全新服务器，从安装 Docker 到启动服务，全程约 10~20 分钟。
+
+#### 第 1 步：安装 Docker
 
 ```bash
-# 一键配置镜像加速（适用于 Ubuntu / Debian / CentOS）
+# 方式 A：官方脚本安装（推荐，适用于 Ubuntu / Debian）
+# 如果服务器能访问外网，直接执行：
+curl -fsSL https://get.docker.com | sh
+sudo systemctl enable --now docker
+
+# 方式 B：如果 curl 超时（国内网络问题），用阿里云镜像源安装：
+curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+sudo systemctl enable --now docker
+```
+
+验证 Docker 已安装：
+```bash
+docker --version
+# 应输出类似：Docker version 24.x.x, build xxxxxxx
+```
+
+> **常见问题**: 如果提示 `/usr/bin/docker: No such file or directory`，说明 Docker 未安装成功，请用方式 B 重装。如果提示 `Unit docker.service is masked`，执行 `sudo systemctl unmask docker && sudo systemctl enable --now docker`。
+
+#### 第 2 步：安装 Docker Compose 插件
+
+```bash
+sudo apt-get install -y docker-compose-plugin
+
+# 验证（应输出版本号）
+docker compose version
+# 应输出类似：Docker Compose version v2.x.x
+```
+
+> **注意**: Docker Compose 有两种版本——V2 插件（`docker compose`，推荐）和 V1 独立程序（`docker-compose`，已停止维护）。本项目使用 V2 语法。如果 `docker compose` 不可用，请确认已执行上面的安装命令。
+
+#### 第 3 步：配置国内镜像加速（国内服务器必做）
+
+> Docker Hub 在国内经常超时，不配置加速会导致拉取镜像失败。
+
+```bash
+# 配置镜像加速
 sudo mkdir -p /etc/docker
 sudo tee /etc/docker/daemon.json << 'EOF'
 {
@@ -296,50 +336,60 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl restart docker
 
-# 验证加速是否生效（输出中应包含 "Registry Mirrors"）
+# 验证加速已生效（输出中应包含 "Registry Mirrors"）
 docker info | grep -A 5 "Registry Mirrors"
 ```
 
-> **提示**: 如果上述镜像源不可用，可替换为其他可用源。阿里云用户可登录 [cr.console.aliyun.com](https://cr.console.aliyun.com) → 镜像工具 → 获取专属加速地址。
+> 如果上述镜像源不可用，可替换为其他可用源。阿里云用户可登录 [cr.console.aliyun.com](https://cr.console.aliyun.com) → 镜像工具 → 获取专属加速地址。
 
-### 方法一：Docker 一键部署（推荐）
-
-> **前置条件**: 服务器需已安装 Docker 和 Docker Compose。如未安装，请先执行以下命令：
-
-```bash
-# 安装 Docker（适用于 Ubuntu / Debian）
-curl -fsSL https://get.docker.com | sh
-sudo systemctl enable --now docker
-
-# 安装 Docker Compose 插件（V2 版本）
-sudo apt-get install -y docker-compose-plugin
-
-# 验证安装（应输出版本号，如 Docker Compose version v2.x.x）
-docker compose version
-```
-
-> **提示**: 如果 `docker compose` 命令不可用（提示 unknown shorthand flag），说明未安装 Compose 插件，请执行上面的安装命令。旧版系统可能使用 `docker-compose`（带连字符），以下命令两种写法均可。
+#### 第 4 步：部署项目
 
 ```bash
 # 1. 克隆项目
 git clone https://github.com/ywx914705/AeroImageHost.git
 cd AeroImageHost
 
-# 2. 启动所有服务（MySQL + Redis + MinIO + App，首次需要编译约 5~15 分钟）
+# 2. 启动所有服务（MySQL + Redis + MinIO + App）
+#    首次需要构建镜像，约 5~15 分钟，后续启动约 1 分钟
 docker compose up -d
 
 # 3. 查看服务状态（等待所有服务 healthy）
 docker compose ps
 
-# 4. 查看构建日志（如遇问题可排查）
+# 4. 查看构建/运行日志（遇到问题时排查）
 docker compose logs -f app
-
-# 5. 访问服务
-# Web 界面: http://localhost:8082
-# MinIO 控制台: http://localhost:9090 (用户名: minioadmin, 密码: minioadmin)
 ```
 
-> **从其他机器访问？** 需修改 `config/config-docker.json` 中的 `minio.public_url`，将 `localhost` 替换为服务器实际 IP，然后重启：`docker compose restart app`
+#### 第 5 步：访问服务
+
+| 服务 | 地址 | 说明 |
+|------|------|------|
+| **Web 界面** | `http://你的服务器IP:8082` | 图床主界面 |
+| **MinIO 控制台** | `http://你的服务器IP:9090` | 对象存储管理（用户名: `minioadmin`，密码: `minioadmin`） |
+
+#### 常用运维命令
+
+```bash
+docker compose ps              # 查看服务状态
+docker compose logs -f app     # 查看应用日志
+docker compose logs -f db      # 查看数据库日志
+docker compose restart app     # 重启应用
+docker compose down            # 停止所有服务
+docker compose down -v         # 停止并删除数据卷（危险！会清除所有数据）
+docker compose build           # 重新构建镜像
+docker compose exec app bash   # 进入应用容器调试
+```
+
+#### 常见问题排查
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| `docker compose up` 卡在拉取镜像 | 国内无法访问 Docker Hub | 执行第 3 步配置镜像加速 |
+| `docker: 'compose' is not a docker command` | 未安装 Compose 插件 | 执行第 2 步安装 `docker-compose-plugin` |
+| 构建时报 `unofficial-curlpp not found` | 旧版 Dockerfile | 确保使用最新代码（`git pull`） |
+| 启动后 app 容器退出 | 配置错误或依赖未就绪 | `docker compose logs app` 查看具体报错 |
+| `port is already allocated` | 宿主机端口被占用 | 修改 `docker-compose.yml` 中的端口映射，如 `"8083:8082"` |
+| 从其他机器无法访问 | `public_url` 配置错误 | 修改 `config/config-docker.json` 中 `minio.public_url` 为服务器 IP，然后 `docker compose restart app` |
 
 ### 方法二：本地编译部署
 
@@ -376,9 +426,9 @@ set_target_properties(unofficial::inih::inih PROPERTIES
     IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.so"
     INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
 )
-add_library(unofficial::inih::inireader STATIC IMPORTED)
+add_library(unofficial::inih::inireader SHARED IMPORTED)
 set_target_properties(unofficial::inih::inireader PROPERTIES
-    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.a"
+    IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libinih.so"
     INTERFACE_INCLUDE_DIRECTORIES "/usr/include"
     INTERFACE_LINK_LIBRARIES "unofficial::inih::inih"
 )' | sudo tee /usr/lib/cmake/unofficial-inih/unofficial-inih-config.cmake > /dev/null
