@@ -23,7 +23,7 @@
 
 | 特性 | 描述 | 优势 |
 |------|------|------|
-| **⚡ 极速性能** | C++17 + 连接池 + 异步处理 | 轻量级设计，内存占用 < 100MB |
+| **⚡ 极速性能** | C++17 + 连接池 + 异步处理 | 轻量级设计，内存占用 80~120MB |
 | **🔒 智能上传** | 小文件代理 + 大文件分片直传 | 断点续传 + 真实进度 + 页面刷新恢复 |
 | **🖼️ 智能图片处理** | libvips 驱动缩略图 | 内存占用少，处理速度比 ImageMagick 快 10 倍 |
 | **🎯 精准搜索** | 文件名模糊搜索 + 分页 | 支持复杂查询条件 |
@@ -223,29 +223,14 @@ class AeroQueue {
 ## 📊 性能基准
 
 ### 测试环境
-- **CPU**: 4 核 Intel Xeon (云服务器标准配置)
+- **CPU**: 4 核 Intel Xeon
 - **内存**: 4GB RAM
 - **存储**: SSD 云盘
 - **网络**: 300Mbps 带宽
 - **OS**: Ubuntu 22.04 LTS
 - **部署方式**: Docker Compose 单机部署
 
-> 💡 **注意**: 以下性能数据基于实际代码架构分析得出，代表在标准云服务器上可稳定达到的性能水平。建议使用 wrk 或 ab 工具进行实际压测验证。
-
-### 优化前后对比
-
-| 场景 | 优化前 | 优化后 | 提升 |
-|------|--------|--------|------|
-| **文件上传** | MySQL→MinIO 串行 | std::async 并行写入 | **~40% 延迟降低** |
-| **批量删除 (10 文件)** | MinIO 逐个串行删除 | std::async 并行删除 | **~70% 耗时降低** |
-| **缩略图首次请求** | 每次下载原图+生成 | 生成后异步缓存到 MinIO | **后续请求零生成开销** |
-| **缩略图重复请求** | 每次下载原图+生成 | MinIO thumbs/ 缓存直读 | **~90% 延迟降低** |
-| **邮件验证码发送** | 同步 SMTP 阻塞 (~2s) | AeroQueue 异步 fire-and-forget | **请求延迟减少 ~2s** |
-| **图片重复访问** | 每次从 MinIO 拉取 | 304 缓存命中 | **~95% 带宽节省** |
-| **MySQL 连接获取** | 每次 mysql_ping (~1ms) | 30s 内免 ping | **~80% 连接开销节省** |
-| **PDF/视频预览加载** | 经 C++ 服务器代理 | 直连 MinIO (presign) | **~30% 延迟降低** |
-
-> 优化前数据基于旧架构（每次 mysql_ping + 文件列表循环生成 presign_url + 无 HTTP 缓存）的理论分析。优化后数据基于优化后的架构分析。
+> 以下数据为架构分析预估值，建议使用 wrk 或 ab 工具进行实际压测验证。
 
 ### 预期性能表现
 
@@ -258,50 +243,8 @@ class AeroQueue {
 | **图片重复访问** | < 10ms | 浏览器 304 缓存命中 |
 | **并发处理** | 200-300 QPS | 4 核 4GB 环境下的稳定并发能力 |
 | **内存占用** | 80-120 MB | 空闲到中等负载状态 |
-| **CPU 使用率** | < 60% | 正常业务负载下 |
 
-### 性能优势说明
-
-**1. 轻量级设计**
-- C++17 实现，无虚拟机开销
-- 内存占用稳定在 100MB 左右
-- 启动速度快，资源消耗低
-
-**2. 连接池优化**
-- MySQL 连接池 (32 连接) + Redis 连接池 (16 连接)
-- 连接复用，避免频繁创建销毁
-- 定时连接验证（30 秒间隔），归还免验证，减少 `mysql_ping` 开销
-- 连接失效自动重建
-
-**3. 异步非阻塞架构**
-- 基于 REST++ 的异步 HTTP 处理
-- 任务队列处理耗时操作（如缩略图生成）
-- 不阻塞主线程，提高并发能力
-
-**4. 高效图像处理**
-- libvips 图像处理库，内存效率比 ImageMagick 高 10 倍
-- 按需生成缩略图，避免预处理开销
-- 支持多种图片格式
-
-**5. HTTP 缓存**
-- 图片 ETag + Cache-Control 支持 304 条件请求，重复访问零传输
-- 缩略图 24 小时浏览器缓存
-
-**6. 按需预签名**
-- 文件列表不预生成签名 URL，打开详情时才按需获取
-- 预览 PDF/视频/音频直连 MinIO，绕过服务器代理
-
-**7. 分布式存储**
-- MinIO 对象存储，支持水平扩展
-- 预签名 URL 直传，减轻服务端负载
-- S3 兼容，便于云服务集成
-
-### 扩展性说明
-
-- **垂直扩展**: 升级服务器配置可线性提升性能
-- **水平扩展**: MinIO 支持集群部署，MySQL 可读写分离
-- **CDN 集成**: 文件存储天然支持 CDN 加速
-- **容器化**: Docker 部署便于 Kubernetes 编排
+> 以上数据为架构分析预估值，建议使用 wrk 或 ab 工具进行实际压测验证。
 
 ## 📋 技术栈详情
 
@@ -309,7 +252,7 @@ class AeroQueue {
 | 组件 | 技术选型 | 版本 | 用途 |
 |------|----------|------|------|
 | **编程语言** | C++17 | ISO/IEC 14882:2017 | 高性能后端 |
-| **Web 框架** | REST++ (cpprestsdk) | 2.10.18 | REST API 服务 |
+| **Web 框架** | cpprestsdk (Casablanca) | 2.10.18 | REST API 服务 |
 | **HTTP 服务器** | Casablanca HTTP Listener | 内置 | 异步 HTTP 处理 |
 | **数据库** | MySQL | 8.0+ | 元数据存储 |
 | **对象存储** | MinIO | Latest | 分布式文件存储 |
@@ -418,7 +361,6 @@ cat > ../config.json << EOF
     "port": 465,
     "username": "your_email@qq.com",
     "password": "your_smtp_authorization_code",
-    "secure": true,
     "from": "your_email@qq.com"
   },
   "log": {
@@ -720,7 +662,6 @@ Authorization: Bearer {your_token}
     "port": 465,
     "username": "your_email@qq.com",
     "password": "your_smtp_authorization_code",
-    "secure": true,
     "from": "your_email@qq.com"
   },
 
@@ -759,7 +700,6 @@ Authorization: Bearer {your_token}
 | `smtp.port` | integer | 465 | SMTP 端口（465 为 SSL，587 为 STARTTLS） |
 | `smtp.username` | string | - | 发件人邮箱地址 |
 | `smtp.password` | string | - | 邮箱 SMTP 授权码（非登录密码） |
-| `smtp.secure` | boolean | true | 是否使用 SSL 加密 |
 | `smtp.from` | string | - | 发件人显示邮箱（通常与 username 相同） |
 
 ## 🗃️ 数据库设计
