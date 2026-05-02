@@ -3,6 +3,9 @@ FROM ubuntu:22.04 AS build
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive
 
+# 国内镜像加速（构建阶段）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
+
 # 安装构建依赖
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -27,6 +30,9 @@ RUN mkdir -p build && cd build && \
 
 # 最终镜像阶段
 FROM ubuntu:22.04
+
+# 国内镜像加速（运行时阶段）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
 
 # 复制必需的库和运行时
 RUN apt-get update && apt-get install -y \

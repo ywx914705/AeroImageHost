@@ -276,6 +276,32 @@ class AeroQueue {
 
 ## 🚀 快速开始
 
+> **国内用户须知**: Docker Hub 在国内可能无法直接访问，拉取镜像时会超时。首次部署前请先配置 Docker 镜像加速，否则 `docker-compose up -d` 会失败。
+
+### 国内 Docker 镜像加速配置
+
+```bash
+# 一键配置镜像加速（适用于 Ubuntu / Debian / CentOS）
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json << 'EOF'
+{
+  "registry-mirrors": [
+    "https://docker.1ms.run",
+    "https://docker.xuanyuan.me"
+  ]
+}
+EOF
+
+# 重启 Docker 使配置生效
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+# 验证加速是否生效（输出中应包含 "Registry Mirrors"）
+docker info | grep -A 5 "Registry Mirrors"
+```
+
+> **提示**: 如果上述镜像源不可用，可替换为其他可用源。阿里云用户可登录 [cr.console.aliyun.com](https://cr.console.aliyun.com) → 镜像工具 → 获取专属加速地址。
+
 ### 方法一：Docker 一键部署（推荐）
 
 ```bash
