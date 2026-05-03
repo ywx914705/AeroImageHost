@@ -386,9 +386,9 @@ docker compose exec app bash   # 进入应用容器调试
 |------|------|----------|
 | `docker compose up` 卡在拉取镜像 | 国内无法访问 Docker Hub | 执行第 3 步配置镜像加速 |
 | `docker: 'compose' is not a docker command` | 未安装 Compose 插件 | 执行第 2 步安装 `docker-compose-plugin` |
-| 构建时报 `unofficial-curlpp not found` | 旧版 Dockerfile | 确保使用最新代码（`git pull`） |
+| `port is already allocated` | 宿主机端口被占用（如 Redis 6379） | `sudo systemctl stop redis` 停止宿主机服务，或修改 `docker-compose.yml` 中的端口映射 |
 | 启动后 app 容器退出 | 配置错误或依赖未就绪 | `docker compose logs app` 查看具体报错 |
-| `port is already allocated` | 宿主机端口被占用 | 修改 `docker-compose.yml` 中的端口映射，如 `"8083:8082"` |
+| `libINIReader.so: cannot open shared object` | 运行时缺少 inih 库 | 确保使用最新代码（`git pull`），Dockerfile 已修复 |
 | 从其他机器无法访问 | `public_url` 配置错误 | 修改 `config/config-docker.json` 中 `minio.public_url` 为服务器 IP，然后 `docker compose restart app` |
 
 ### 方法二：本地编译部署
@@ -424,10 +424,25 @@ sudo mkdir -p /usr/lib/cmake/pugixml
 printf 'add_library(pugixml::pugixml SHARED IMPORTED)\nset_target_properties(pugixml::pugixml PROPERTIES\n  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.so"\n  INTERFACE_INCLUDE_DIRECTORIES "/usr/include"\n)\nadd_library(pugixml::pugixml-static STATIC IMPORTED)\nset_target_properties(pugixml::pugixml-static PROPERTIES\n  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.a"\n  INTERFACE_INCLUDE_DIRECTORIES "/usr/include"\n)\n' | sudo tee /usr/lib/cmake/pugixml/pugixmlConfig.cmake > /dev/null
 
 # 3. 编译安装 miniocpp（MinIO C++ SDK，Ubuntu 源中没有）
-git clone --depth 1 https://github.com/minio/minio-cpp.git /tmp/minio-cpp
-cd /tmp/minio-cpp && mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release .. && make -j$(nproc) && sudo make install
-cd ~ && rm -rf /tmp/minio-cpp
+#    直连 GitHub，失败则走 ghproxy 镜像
+(curl -L -o /tmp/minio-cpp.tar.gz \
+       https://github.com/minio/minio-cpp/archive/refs/heads/master.tar.gz \
+       --retry 3 --retry-delay 10 --max-time 120 \
+ || \
+ curl -L -o /tmp/minio-cpp.tar.gz \
+       https://ghproxy.com/https://github.com/minio/minio-cpp/archive/refs/heads/master.tar.gz \
+       --retry 3 --retry-delay 10 --max-time 120) && \
+tar -xzf /tmp/minio-cpp.tar.gz -C /tmp && \
+mv /tmp/minio-cpp-* /tmp/minio-cpp && \
+cd /tmp/minio-cpp && \
+# 修补 CURL::libcurl 缺失问题
+printf 'add_library(CURL::libcurl SHARED IMPORTED)\nset_target_properties(CURL::libcurl PROPERTIES\n  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libcurl.so"\n  INTERFACE_INCLUDE_DIRECTORIES "/usr/include")\n' > /tmp/curl_fix.cmake && \
+sed -i '1i\include("/tmp/curl_fix.cmake")' CMakeLists.txt && \
+# 修补 pugixml API 兼容性（set_value(value) → set_value(value.c_str())）
+sed -i 's/doc\.append_child(pugi::node_pcdata)\.set_value(value);/doc.append_child(pugi::node_pcdata).set_value(value.c_str());/' src/utils.cc && \
+mkdir build && cd build && \
+cmake -DCMAKE_BUILD_TYPE=Release .. && make -j$(nproc) && sudo make install && \
+rm -rf /tmp/minio-cpp /tmp/minio-cpp.tar.gz /tmp/curl_fix.cmake
 
 # 4. 数据库初始化
 mysql -u root -p < schema/01_init.sql
