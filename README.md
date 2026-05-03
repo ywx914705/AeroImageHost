@@ -834,13 +834,13 @@ CREATE TABLE users (
     id INT NOT NULL AUTO_INCREMENT,
     account VARCHAR(64) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    email VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY account (account)
+    UNIQUE KEY account (account),
+    UNIQUE KEY email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
-
-> **注意**: `email` 字段由 `schema/02_email_verification.sql` 通过 `ALTER TABLE` 添加，用于邮箱验证码注册功能。`01_init.sql` 初始建表时不包含该字段。
 
 ### files 表 - 文件元数据
 ```sql

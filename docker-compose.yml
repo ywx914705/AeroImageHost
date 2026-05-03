@@ -86,12 +86,12 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-    command: >
-      /bin/sh -c "
-        mc config host add minio http://minio:9000 minioadmin minioadmin123 &&
-        mc mb minio/images --region us-east-1 &&
-        mc anonymous set download minio/images
-      "
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set myminio http://minio:9000 minioadmin minioadmin123
+        mc mb myminio/images --region us-east-1
+        mc anonymous set download myminio/images
 
 volumes:
   aeroimagehost-db:

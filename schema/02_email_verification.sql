@@ -1,4 +1,6 @@
 -- 邮箱验证码表
+USE imagehost;
+
 CREATE TABLE IF NOT EXISTS email_verifications (
     id INT NOT NULL AUTO_INCREMENT,
     email VARCHAR(255) NOT NULL,
