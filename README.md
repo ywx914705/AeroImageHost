@@ -349,7 +349,7 @@ docker info | grep -A 5 "Registry Mirrors"
 git clone https://github.com/ywx914705/AeroImageHost.git
 cd AeroImageHost
 
-# 2. 启动所有服务（MySQL + Redis + MinIO + App）
+# 2. 启动所有服务（Nginx + MySQL + Redis + MinIO + App）
 #    首次需要构建镜像，约 5~15 分钟，后续启动约 1 分钟
 docker compose up -d
 
@@ -365,13 +365,14 @@ docker compose logs -f app
 | 服务 | 地址 | 说明 |
 |------|------|------|
 | **Web 界面** | `http://你的服务器IP:8082` | 图床主界面 |
-| **MinIO 控制台** | `http://你的服务器IP:9090` | 对象存储管理（用户名: `minioadmin`，密码: `minioadmin`） |
+| **MinIO 控制台** | `http://你的服务器IP:9090` | 对象存储管理（用户名: `minioadmin`，密码: `minioadmin123`） |
 
 #### 常用运维命令
 
 ```bash
 docker compose ps              # 查看服务状态
 docker compose logs -f app     # 查看应用日志
+docker compose logs -f nginx   # 查看 Nginx 日志
 docker compose logs -f db      # 查看数据库日志
 docker compose restart app     # 重启应用
 docker compose down            # 停止所有服务
@@ -386,9 +387,9 @@ docker compose exec app bash   # 进入应用容器调试
 |------|------|----------|
 | `docker compose up` 卡在拉取镜像 | 国内无法访问 Docker Hub | 执行第 3 步配置镜像加速 |
 | `docker: 'compose' is not a docker command` | 未安装 Compose 插件 | 执行第 2 步安装 `docker-compose-plugin` |
-| `port is already allocated` | 宿主机端口被占用（如 Redis 6379） | `sudo systemctl stop redis` 停止宿主机服务，或修改 `docker-compose.yml` 中的端口映射 |
 | 启动后 app 容器退出 | 配置错误或依赖未就绪 | `docker compose logs app` 查看具体报错 |
 | `libINIReader.so: cannot open shared object` | 运行时缺少 inih 库 | 确保使用最新代码（`git pull`），Dockerfile 已修复 |
+| 页面 404 或白屏 | Nginx 未正确代理 | 确认 `www/` 目录存在且包含 `index.html`，检查 `docker compose logs nginx` |
 | 从其他机器无法访问 | `public_url` 配置错误 | 修改 `config/config-docker.json` 中 `minio.public_url` 为服务器 IP，然后 `docker compose restart app` |
 
 ### 方法二：本地编译部署
@@ -475,8 +476,8 @@ cat > ../config.json << EOF
   "minio": {
     "endpoint": "http://localhost:9000",
     "access_key": "minioadmin",
-    "secret_key": "minioadmin",
-    "bucket": "aero-images",
+    "secret_key": "minioadmin123",
+    "bucket": "images",
     "public_url": "http://localhost:8082/api/i/"
   },
   "smtp": {
@@ -727,7 +728,7 @@ curl http://localhost:8082/api/file/550e8400-e29b-41d4-a716-446655440000/presign
 ```json
 {
   "file_id": "550e8400-e29b-41d4-a716-446655440000",
-  "presign_url": "http://minio-host:9000/aero-images/550e8400...?X-Amz-Algorithm=..."
+  "presign_url": "http://minio-host:9000/images/550e8400...?X-Amz-Algorithm=..."
 }
 ```
 
@@ -775,8 +776,8 @@ Authorization: Bearer {your_token}
   "minio": {
     "endpoint": "http://localhost:9000",
     "access_key": "minioadmin",
-    "secret_key": "minioadmin",
-    "bucket": "aero-images",
+    "secret_key": "minioadmin123",
+    "bucket": "images",
     "public_url": "http://localhost:8082/api/i/"
   },
 
@@ -814,8 +815,8 @@ Authorization: Bearer {your_token}
 | `redis.pool_size` | integer | 16 | Redis 连接池大小 |
 | `minio.endpoint` | string | http://localhost:9000 | MinIO 服务地址（需包含 http:// 或 https:// 前缀） |
 | `minio.access_key` | string | minioadmin | MinIO 访问密钥 |
-| `minio.secret_key` | string | minioadmin | MinIO 密钥 |
-| `minio.bucket` | string | aero-images | MinIO 存储桶名称 |
+| `minio.secret_key` | string | minioadmin123 | MinIO 密钥 |
+| `minio.bucket` | string | images | MinIO 存储桶名称 |
 | `minio.public_url` | string | http://localhost:8082/api/i/ | 文件公开访问 URL 前缀 |
 | `log.file` | string | ./logs/server.log | 日志文件路径 |
 | `log.flush_interval` | integer | 3 | 日志刷新间隔（秒） |
@@ -889,7 +890,8 @@ CREATE TABLE email_verifications (
 AeroImageHost/
 ├── CMakeLists.txt               # CMake 构建配置
 ├── Dockerfile                   # Docker 镜像构建
-├── docker-compose.yml           # Docker 服务编排
+├── docker-compose.yml           # Docker 服务编排（含 Nginx 代理）
+├── nginx.conf                   # Nginx 反向代理配置
 ├── .gitignore                   # Git 忽略规则
 ├── config.json                  # 本地开发配置（.gitignore 排除，不提交到 Git）
 ├── main.cc                      # 主程序入口
