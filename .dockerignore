@@ -1,0 +1,8 @@
+.git
+.gitignore
+docs/
+build/
+*.md
+LICENSE
+.claude/
+.cursor/

@@ -1,9 +1,8 @@
 FROM ubuntu:22.04 AS build
 
-# 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 国内镜像加速（构建阶段）
+# 国内镜像加速
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
 
 # 安装构建依赖
@@ -23,9 +22,10 @@ RUN apt-get update && apt-get install -y \
     nlohmann-json3-dev \
     git \
     wget \
+    curl \
     ca-certificates
 
-# 为 miniocpp 创建 CMake config 文件（Ubuntu apt 包不提供 vcpkg 风格的 config）
+# 手动创建其他库的 CMake 配置文件（curlpp, inih, nlohmann_json, pugixml）
 RUN mkdir -p /usr/lib/cmake/unofficial-curlpp
 RUN printf 'include(CMakeFindDependencyMacro)\nadd_library(unofficial::curlpp::curlpp SHARED IMPORTED)\nset_target_properties(unofficial::curlpp::curlpp PROPERTIES\n  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libcurlpp.so"\n  INTERFACE_INCLUDE_DIRECTORIES "/usr/include"\n  INTERFACE_LINK_LIBRARIES "CURL::libcurl"\n)\n' > /usr/lib/cmake/unofficial-curlpp/unofficial-curlpp-config.cmake
 
@@ -38,32 +38,45 @@ RUN printf 'include(CMakeFindDependencyMacro)\nadd_library(nlohmann_json::nlohma
 RUN mkdir -p /usr/lib/cmake/pugixml
 RUN printf 'add_library(pugixml::pugixml SHARED IMPORTED)\nset_target_properties(pugixml::pugixml PROPERTIES\n  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.so"\n  INTERFACE_INCLUDE_DIRECTORIES "/usr/include"\n)\nadd_library(pugixml::pugixml-static STATIC IMPORTED)\nset_target_properties(pugixml::pugixml-static PROPERTIES\n  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.a"\n  INTERFACE_INCLUDE_DIRECTORIES "/usr/include"\n)\n' > /usr/lib/cmake/pugixml/pugixmlConfig.cmake
 
-# 编译安装 miniocpp（MinIO C++ SDK，Ubuntu 源中没有）
-RUN git clone --depth 1 https://github.com/minio/minio-cpp.git /tmp/minio-cpp && \
+# 生成 CURL::libcurl 补丁文件（供 miniocpp 使用）
+RUN printf 'add_library(CURL::libcurl SHARED IMPORTED)\n' \
+          'set_target_properties(CURL::libcurl PROPERTIES\n' \
+          '  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libcurl.so"\n' \
+          '  INTERFACE_INCLUDE_DIRECTORIES "/usr/include")\n' \
+          > /tmp/curl_fix.cmake
+
+# 下载 miniocpp（直连 GitHub，失败则走 ghproxy 镜像）
+RUN (curl -L -o /tmp/minio-cpp.tar.gz \
+        https://github.com/minio/minio-cpp/archive/refs/heads/master.tar.gz \
+        --retry 3 --retry-delay 10 --max-time 120 \
+     || \
+     curl -L -o /tmp/minio-cpp.tar.gz \
+        https://ghproxy.com/https://github.com/minio/minio-cpp/archive/refs/heads/master.tar.gz \
+        --retry 3 --retry-delay 10 --max-time 120) && \
+    tar -xzf /tmp/minio-cpp.tar.gz -C /tmp && \
+    mv /tmp/minio-cpp-* /tmp/minio-cpp && \
     cd /tmp/minio-cpp && \
+    sed -i '1i\include("/tmp/curl_fix.cmake")' CMakeLists.txt && \
+    sed -i 's/doc\.append_child(pugi::node_pcdata)\.set_value(value);/doc.append_child(pugi::node_pcdata).set_value(value.c_str());/' src/utils.cc && \
     mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make -j$(nproc) && \
     make install && \
-    rm -rf /tmp/minio-cpp
+    rm -rf /tmp/minio-cpp /tmp/minio-cpp.tar.gz /tmp/curl_fix.cmake
 
-# 复制项目代码
+# 编译主项目
 WORKDIR /app
 COPY . .
-
-# 生成项目文件
 RUN mkdir -p build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make -j$(nproc)
 
 
-# 最终镜像阶段
+# ========= 运行镜像 =========
 FROM ubuntu:22.04
 
-# 国内镜像加速（运行时阶段）
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
 
-# 复制必需的库和运行时
 RUN apt-get update && apt-get install -y \
     libssl3 \
     libcurl4 \
@@ -71,26 +84,20 @@ RUN apt-get update && apt-get install -y \
     libvips42 \
     libhiredis0.14 \
     libcpprest2.10 \
-    libcurlpp1 \
-    libpugixml1.13 \
+    libcurlpp0 \
+    libpugixml1v5 \
     libinih1
 
-# 复制 miniocpp 运行时库（从构建阶段）
 COPY --from=build /usr/local/lib/libminiocpp.so* /usr/local/lib/
 RUN ldconfig
 
-# 复制应用和配置
 WORKDIR /app
 COPY --from=build /app/build/AeroImageHost .
 COPY --from=build /app/config/config-docker.json ./config.json
-
-# 创建数据目录
 RUN mkdir -p /app/logs
 
-# 设置权限
 RUN chown -R 1001:1001 /app
 USER 1001
 
-# 配置和启动
 EXPOSE 8082
 CMD ["./AeroImageHost"]

@@ -10,6 +10,16 @@
 #include <cpprest/http_listener.h>
 #include <cpprest/json.h>
 #include <cpprest/http_headers.h>
+#include <cpprest/details/basic_types.h>
+
+// 确保 U() 宏可用（cpprestsdk 在某些平台/版本中未自动引入）
+#ifndef U
+#ifdef _UTF16_STRINGS
+#define U(x) L ## x
+#else
+#define U(x) x
+#endif
+#endif
 #include <regex>
 #include <boost/optional.hpp>
 #include <utility>
