@@ -89,6 +89,7 @@ RUN apt-get update && apt-get install -y \
     libinih1
 
 COPY --from=build /usr/local/lib/libminiocpp.so* /usr/local/lib/
+COPY --from=build /usr/lib/x86_64-linux-gnu/libINIReader.so* /usr/lib/x86_64-linux-gnu/
 RUN ldconfig
 
 WORKDIR /app
