@@ -1,13 +1,18 @@
+// Redis 连接池实现
+// 提供连接复用、超时等待、健康检查、自动重建等机制
 #include "RedisClient.hpp"
 #include "Log.hpp"
 #include <iostream>
 #include <cstring>
+#include <chrono>
+#include <thread>
 
 RedisClient& RedisClient::instance() {
     static RedisClient instance;
     return instance;
 }
 
+// 初始化连接池：创建指定数量的 Redis 连接
 bool RedisClient::init(const std::string& host, int port, int poolSize) {
     host_ = host;
     port_ = port;
@@ -30,20 +35,46 @@ bool RedisClient::init(const std::string& host, int port, int poolSize) {
     return true;
 }
 
+// 从连接池获取一个可用连接（带超时等待 + 健康检查 + 自动重建）
 redisContext* RedisClient::getContext() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (pool_.empty()) {
+    std::unique_lock<std::mutex> lock(mutex_);
+
+    // Wait up to 3 seconds for a connection to become available
+    if (!cv_.wait_for(lock, std::chrono::seconds(3), [this]() { return !pool_.empty(); })) {
+        LOG_ERROR("[Redis] 获取连接超时（3秒）");
         return nullptr;
     }
+
     redisContext* ctx = pool_.front();
     pool_.pop();
+
+    // 快速健康检查：如果连接已断开，尝试重建
+    redisReply* pingReply = (redisReply*)redisCommand(ctx, "PING");
+    if (!pingReply || pingReply->type != REDIS_REPLY_STATUS) {
+        if (pingReply) freeReplyObject(pingReply);
+        LOG_WARN("[Redis] 连接失效，尝试重建...");
+        redisFree(ctx);
+        ctx = redisConnect(host_.c_str(), port_);
+        if (!ctx || ctx->err) {
+            if (ctx) {
+                LOG_ERROR("[Redis] 重建连接失败: " + std::string(ctx->errstr));
+                redisFree(ctx);
+            }
+            return nullptr;
+        }
+    } else {
+        freeReplyObject(pingReply);
+    }
+
     return ctx;
 }
 
+// 归还连接到连接池，唤醒等待中的线程
 void RedisClient::releaseContext(redisContext* ctx) {
     if (!ctx) return;
     std::lock_guard<std::mutex> lock(mutex_);
     pool_.push(ctx);
+    cv_.notify_one();
 }
 
 bool RedisClient::set(const std::string& key, const std::string& value) {

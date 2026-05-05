@@ -24,9 +24,9 @@ private:
     void handleBatchDeleteFiles(web::http::http_request request);
     void handleGetFile(web::http::http_request request);
     void handleShare(web::http::http_request request);
-    void handleSetPublic(web::http::http_request request);  // 新增
-    void handleRequestUploadUrl(web::http::http_request request);
-    void handleConfirmUpload(web::http::http_request request);
+    void handleSetPublic(web::http::http_request request);
+    void handlePresignUpload(web::http::http_request request);
+    void handleConfirmUploadRoute(web::http::http_request request);
     void handleCleanup(web::http::http_request request);
     void handleStats(web::http::http_request request);
     // 邮箱注册相关
@@ -34,6 +34,7 @@ private:
     void handleEmailRegister(web::http::http_request request);
     // 分片上传
     void handleMultipartInit(web::http::http_request request);
+    void handleMultipartUploadChunk(web::http::http_request request);
     void handleMultipartComplete(web::http::http_request request);
     void handleMultipartCleanup(web::http::http_request request);
     void handleGetPresignUrlRoute(web::http::http_request request);

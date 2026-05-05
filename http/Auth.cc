@@ -40,23 +40,20 @@ std::shared_ptr<UserInfo> Auth::verify(const web::http::http_request& req) {
         return nullptr;
     }
 
-    LOG_INFO("[Auth] Verifying token: " + token.substr(0, 16) + "...");
+    LOG_INFO("[Auth] 验证 token: " + token.substr(0, 8) + "...");
     std::string key = "auth_token:" + token;
     RedisClient& redis = RedisClient::instance();
     std::string userIdStr = redis.get(key);
 
-    LOG_INFO("[Auth] Redis get result for '" + key.substr(0, 20) + "...': '" + userIdStr + "'");
-
     // 清理 userIdStr 中的空白字符
     userIdStr.erase(std::remove_if(userIdStr.begin(), userIdStr.end(), ::isspace), userIdStr.end());
     if (userIdStr.empty()) {
-        LOG_WARN("[Auth] Token not found in Redis or invalid: " + token.substr(0, 16) + "...");
+        LOG_WARN("[Auth] Token 无效或已过期");
         return nullptr;
     }
 
     try {
         int user_id = std::stoi(userIdStr);
-        LOG_INFO("[Auth] Token verified successfully, user_id: " + std::to_string(user_id));
         auto user = std::make_shared<UserInfo>();
         user->user_id = user_id;
         return user;

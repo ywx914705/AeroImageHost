@@ -11,6 +11,8 @@ AeroQueue是AeroImageHost项目中一个轻量级的异步任务队列,
 #include <functional>
 #include <thread>
 #include <vector>
+#include <mutex>
+#include <condition_variable>
 #ifdef U
 #pragma push_macro("U")
 #undef U
@@ -24,21 +26,20 @@ class AeroQueue {
 public:
     using Task = std::function<void()>;
 
-    static AeroQueue& instance();//单例获取,AeroChat中有且仅有一个AeroQueue实例
-    //通过 instance() 获取全局唯一的AeroQueue实例
+    static AeroQueue& instance();
 
-    void start(size_t threadCount = 16);//启动线程池
-    void stop(bool wait = true);//停止线程池
-    void post(Task task);//提交任务
+    void start(size_t threadCount = 4);
+    void stop(bool wait = true);
+    void post(Task task);
     ~AeroQueue();
 
 private:
     AeroQueue() = default;
     void workerThread();
 
-    std::vector<std::thread> threads_;//线程池
-    moodycamel::ConcurrentQueue<Task> tasks_;//无锁队列(各种任务的集合)
-    //来存储待处理的任务，实现多生产者多消费者模式，无需加锁
-    
-    std::atomic<bool> stopped_{false};//停止标志
+    std::vector<std::thread> threads_;
+    moodycamel::ConcurrentQueue<Task> tasks_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    std::atomic<bool> stopped_{false};
 };

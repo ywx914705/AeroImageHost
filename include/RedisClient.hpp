@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <condition_variable>
 
 class RedisClient {
 public:
@@ -51,8 +52,9 @@ public:
 
 private:
     RedisClient() = default;
-    std::queue<redisContext*> pool_;
-    std::mutex mutex_;
+    std::queue<redisContext*> pool_;      // 连接队列
+    std::mutex mutex_;                     // 保护连接队列的互斥锁
+    std::condition_variable cv_;           // 连接可用时的通知机制
     std::string host_;
     int port_;
     int poolSize_;

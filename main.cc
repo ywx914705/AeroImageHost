@@ -6,9 +6,11 @@
 #include "MinIOClient.hpp"
 #include "FileMeta.hpp"
 #include "AeroQueue.hpp"
+#include "Handlers.hpp"
 #include <iostream>
 #include <csignal>
 #include <cstdlib>
+#include <thread>
 
 std::atomic<bool> running(true);
 
@@ -62,7 +64,8 @@ int main(int argc, char* argv[]) {
             Config::instance().getString("minio.endpoint"),
             Config::instance().getString("minio.access_key"),
             Config::instance().getString("minio.secret_key"),
-            Config::instance().getString("minio.bucket"))) {
+            Config::instance().getString("minio.bucket"),
+            Config::instance().getString("minio.presign_endpoint", ""))) {
         LOG_ERROR("MinIO 客户端初始化失败");
         return 1;
     }
@@ -77,6 +80,24 @@ int main(int argc, char* argv[]) {
     HttpServer server(httpPort);
     server.start();
     LOG_INFO("HTTP 服务启动成功，监听端口: " + std::to_string(httpPort));
+
+    // 启动时清理上一次运行遗留的孤儿分片
+    cleanupOrphanChunks();
+
+    // 后台线程：每小时执行一次孤儿分片清理，防止 MinIO 存储空间泄漏
+    std::thread cleanupThread([]() {
+        while (running) {
+            std::this_thread::sleep_for(std::chrono::hours(1));
+            if (running) {
+                try {
+                    cleanupOrphanChunks();
+                } catch (const std::exception& e) {
+                    LOG_ERROR("[Cleanup] 定时清理失败: " + std::string(e.what()));
+                }
+            }
+        }
+    });
+    cleanupThread.detach();
 
     // 主循环等待退出信号
     while (running) {

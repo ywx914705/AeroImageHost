@@ -7,6 +7,7 @@
 #include "Utils.hpp"
 #include "ImageProcessor.hpp"
 #include "AeroQueue.hpp"
+#include "Config.hpp"
 #include <cpprest/http_listener.h>
 #include <cpprest/json.h>
 #include <cpprest/http_headers.h>
@@ -28,9 +29,14 @@ using namespace web;
 using namespace web::http;
 using namespace web::http::experimental::listener;
 
+// 获取 CORS 允许的域名，从配置文件读取，默认允许所有
+static std::string getCorsOrigin() {
+    return Config::instance().getString("security.cors_origin", "*");
+}
+
 void replyJsonWithCors(http_request request, status_code code, const json::value& json) {
     http_response response(code);
-    response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
+    response.headers().add(U("Access-Control-Allow-Origin"), utility::conversions::to_string_t(getCorsOrigin()));
     response.headers().add(U("Content-Type"), U("application/json; charset=utf-8"));
     response.set_body(json);
     request.reply(response);
@@ -38,7 +44,7 @@ void replyJsonWithCors(http_request request, status_code code, const json::value
 
 void replyErrorWithCors(http_request request, status_code code, const utility::string_t& msg) {
     http_response response(code);
-    response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
+    response.headers().add(U("Access-Control-Allow-Origin"), utility::conversions::to_string_t(getCorsOrigin()));
     response.set_body(msg);
     request.reply(response);
 }
@@ -56,7 +62,8 @@ void HttpServer::setupRoutes() {
 
 void HttpServer::handleOptions(http_request request) {
     http_response response(status_codes::OK);
-    response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
+    auto origin = utility::conversions::to_string_t(getCorsOrigin());
+    response.headers().add(U("Access-Control-Allow-Origin"), origin);
     response.headers().add(U("Access-Control-Allow-Methods"), U("GET, POST, PUT, DELETE, OPTIONS"));
     response.headers().add(U("Access-Control-Allow-Headers"), U("Content-Type, Authorization, X-File-Name, X-File-Size, X-File-Type"));
     response.headers().add(U("Access-Control-Expose-Headers"), U("*"));
@@ -92,6 +99,12 @@ void HttpServer::handleAll(http_request request) {
     else if ((method == methods::POST || method == methods::PUT) && path_str == "/api/upload") {
         handleUpload(request);
     }
+    else if (method == methods::POST && path_str == "/api/upload/presign") {
+        handlePresignUpload(request);
+    }
+    else if (method == methods::POST && path_str == "/api/upload/confirm") {
+        handleConfirmUploadRoute(request);
+    }
     else if (method == methods::GET && path_str == "/api/files") {
         handleListFiles(request);
     }
@@ -124,6 +137,9 @@ void HttpServer::handleAll(http_request request) {
     }
     else if (method == methods::POST && path_str == "/api/upload/multipart/init") {
         handleMultipartInit(request);
+    }
+    else if ((method == methods::POST || method == methods::PUT) && path_str == "/api/upload/multipart/chunk") {
+        handleMultipartUploadChunk(request);
     }
     else if (method == methods::POST && path_str == "/api/upload/multipart/complete") {
         handleMultipartComplete(request);
@@ -200,8 +216,54 @@ void HttpServer::handleUpload(http_request request) {
     }
 
     request.extract_vector().then([=](std::vector<unsigned char> data) {
-        std::vector<char> file_data(data.begin(), data.end());
-        auto respJson = ::handleUpload(user->user_id, filename, file_data, content_type);
+        // 直接传 unsigned char 向量，避免拷贝到 vector<char>
+        auto respJson = ::handleUpload(user->user_id, filename, data, content_type);
+        replyJsonWithCors(request, status_codes::OK, respJson);
+    });
+}
+
+void HttpServer::handlePresignUpload(http_request request) {
+    auto user = Auth::verify(request);
+    if (!user) {
+        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
+
+    request.extract_json().then([=](json::value json) {
+        if (!json.has_field(U("filename")) || !json.has_field(U("size"))) {
+            replyErrorWithCors(request, status_codes::BadRequest, U("Missing filename or size"));
+            return;
+        }
+        std::string filename = utility::conversions::to_utf8string(json.at(U("filename")).as_string());
+        std::string content_type = json.has_field(U("content_type")) ?
+            utility::conversions::to_utf8string(json.at(U("content_type")).as_string()) : "";
+        size_t file_size = static_cast<size_t>(json.at(U("size")).as_number().to_uint64());
+
+        auto respJson = ::handleRequestUploadUrl(user->user_id, filename, content_type, file_size);
+        replyJsonWithCors(request, status_codes::OK, respJson);
+    });
+}
+
+void HttpServer::handleConfirmUploadRoute(http_request request) {
+    auto user = Auth::verify(request);
+    if (!user) {
+        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
+
+    request.extract_json().then([=](json::value json) {
+        if (!json.has_field(U("file_id")) || !json.has_field(U("filename"))) {
+            replyErrorWithCors(request, status_codes::BadRequest, U("Missing file_id or filename"));
+            return;
+        }
+        std::string file_id = utility::conversions::to_utf8string(json.at(U("file_id")).as_string());
+        std::string filename = utility::conversions::to_utf8string(json.at(U("filename")).as_string());
+        std::string content_type = json.has_field(U("content_type")) ?
+            utility::conversions::to_utf8string(json.at(U("content_type")).as_string()) : "";
+        size_t file_size = json.has_field(U("size")) ?
+            static_cast<size_t>(json.at(U("size")).as_number().to_uint64()) : 0;
+
+        auto respJson = ::handleConfirmUpload(user->user_id, file_id, filename, content_type, file_size);
         replyJsonWithCors(request, status_codes::OK, respJson);
     });
 }
@@ -428,7 +490,7 @@ void HttpServer::handleGetFile(http_request request) {
 
     // 根据 MIME 类型决定是内联显示还是附件下载
     std::string disp;
-    if (download || isAttachmentType(meta.mime_type)) {
+    if (download || isAttachmentType(meta.mime_type) || !isImage(meta.mime_type)) {
         // 同时使用 filename 和 filename* 确保兼容性
         disp = "attachment; filename=\"" + meta.filename + "\"; filename*=UTF-8''" + encodedFilename;
     } else {
@@ -490,45 +552,29 @@ void HttpServer::handleGetFile(http_request request) {
         LOG_INFO("Generated presigned URL for file: " + file_id);
         http_response response(status_codes::Found);
         response.headers().add(U("Location"), utility::conversions::to_string_t(presignUrl));
-        response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
+        response.headers().add(U("Access-Control-Allow-Origin"), utility::conversions::to_string_t(getCorsOrigin()));
         response.headers().add(U("Cache-Control"), U("private, max-age=0, must-revalidate"));
         response.set_body(U(""));
         request.reply(response);
         return;
     }
 
-    // 非图片文件（视频/PDF/音频等）使用 presigned URL 重定向，避免大文件读入内存导致 OOM
-    if (!isImage(meta.mime_type)) {
+    // 所有文件通过 302 重定向到 MinIO 预签名 URL 提供
+    // 核心优化：文件不再读入应用内存，由 MinIO 直接返回给客户端，彻底消除 OOM 风险
+    {
         std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600, disp);
         if (!presignUrl.empty()) {
             http_response response(status_codes::Found);
             response.headers().add(U("Location"), utility::conversions::to_string_t(presignUrl));
-            response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
-            response.headers().add(U("Cache-Control"), U("private, max-age=0"));
+            response.headers().add(U("Access-Control-Allow-Origin"), utility::conversions::to_string_t(getCorsOrigin()));
+            response.headers().add(U("Cache-Control"), U("public, max-age=3600"));
             response.set_body(U(""));
             request.reply(response);
             return;
         }
-        // presign 失败则回退到直接读取
     }
 
-    // 图片直接返回内容（支持 ETag 缓存和内联显示）
-    std::vector<char> fileData;
-    if (!MinIOClient::instance().getObject(file_id, fileData)) {
-        replyErrorWithCors(request, status_codes::NotFound, U("File not found"));
-        return;
-    }
-
-    http_response response(status_codes::OK);
-    response.headers().add(U("Content-Type"), utility::conversions::to_string_t(meta.mime_type));
-    response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
-    response.headers().add(U("Content-Disposition"), utility::conversions::to_string_t(disp));
-    response.headers().add(U("Cache-Control"), U("public, max-age=3600"));
-    std::string etag = "W/\"" + file_id + "\"";
-    response.headers().add(U("ETag"), utility::conversions::to_string_t(etag));
-
-    response.set_body(std::vector<unsigned char>(fileData.begin(), fileData.end()));
-    request.reply(response);
+    replyErrorWithCors(request, status_codes::InternalError, U("Failed to generate download URL"));
 }
 
 void HttpServer::handleRequestUploadUrl(http_request request) {
@@ -593,7 +639,7 @@ void HttpServer::handleCleanup(http_request request) {
     int cleaned = FileMetaDAO::instance().cleanupOrphanedFiles();
 
     http_response response(status_codes::OK);
-    response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
+    response.headers().add(U("Access-Control-Allow-Origin"), utility::conversions::to_string_t(getCorsOrigin()));
     response.headers().add(U("Content-Type"), U("application/json"));
 
     json::value respJson;
@@ -606,6 +652,12 @@ void HttpServer::handleCleanup(http_request request) {
 }
 
 void HttpServer::handleStats(http_request request) {
+    // 统计接口需要登录认证
+    auto user = Auth::verify(request);
+    if (!user) {
+        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
     auto respJson = ::handleStats();
     replyJsonWithCors(request, status_codes::OK, respJson);
 }
@@ -659,6 +711,47 @@ void HttpServer::handleMultipartInit(http_request request) {
 
         auto respJson = ::handleMultipartInit(user->user_id, filename, content_type, file_size);
         replyJsonWithCors(request, status_codes::OK, respJson);
+    });
+}
+
+void HttpServer::handleMultipartUploadChunk(http_request request) {
+    auto user = Auth::verify(request);
+    if (!user) {
+        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
+
+    // 从查询参数获取 upload_id 和 part_number
+    auto query = request.request_uri().query();
+    std::string q = utility::conversions::to_utf8string(query);
+    std::string upload_id;
+    int part_number = 0;
+
+    size_t pos = q.find("upload_id=");
+    if (pos != std::string::npos) {
+        size_t start = pos + 10;
+        size_t end = q.find("&", start);
+        upload_id = (end != std::string::npos) ? q.substr(start, end - start) : q.substr(start);
+    }
+    pos = q.find("part_number=");
+    if (pos != std::string::npos) {
+        size_t start = pos + 12;
+        size_t end = q.find("&", start);
+        std::string val = (end != std::string::npos) ? q.substr(start, end - start) : q.substr(start);
+        try { part_number = std::stoi(val); } catch (...) {}
+    }
+
+    if (upload_id.empty()) {
+        replyErrorWithCors(request, status_codes::BadRequest, U("Missing upload_id"));
+        return;
+    }
+
+    request.extract_vector().then([=](std::vector<unsigned char> data) {
+        // 直接传 unsigned char，避免拷贝
+        auto respJson = ::handleMultipartUploadChunk(upload_id, part_number, data);
+        // 检查是否真的成功，失败返回 500 让前端感知
+        auto status = respJson.has_field(U("error")) ? status_codes::InternalError : status_codes::OK;
+        replyJsonWithCors(request, status, respJson);
     });
 }
 

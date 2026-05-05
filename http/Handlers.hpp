@@ -8,7 +8,7 @@
 
 web::json::value handleRegister(const std::string& account, const std::string& password);
 web::json::value handleLogin(const std::string& account, const std::string& password);
-web::json::value handleUpload(int user_id, const std::string& filename, const std::vector<char>& file_data, const std::string& content_type);
+web::json::value handleUpload(int user_id, const std::string& filename, const std::vector<unsigned char>& file_data, const std::string& content_type);
 web::json::value handleListFiles(int user_id, int offset, int limit, const std::string& search_keyword = "");
 web::json::value handleDeleteFile(int user_id, const std::string& file_id);
 web::json::value handleBatchDeleteFiles(int user_id, const std::vector<std::string>& file_ids);
@@ -21,8 +21,12 @@ web::json::value handleStats();
 web::json::value handleSendVerificationCode(const std::string& email);
 web::json::value handleEmailRegister(const std::string& account, const std::string& password, const std::string& email, const std::string& code);
 web::json::value handleMultipartInit(int user_id, const std::string& filename, const std::string& content_type, size_t file_size);
+web::json::value handleMultipartUploadChunk(const std::string& upload_id, int part_number, const std::vector<unsigned char>& data);
 web::json::value handleMultipartComplete(int user_id, const std::string& upload_id, const std::string& filename, const std::string& content_type, size_t file_size, int total_chunks);
 web::json::value handleMultipartCleanup(int user_id, const std::string& upload_id);
 web::json::value handleGetPresignUrl(int user_id, const std::string& file_id);
+
+// Orphan chunk cleanup (called on startup and periodically)
+void cleanupOrphanChunks();
 
 #endif

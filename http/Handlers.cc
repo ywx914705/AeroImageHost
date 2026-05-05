@@ -11,6 +11,7 @@
 #include "Log.hpp"
 #include "EmailVerificationDAO.hpp"
 #include "EmailSender.hpp"
+#include "RateLimiter.hpp"
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <chrono>
@@ -29,13 +30,35 @@ static void releaseConn(MYSQL* conn) {
     ConnectionPool::getInstance().releaseConnection(conn);
 }
 
+// 固定盐值（兼容现有 users 表中的密码哈希）
+static const std::string PASSWORD_SALT = "aero_image_host_2026_secure_salt";
+
+// SHA-256 哈希：用于密码存储
+static std::string sha256(const std::string& str) {
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int len = 0;
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    if (!ctx) return "";
+    if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) != 1 ||
+        EVP_DigestUpdate(ctx, str.c_str(), str.size()) != 1 ||
+        EVP_DigestFinal_ex(ctx, hash, &len) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return "";
+    }
+    EVP_MD_CTX_free(ctx);
+    std::stringstream ss;
+    for (unsigned int i = 0; i < len; i++) {
+        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
+    }
+    return ss.str();
+}
+
 web::json::value docToJsonValue(const Document& doc) {
     std::string json = serializeJson(doc);
     try {
         return web::json::value::parse(json);
     } catch (const std::exception& e) {
         LOG_ERROR("docToJsonValue parse error: " + std::string(e.what()) + ", json_len=" + std::to_string(json.size()));
-        // 打印完整 JSON 用于调试（截断保护）
         if (json.size() > 500) {
             LOG_ERROR("docToJsonValue json head: " + json.substr(0, 500));
             LOG_ERROR("docToJsonValue json tail: " + json.substr(json.size() - 200));
@@ -48,43 +71,17 @@ web::json::value docToJsonValue(const Document& doc) {
     }
 }
 
-// 固定盐值（兼容现有 users 表结构，无 password_salt 字段）
-static const std::string PASSWORD_SALT = "aero_image_host_2026_secure_salt";
-
-static std::string sha256(const std::string& str) {
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int len = 0;
-
-    // 使用 OpenSSL 3.0 兼容的 EVP API
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    if (!ctx) return "";
-
-    if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) != 1 ||
-        EVP_DigestUpdate(ctx, str.c_str(), str.size()) != 1 ||
-        EVP_DigestFinal_ex(ctx, hash, &len) != 1) {
-        EVP_MD_CTX_free(ctx);
-        return "";
-    }
-
-    EVP_MD_CTX_free(ctx);
-
-    std::stringstream ss;
-    for (unsigned int i = 0; i < len; i++) {
-        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
-    }
-    return ss.str();
-}
-
-static bool uploadFileToMinIO(const std::string& file_id, const std::vector<char>& file_data, const std::string& content_type) {
+static bool uploadFileToMinIO(const std::string& file_id, const std::vector<unsigned char>& file_data, const std::string& content_type) {
     auto& client = MinIOClient::instance();
     bool ok = client.putObject(file_id, file_data, content_type);
     if (!ok) {
-        LOG_ERROR("MinIO SDK upload failed: " + file_id);
+        LOG_ERROR("MinIO SDK upload失败: " + file_id);
     }
     return ok;
 }
 
-web::json::value handleUpload(int user_id, const std::string& filename, const std::vector<char>& file_data, const std::string& content_type) {
+// 零拷贝上传：直接从 HTTP 层接收 unsigned char 向量，不经中间拷贝
+web::json::value handleUpload(int user_id, const std::string& filename, const std::vector<unsigned char>& file_data, const std::string& content_type) {
     auto uploadStart = std::chrono::steady_clock::now();
     size_t maxSize = static_cast<size_t>(Config::instance().getInt("max_file_size", 100 * 1024 * 1024));
     if (file_data.size() > maxSize) {
@@ -413,9 +410,8 @@ web::json::value handleRegister(const std::string& account, const std::string& p
         return docToJsonValue(resp);
     }
 
-    // 使用固定盐值 + SHA256 哈希（兼容现有表结构）
-    std::string salted_password = PASSWORD_SALT + password;
-    std::string hash = sha256(salted_password);
+    // 固定盐 + SHA-256 哈希
+    std::string hash = sha256(PASSWORD_SALT + password);
 
     MYSQL_BIND bind[2];
     memset(bind, 0, sizeof(bind));
@@ -432,7 +428,6 @@ web::json::value handleRegister(const std::string& account, const std::string& p
     releaseConn(conn);
 
     if (ret != 0) {
-        // 检查是否是唯一键冲突（账号已存在）
         std::string errorMsg = "Account exists";
         Document resp; resp.SetObject();
         resp.AddMember("error", StringRef(errorMsg.c_str()), resp.GetAllocator());
@@ -448,6 +443,20 @@ web::json::value handleLogin(const std::string& account, const std::string& pass
     if (account.empty() || password.empty()) {
         Document resp; resp.SetObject();
         resp.AddMember("error", "Account and password are required", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
+    // 登录频率限制：同一账号在窗口期内最多允许 N 次失败，防止暴力破解
+    const int MAX_LOGIN_ATTEMPTS = Config::instance().getInt("security.max_login_attempts", 5);
+    const int LOGIN_WINDOW_SECONDS = Config::instance().getInt("security.login_window_seconds", 900);
+    std::string rateLimitKey = "login:" + account;
+
+    if (!RateLimiter::isAllowed(rateLimitKey, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS)) {
+        int remaining = RateLimiter::getRemainingAttempts(rateLimitKey, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS);
+        LOG_WARN("[Login] Rate limit exceeded for account: " + account);
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Too many failed attempts. Please try again later.", resp.GetAllocator());
+        resp.AddMember("retry_after_seconds", LOGIN_WINDOW_SECONDS, resp.GetAllocator());
         return docToJsonValue(resp);
     }
 
@@ -490,20 +499,21 @@ web::json::value handleLogin(const std::string& account, const std::string& pass
     }
 
     int user_id = 0;
-    char storedHash[65] = {0};
+    char storedHashBuf[65] = {0};
     MYSQL_BIND result[2];
     memset(result, 0, sizeof(result));
     result[0].buffer_type = MYSQL_TYPE_LONG;
     result[0].buffer = &user_id;
     result[1].buffer_type = MYSQL_TYPE_STRING;
-    result[1].buffer = storedHash;
-    result[1].buffer_length = sizeof(storedHash) - 1;
+    result[1].buffer = storedHashBuf;
+    result[1].buffer_length = sizeof(storedHashBuf) - 1;
     mysql_stmt_bind_result(stmt, result);
     mysql_stmt_store_result(stmt);
 
     if (mysql_stmt_fetch(stmt) != 0) {
         mysql_stmt_close(stmt);
         releaseConn(conn);
+        RateLimiter::recordFailure(rateLimitKey, LOGIN_WINDOW_SECONDS);
         Document resp; resp.SetObject();
         resp.AddMember("error", "Invalid credentials", resp.GetAllocator());
         return docToJsonValue(resp);
@@ -512,13 +522,19 @@ web::json::value handleLogin(const std::string& account, const std::string& pass
     mysql_stmt_close(stmt);
     releaseConn(conn);
 
-    // 使用固定盐值验证密码
+    // 固定盐 + SHA-256 验证密码
     std::string computed = sha256(PASSWORD_SALT + password);
-    if (computed != std::string(storedHash)) {
+    if (computed != std::string(storedHashBuf)) {
+        RateLimiter::recordFailure(rateLimitKey, LOGIN_WINDOW_SECONDS);
+        int remaining = RateLimiter::getRemainingAttempts(rateLimitKey, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS);
+        LOG_WARN("[Login] 登录失败: " + account + ", 剩余次数: " + std::to_string(remaining));
         Document resp; resp.SetObject();
         resp.AddMember("error", "Invalid credentials", resp.GetAllocator());
         return docToJsonValue(resp);
     }
+
+    // 登录成功，重置频率限制计数器
+    RateLimiter::reset(rateLimitKey);
 
     std::string token = Auth::generateToken(user_id, "");
     if (token.empty()) {
@@ -854,9 +870,8 @@ web::json::value handleEmailRegister(const std::string& account, const std::stri
         return docToJsonValue(resp);
     }
 
-    // 使用固定盐值 + SHA256 哈希
-    std::string salted_password = PASSWORD_SALT + password;
-    std::string hash = sha256(salted_password);
+    // 固定盐 + SHA-256 哈希
+    std::string hash = sha256(PASSWORD_SALT + password);
 
     MYSQL_BIND bind_insert[3];
     memset(bind_insert, 0, sizeof(bind_insert));
@@ -937,8 +952,13 @@ web::json::value handleMultipartInit(int user_id, const std::string& filename,
     }
 
     std::string upload_id = generateUUID();
-    size_t chunk_size = 5 * 1024 * 1024; // 5MB per chunk
+    size_t chunk_size = 20 * 1024 * 1024; // 20MB per chunk, reduce request count
     int total_chunks = static_cast<int>((file_size + chunk_size - 1) / chunk_size);
+
+    // Track upload in Redis for orphan cleanup
+    RedisClient::instance().set("upload_active:" + upload_id, std::to_string(total_chunks));
+    RedisClient::instance().expire("upload_active:" + upload_id, 86400);
+    trackMultipartUpload(upload_id, total_chunks);
 
     Document resp; resp.SetObject();
     resp.AddMember("upload_id", StringRef(upload_id.c_str()), resp.GetAllocator());
@@ -947,22 +967,41 @@ web::json::value handleMultipartInit(int user_id, const std::string& filename,
 
     Value chunksArr(kArrayType);
     for (int i = 0; i < total_chunks; ++i) {
-        std::string chunk_key = "chunks/" + upload_id + "/" + std::to_string(i);
-        std::string presign_url = MinIOClient::instance().presignPutUrl(chunk_key, 7200);
-
         Value chunkObj(kObjectType);
         chunkObj.AddMember("part_number", i, resp.GetAllocator());
-        chunkObj.AddMember("presign_url", StringRef(presign_url.c_str()), resp.GetAllocator());
         chunksArr.PushBack(chunkObj, resp.GetAllocator());
     }
     resp.AddMember("chunks", chunksArr, resp.GetAllocator());
     return docToJsonValue(resp);
 }
 
+web::json::value handleMultipartUploadChunk(const std::string& upload_id, int part_number,
+                                            const std::vector<unsigned char>& data) {
+    if (upload_id.empty() || data.empty()) {
+        LOG_ERROR("[Chunk] empty upload_id or data: id=" + upload_id + " part=" + std::to_string(part_number) + " size=" + std::to_string(data.size()));
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Invalid upload_id or empty chunk", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
+    std::string chunk_key = "chunks/" + upload_id + "/" + std::to_string(part_number);
+    if (!MinIOClient::instance().putObject(chunk_key, data, "application/octet-stream")) {
+        LOG_ERROR("[Chunk] MinIO putObject failed: " + chunk_key + " size=" + std::to_string(data.size()));
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Failed to upload chunk to storage", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
+    LOG_INFO("[Chunk] success: " + chunk_key + " (" + std::to_string(data.size()) + " bytes)");
+    Document resp; resp.SetObject();
+    resp.AddMember("status", "success", resp.GetAllocator());
+    resp.AddMember("part_number", part_number, resp.GetAllocator());
+    return docToJsonValue(resp);
+}
+
 web::json::value handleMultipartComplete(int user_id, const std::string& upload_id,
                                          const std::string& filename, const std::string& content_type,
                                          size_t file_size, int total_chunks) {
-    // 直接根据 total_chunks 构造分片 key，避免逐个 objectExists 检查
     std::vector<std::string> chunk_keys;
     for (int i = 0; i < total_chunks; ++i) {
         chunk_keys.push_back("chunks/" + upload_id + "/" + std::to_string(i));
@@ -974,17 +1013,39 @@ web::json::value handleMultipartComplete(int user_id, const std::string& upload_
         return docToJsonValue(resp);
     }
 
+    // 合并前验证所有分片是否都已上传，防止生成损坏文件
+    std::vector<std::string> missingChunks;
+    for (const auto& key : chunk_keys) {
+        if (!MinIOClient::instance().objectExists(key)) {
+            missingChunks.push_back(key);
+        }
+    }
+    if (!missingChunks.empty()) {
+        LOG_ERROR("[Multipart] Missing chunks for upload_id=" + upload_id +
+                  ", missing=" + std::to_string(missingChunks.size()) +
+                  "/" + std::to_string(total_chunks));
+        // Cleanup: delete chunks that do exist
+        for (const auto& key : chunk_keys) {
+            MinIOClient::instance().deleteObject(key);
+        }
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Incomplete upload: missing chunks", resp.GetAllocator());
+        resp.AddMember("missing_count", static_cast<int>(missingChunks.size()), resp.GetAllocator());
+        resp.AddMember("total_chunks", total_chunks, resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+
     std::string file_id = generateUUID();
     std::string detected_mime = content_type.empty() ? getMimeTypeFromExtension(filename) : content_type;
 
-    // 拼接分片并上传到最终路径
+    // Compose chunks (synchronous — file must exist before responding)
     if (!MinIOClient::instance().composeObjects(file_id, detected_mime, chunk_keys)) {
         Document resp; resp.SetObject();
         resp.AddMember("error", "Failed to compose chunks", resp.GetAllocator());
         return docToJsonValue(resp);
     }
 
-    // 保存元数据
+    // Save metadata
     FileMeta meta;
     meta.file_id = file_id;
     meta.user_id = user_id;
@@ -1003,10 +1064,22 @@ web::json::value handleMultipartComplete(int user_id, const std::string& upload_
         return docToJsonValue(resp);
     }
 
-    // 清理临时分片
-    for (const auto& key : chunk_keys) {
-        MinIOClient::instance().deleteObject(key);
-    }
+    // Remove upload tracking from Redis
+    RedisClient::instance().del("upload_active:" + upload_id);
+    untrackMultipartUpload(upload_id);
+
+    // Async parallel cleanup of temporary chunks (non-blocking)
+    AeroQueue::instance().post([chunk_keys]() {
+        std::vector<std::future<bool>> futures;
+        futures.reserve(chunk_keys.size());
+        for (const auto& key : chunk_keys) {
+            std::string k = key;
+            futures.push_back(std::async(std::launch::async, [k]() {
+                return MinIOClient::instance().deleteObject(k);
+            }));
+        }
+        for (auto& f : futures) f.get();
+    });
 
     std::string presign_url = MinIOClient::instance().presignGetUrl(file_id, 3600);
     std::string pub_url = Config::instance().getString("minio.public_url") + file_id;
@@ -1049,4 +1122,80 @@ web::json::value handleGetPresignUrl(int user_id, const std::string& file_id) {
     Document resp; resp.SetObject();
     resp.AddMember("presign_url", StringRef(presignUrl.c_str()), resp.GetAllocator());
     return docToJsonValue(resp);
+}
+
+// ========== 孤儿分片清理 ==========
+
+// 将活跃的分片上传记录到 Redis 集合，用于超时后清理
+static void trackMultipartUpload(const std::string& upload_id, int total_chunks) {
+    std::string timestamp = std::to_string(std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count());
+    // Store as "upload_id:total_chunks:timestamp"
+    RedisClient::instance().sadd("active_multipart_uploads",
+        upload_id + ":" + std::to_string(total_chunks) + ":" + timestamp);
+}
+
+// 上传完成后从 Redis 集合中移除跟踪记录
+static void untrackMultipartUpload(const std::string& upload_id) {
+    auto members = RedisClient::instance().smembers("active_multipart_uploads");
+    for (const auto& m : members) {
+        if (m.find(upload_id + ":") == 0) {
+            RedisClient::instance().srem("active_multipart_uploads", m);
+            break;
+        }
+    }
+}
+
+// 扫描 Redis 中的活跃分片上传记录，删除超过 TTL 的孤儿分片
+void cleanupOrphanChunks() {
+    LOG_INFO("[Cleanup] 开始清理孤儿分片...");
+    auto members = RedisClient::instance().smembers("active_multipart_uploads");
+    if (members.empty()) {
+        LOG_INFO("[Cleanup] 无活跃分片上传记录");
+        return;
+    }
+
+    auto now = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    const int MAX_AGE_SECONDS = Config::instance().getInt("cleanup.multipart_ttl_seconds", 86400);
+    int cleaned = 0;
+
+    for (const auto& member : members) {
+        // 格式：upload_id:total_chunks:timestamp
+        size_t p1 = member.find(':');
+        size_t p2 = member.find(':', p1 + 1);
+        if (p1 == std::string::npos || p2 == std::string::npos) continue;
+
+        std::string upload_id = member.substr(0, p1);
+        int total_chunks = 0;
+        long long timestamp = 0;
+        try {
+            total_chunks = std::stoi(member.substr(p1 + 1, p2 - p1 - 1));
+            timestamp = std::stoll(member.substr(p2 + 1));
+        } catch (...) { continue; }
+
+        // Skip if still within TTL
+        if ((now - timestamp) < MAX_AGE_SECONDS) continue;
+
+        LOG_WARN("[Cleanup] Cleaning orphaned multipart upload: " + upload_id +
+                 " (age=" + std::to_string(now - timestamp) + "s)");
+
+        // Delete chunks in parallel
+        std::vector<std::future<bool>> futures;
+        futures.reserve(total_chunks);
+        for (int i = 0; i < total_chunks; ++i) {
+            std::string key = "chunks/" + upload_id + "/" + std::to_string(i);
+            futures.push_back(std::async(std::launch::async, [key]() {
+                return MinIOClient::instance().deleteObject(key);
+            }));
+        }
+        for (auto& f : futures) f.get();
+
+        // Remove from tracking set
+        RedisClient::instance().srem("active_multipart_uploads", member);
+        cleaned++;
+    }
+
+    LOG_INFO("[Cleanup] Orphan chunk cleanup completed, cleaned=" + std::to_string(cleaned) +
+             " uploads, tracked=" + std::to_string(members.size()));
 }
