@@ -22,7 +22,8 @@ config.json
 config/config-docker.json
 .env
 
-# Claude Code local settings
+# Claude Code
+CLAUDE.md
 .claude/
 
 # Package files
