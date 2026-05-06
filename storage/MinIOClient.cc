@@ -1,3 +1,20 @@
+/*
+ * MinIOClient 模块 - MinIO 对象存储客户端实现
+ *
+ * 职责：封装 MinIO S3 兼容 API，提供文件的增删改查和预签名 URL 生成。
+ *
+ * 核心功能：
+ *   - putObject(): 上传文件到 MinIO（支持 char 和 unsigned char 两种重载）
+ *   - getObject(): 下载文件到内存（用于缩略图生成）
+ *   - deleteObject(): 删除文件
+ *   - objectExists(): 检查文件是否存在
+ *   - presignPutUrl(): 生成预签名上传 URL（客户端直传）
+ *   - presignGetUrl(): 生成预签名下载 URL（支持 Content-Disposition）
+ *   - composeObjects(): 合并多个分片为完整文件（分片上传的核心）
+ *
+ * 设计：单例模式，支持两个 MinIO 端点（实际端点 + 预签名端点）。
+ *       使用 ZeroCopyStreambuf 避免上传时的内存拷贝。
+ */
 #include "Config.hpp"
 #include "MinIOClient.hpp"
 #include "Log.hpp"

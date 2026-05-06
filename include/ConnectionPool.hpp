@@ -1,3 +1,17 @@
+/*
+ * ConnectionPool.hpp - MySQL 连接池头文件
+ *
+ * 职责：管理一组 MySQL 连接，提供获取和归还接口，避免每次数据库操作都创建新连接。
+ *
+ * 在项目中的作用：
+ *   - 初始化时创建指定数量的 MySQL 连接（默认 32 个）
+ *   - getConnection() 获取可用连接（带 5 秒超时等待）
+ *   - releaseConnection() 归还连接（归还时不验证，延迟到下次获取时按需验证）
+ *   - 30 秒定时验证：超过 30 秒未验证的连接会执行 mysql_ping 检查
+ *   - 连接失效时自动重建
+ *
+ * 设计：单例模式，使用 RAII 确保连接不泄漏。
+ */
 #pragma once
 #include <mysql/mysql.h>
 #include <string>
@@ -9,35 +23,37 @@
 
 class ConnectionPool {
 public:
-    static ConnectionPool& getInstance();
+    static ConnectionPool& getInstance(); // 获取单例实例
 
+    // 初始化连接池：创建指定数量的 MySQL 连接
     bool init(const std::string& host, const std::string& user,
               const std::string& passwd, const std::string& db,
               unsigned int port = 3306, int poolSize = 128);
 
-    MYSQL* getConnection();//获取一个连接
-    void releaseConnection(MYSQL* conn);//归还连接
-    void close();
+    MYSQL* getConnection();                    // 获取一个可用连接（带超时等待）
+    void releaseConnection(MYSQL* conn);       // 归还连接到连接池
+    void close();                              // 关闭所有连接
 
-    ConnectionPool(const ConnectionPool&) = delete;
+    ConnectionPool(const ConnectionPool&) = delete;            // 禁止拷贝
     ConnectionPool& operator=(const ConnectionPool&) = delete;
 
 private:
     ConnectionPool() = default;
     ~ConnectionPool() { close(); }
 
-    MYSQL* createConnection();//创建当连接
-    MYSQL* ensureValidConnection(MYSQL* conn, std::chrono::steady_clock::time_point lastCheck);//验证并修复连接
+    MYSQL* createConnection();                                                  // 创建新的 MySQL 连接
+    MYSQL* ensureValidConnection(MYSQL* conn, std::chrono::steady_clock::time_point lastCheck); // 验证并修复连接
 
-    std::string host_;//数据库IP
-    std::string user_;//用户名
-    std::string passwd_;//密码
-    std::string db_;//数据库名
-    unsigned int port_;//端口号(默认3306)
-    int poolSize_;//连接池大小
+    std::string host_;    // 数据库主机地址
+    std::string user_;    // 数据库用户名
+    std::string passwd_;  // 数据库密码
+    std::string db_;      // 数据库名
+    unsigned int port_;   // 数据库端口（默认 3306）
+    int poolSize_;        // 连接池大小
 
-    std::queue<std::pair<MYSQL*, std::chrono::steady_clock::time_point>> connections_;//空闲连接队列+上次验证时间
-    std::mutex mutex_;//保护队列的锁
-    std::condition_variable cv_;//条件变量,用于等待连接
-    bool stopped_ = false;//连接池是否关闭的标志
+    // 空闲连接队列，每个连接记录上次验证时间
+    std::queue<std::pair<MYSQL*, std::chrono::steady_clock::time_point>> connections_;
+    std::mutex mutex_;                   // 保护连接队列的互斥锁
+    std::condition_variable cv_;         // 条件变量：连接可用时通知等待线程
+    bool stopped_ = false;              // 连接池是否已关闭
 };

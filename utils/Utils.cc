@@ -1,3 +1,19 @@
+/*
+ * Utils 模块 - 通用工具函数实现
+ *
+ * 职责：提供项目中广泛使用的工具函数。
+ *
+ * 核心功能：
+ *   - generateUUID(): 生成 UUID v4 格式的随机字符串（文件唯一标识）
+ *   - urlEncode/urlDecode(): RFC 3986 标准的 URL 编码/解码
+ *   - getMimeTypeFromExtension(): 根据文件扩展名推断 MIME 类型（30+ 种映射）
+ *   - isAttachmentType(): 判断是否应该以附件形式下载
+ *   - serializeJson(): RapidJSON Document → JSON 字符串
+ *   - getFileExtension(): 提取文件扩展名（小写）
+ *   - isImage(): 判断 MIME 类型是否为图片
+ *
+ * 设计：纯函数，无状态，可被任何模块调用。
+ */
 #include "Utils.hpp"
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>

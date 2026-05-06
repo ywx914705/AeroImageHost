@@ -1,3 +1,23 @@
+/*
+ * EmailSender 模块 - 邮件发送实现
+ *
+ * 职责：通过 SMTP 协议发送邮件（支持 SSL/TLS）。
+ *
+ * 核心功能：
+ *   - sendVerificationEmail(): 发送验证码邮件（从 config.json 读取 SMTP 配置）
+ *   - generateVerificationCode(): 生成指定位数的随机数字验证码
+ *
+ * 内部实现：
+ *   - SMTPClient 类：完整的 SMTP 客户端，支持隐式 SSL（465 端口）
+ *   - 支持 AUTH LOGIN 认证方式（Base64 编码用户名/密码）
+ *   - 支持多行 SMTP 响应解析
+ *
+ * 在项目中的作用：
+ *   - 用户请求发送验证码 → AeroQueue 异步调用 sendVerificationEmail()
+ *   - 避免 SMTP 连接阻塞 HTTP 请求（~2 秒延迟通过异步消除）
+ *
+ * 设计：单例模式，SMTP 连接参数从 config.json 的 smtp.* 节读取。
+ */
 #include "EmailSender.hpp"
 #include "Config.hpp"
 #include "Log.hpp"
@@ -154,10 +174,17 @@ private:
             buffer[bytes_read] = '\0';
             response += buffer;
 
-            // 检查是否是完整的响应（以数字开头，以空格或连字符结尾）
-            if (bytes_read >= 4 && isdigit(buffer[0]) && isdigit(buffer[1]) && isdigit(buffer[2]) &&
-                (buffer[3] == ' ' || buffer[3] == '-')) {
-                break;
+            // 检查是否是完整的响应：SMTP 多行响应以 "NNN-" 开头，最后一行以 "NNN " 结尾
+            // 检查 response 末尾是否匹配 "NNN " 格式（三位数字+空格），表示响应结束
+            if (response.size() >= 4) {
+                size_t lastLine = response.rfind("\r\n");
+                std::string lastPart = (lastLine != std::string::npos) ?
+                    response.substr(lastLine + 2) : response;
+                if (lastPart.size() >= 4 &&
+                    isdigit(lastPart[0]) && isdigit(lastPart[1]) && isdigit(lastPart[2]) &&
+                    lastPart[3] == ' ') {
+                    break;
+                }
             }
         }
 
@@ -192,9 +219,13 @@ public:
         }
 
         if (use_ssl) {
-            SSL_library_init();
-            SSL_load_error_strings();
-            OpenSSL_add_all_algorithms();
+            // SSL 初始化只需在进程启动时调用一次，通过 static 标志保证
+            static bool ssl_initialized = []() {
+                SSL_library_init();
+                SSL_load_error_strings();
+                OpenSSL_add_all_algorithms();
+                return true;
+            }();
 
             ctx = SSL_CTX_new(SSLv23_client_method());
             if (!ctx) {

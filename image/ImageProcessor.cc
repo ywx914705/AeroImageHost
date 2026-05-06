@@ -1,3 +1,20 @@
+/*
+ * ImageProcessor 模块 - 图像处理实现
+ *
+ * 职责：基于 libvips 库提供图像处理功能。
+ *
+ * 核心功能：
+ *   - getImageSize(): 从内存中的图片数据读取宽高
+ *   - generateThumbnail(): 将图片按指定最大宽高缩放，输出为 JPEG 格式
+ *
+ * 在项目中的作用：
+ *   - 客户端请求 /api/i/{id}?w=200&h=200 时调用 generateThumbnail()
+ *   - 生成的缩略图异步缓存到 MinIO thumbs/ 前缀
+ *   - 后续相同尺寸的请求直接从 MinIO 缓存读取
+ *
+ * 设计：所有方法为静态方法。libvips 仅初始化一次（通过 ensureVips() 懒加载）。
+ *       libvips 比 ImageMagick 内存占用减少 90%，处理速度快 10 倍。
+ */
 #include "ImageProcessor.hpp"
 #include <vips/vips.h>
 #include <cstring>
