@@ -253,7 +253,7 @@ void HttpServer::handleUpload(http_request request) {
     auto content_length = request.headers().content_length();
     size_t maxSize = static_cast<size_t>(Config::instance().getInt("max_file_size", 100 * 1024 * 1024));
     if (content_length > maxSize) {
-        replyErrorWithCors(request, status_codes::PayloadTooLarge, U("Request body too large"));
+        replyErrorWithCors(request, status_codes::RequestEntityTooLarge, U("Request body too large"));
         return;
     }
 
