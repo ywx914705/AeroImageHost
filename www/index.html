@@ -1974,7 +1974,7 @@
                             <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" @keyup.enter="handleLoginModal">
                                 <el-form-item prop="account"><el-input v-model="loginForm.account" placeholder="账号" prefix-icon="User" size="large" clearable></el-input></el-form-item>
                                 <el-form-item prop="password"><el-input v-model="loginForm.password" type="password" placeholder="密码" prefix-icon="Lock" size="large" show-password></el-input></el-form-item>
-                                <el-button type="primary" @click="handleLoginModal" :loading="loginLoading" size="large" style="width: 100%; border-radius: 40px; height: 48px; font-weight: 600;">登 录</el-button>
+                                <el-button type="primary" @click="handleLoginModal" :loading="loginLoading" :disabled="loginCooldown > 0" size="large" style="width: 100%; border-radius: 40px; height: 48px; font-weight: 600;">{{ loginCooldown > 0 ? `${loginCooldown}s 后可重试` : '登 录' }}</el-button>
                             </el-form>
                         </el-tab-pane>
                         <el-tab-pane label="邮箱注册" name="emailRegister">
@@ -2043,8 +2043,6 @@
     (function() {
         // 等待所有资源加载完成
         window.addEventListener('load', function() {
-            console.log('所有资源加载完成，开始初始化应用');
-
             // 检查必要依赖
             const dependencies = ['Vue', 'ElementPlus', 'axios', 'dayjs'];
             const missingDeps = dependencies.filter(dep => typeof window[dep] === 'undefined');
@@ -2081,22 +2079,18 @@
             const dayjs = window.dayjs;
             const API_BASE = '/api';
 
-            // ========== 工业级上传优化配置 ==========
+            // ========== 上传配置 ==========
             const UPLOAD_CONFIG = {
-                // 5MB阈值：小于此值使用代理上传，大于此值使用直传
-                DIRECT_UPLOAD_THRESHOLD: 5 * 1024 * 1024,
-                // 分块大小：5MB每块（S3标准推荐）
-                CHUNK_SIZE: 5 * 1024 * 1024,
-                // 最大并行上传数
-                MAX_PARALLEL_UPLOADS: 3,
+                // 10MB阈值：小于此值使用代理上传，大于此值使用预签名URL直传MinIO
+                DIRECT_UPLOAD_THRESHOLD: 10 * 1024 * 1024,
+                // 分块大小回退值（实际由服务端决定）
+                CHUNK_SIZE: 20 * 1024 * 1024,
                 // 重试次数
                 MAX_RETRY_ATTEMPTS: 3,
                 // 基础重试延迟（毫秒）
                 BASE_RETRY_DELAY: 1000,
                 // 分块上传超时（毫秒）
                 CHUNK_UPLOAD_TIMEOUT: 120000,
-                // 直传URL有效期（秒）- 与后端一致
-                PRESIGNED_URL_EXPIRES: 7200,
                 // 速度计算采样窗口（毫秒）
                 SPEED_SAMPLE_WINDOW: 500
             };
@@ -2371,6 +2365,27 @@
                     const user_id = ref(0); // 初始化为0，在登录后更新
                     const activeTab = ref('login');
                     const loginLoading = ref(false), registerLoading = ref(false);
+                    const loginCooldown = ref(0); // 登录频率限制冷却时间（秒）
+                    let loginCooldownTimer = null;
+
+                    // 后端错误消息翻译（英文 → 中文）
+                    const errorMessages = {
+                        'Invalid credentials': '账号或密码错误',
+                        'Account exists': '该账号已被注册',
+                        'Account and password are required': '请输入账号和密码',
+                        'Account must be 3-64 characters': '账号长度需要 3-64 个字符',
+                        'Password must be at least 6 characters': '密码至少需要 6 个字符',
+                        'Database error': '数据库错误，请稍后重试',
+                        'Email already registered': '该邮箱已被注册',
+                        'Account or email already exists': '账号或邮箱已被注册',
+                        'Invalid or expired verification code': '验证码无效或已过期',
+                        'Verification code already used': '验证码已被使用',
+                        'All fields are required': '请填写所有必填项',
+                        'Invalid email format': '邮箱格式不正确',
+                        'File too large': '文件大小超出限制',
+                        'File type not allowed': '不支持的文件类型',
+                    };
+                    const translateError = (msg) => errorMessages[msg] || msg;
 
                     const loginForm = reactive({ account: '', password: '' });
                     const loginRules = {
@@ -2628,15 +2643,13 @@
                     const loadStats = async () => {
                         try {
                             const res = await axios.get('/api/stats', { timeout: 5000 });
-                            console.log('[Stats] API response:', res.data);
                             if (res.data) {
                                 stats.total_users = res.data.total_users || 0;
                                 stats.total_files = res.data.total_files || 0;
                                 stats.total_images = res.data.total_images || 0;
-                                console.log('[Stats] Loaded:', stats);
                             }
                         } catch (e) {
-                            console.error('Stats load failed:', e);
+                            // 统计加载失败静默处理
                         }
                     };
 
@@ -2651,32 +2664,21 @@
                         if (config.url.includes('/auth/login') || config.url.includes('/auth/register')) {
                             return config;
                         }
-                        // Check both ref and localStorage for token
                         const currentToken = token.value || localStorage.getItem('token') || '';
                         if (currentToken) {
                             config.headers.Authorization = `Bearer ${currentToken}`;
-                            console.log('[API Request] Adding token:', config.headers.Authorization.substring(0, 20) + '... for', config.url);
-                        } else {
-                            console.warn('[API Request] No token available for request:', config.url);
                         }
                         return config;
                     });
 
                     api.interceptors.response.use(
-                        response => {
-                            console.log('[API Response] Success for:', response.config.url, '- Status:', response.status);
-                            return response;
-                        },
+                        response => response,
                         error => {
                             const url = error.config?.url || 'unknown';
-                            console.error('[API Error] For', url, '- Status:', error.response?.status, '- Data:', error.response?.data);
                             if (error.response?.status === 401) {
-                                // 对于登录/注册请求的 401 不处理（这是正常的）
                                 if (url.includes('/auth/login') || url.includes('/auth/register')) {
-                                    // 登录失败，正常处理
                                     return Promise.reject(error);
                                 }
-                                console.warn('[API Error] 401 for protected resource:', url);
                                 // 清除认证状态
                                 const hadToken = localStorage.getItem('token');
                                 token.value = '';
@@ -2702,9 +2704,7 @@
 
                         loginLoading.value = true;
                         try {
-                            console.log('[Login] Starting login for account:', loginForm.account);
                             const res = await api.post('/auth/login', loginForm);
-                            console.log('[Login] Response data:', res.data);
 
                             if (res.data?.error) {
                                 throw new Error(res.data.error);
@@ -2732,14 +2732,27 @@
                             localStorage.setItem('username', username.value);
                             localStorage.setItem('user_id', user_id.value.toString());
 
-                            console.log('[Login] Final - token:', token.value ? token.value.substring(0, 20) : 'EMPTY',
-                                        'user_id:', user_id.value, 'localStorage.user_id:', localStorage.getItem('user_id'));
-
                             ElMessage?.success?.('登录成功');
                             await loadFiles(true); // 强制刷新
                         } catch (err) {
-                            const errorMsg = err.response?.data?.error || err.message || '登录失败';
-                            ElMessage?.error?.(errorMsg);
+                            const errData = err.response?.data;
+                            if (errData?.retry_after_seconds) {
+                                // 登录频率限制：显示冷却时间
+                                const seconds = errData.retry_after_seconds;
+                                const minutes = Math.ceil(seconds / 60);
+                                ElMessage?.error?.(`登录尝试次数过多，请 ${minutes} 分钟后重试`);
+                                loginCooldown.value = seconds;
+                                if (loginCooldownTimer) clearInterval(loginCooldownTimer);
+                                loginCooldownTimer = setInterval(() => {
+                                    loginCooldown.value--;
+                                    if (loginCooldown.value <= 0) {
+                                        clearInterval(loginCooldownTimer);
+                                    }
+                                }, 1000);
+                            } else {
+                                const errorMsg = translateError(errData?.error || err.message || '登录失败');
+                                ElMessage?.error?.(errorMsg);
+                            }
                         } finally {
                             loginLoading.value = false;
                         }
@@ -2769,7 +2782,7 @@
                             registerForm.account = '';
                             registerForm.password = '';
                         } catch (err) {
-                            const errorMsg = err.response?.data?.error || err.message || '注册失败';
+                            const errorMsg = translateError(err.response?.data?.error || err.message || '注册失败');
                             ElMessage?.error?.(errorMsg);
                         } finally {
                             registerLoading.value = false;
@@ -2834,7 +2847,7 @@
                                 }
                             }, 1000);
                         } catch (err) {
-                            const errorMsg = err.response?.data?.error || err.message || '发送验证码失败';
+                            const errorMsg = translateError(err.response?.data?.error || err.message || '发送验证码失败');
                             ElMessage?.error?.(errorMsg);
                         } finally {
                             codeSending.value = false;
@@ -2878,7 +2891,7 @@
                                 countdown.value = 0;
                             }
                         } catch (err) {
-                            const errorMsg = err.response?.data?.error || err.message || '注册失败';
+                            const errorMsg = translateError(err.response?.data?.error || err.message || '注册失败');
                             ElMessage?.error?.(errorMsg);
                         } finally {
                             emailRegisterLoading.value = false;
@@ -2931,33 +2944,18 @@
                         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
                         try {
-                            // 详细调试：检查page、pageSize和user_id的值
-                            console.log('Before calculation - page.value:', page.value, 'pageSize.value:', pageSize.value, 'user_id.value:', user_id.value);
-
                             // 确保page和pageSize有默认值，避免offset未定义
                             const currentPage = page.value || 1;
                             const currentPageSize = pageSize.value || 10;
 
-                            // 详细调试：检查计算前的值
-                            console.log('After default - currentPage:', currentPage, 'currentPageSize:', currentPageSize);
-
                             const offset = (currentPage - 1) * currentPageSize;
-
-                            // 详细调试：检查offset的值
-                            console.log('Calculated offset:', offset, 'typeof offset:', typeof offset);
-
-                            // 详细调试：检查最终参数
-                            console.log('Final params:', { user_id: user_id.value, offset, limit: currentPageSize });
 
                             // 检查token是否存在
                             if (!token.value) {
-                                console.error('Error: No token, cannot load files');
                                 ElMessage?.error?.('用户未登录，请重新登录');
                                 fileListLoading.value = false;
                                 return;
                             }
-
-                            console.log('Loading files with params:', { offset, limit: currentPageSize, search: searchKeyword.value.trim() });
 
                             // 优化网络请求：使用缓存头和压缩
                             const res = await api.get('/files', {
@@ -2969,11 +2967,9 @@
                                 }
                             });
                             clearTimeout(timeoutId);
-                            console.log('Files response:', res.data);
 
                             // 检查响应状态
                             if (!res.data || typeof res.data !== 'object') {
-                                console.error('Invalid response format:', res.data);
                                 ElMessage?.error?.('服务器返回了无效的响应格式');
                                 fileListLoading.value = false;
                                 return;
@@ -2981,7 +2977,6 @@
 
                             // 检查错误信息
                             if (res.data.error) {
-                                console.error('Server error:', res.data.error);
                                 // 如果是401错误，可能是token过期
                                 if (res.data.error.includes('Unauthorized') || res.data.error.includes('401')) {
                                     token.value = '';
@@ -3029,22 +3024,18 @@
                                 total.value = res.data.total || 0;
 
                                 if (total.value === 0 && files.value.length > 0) {
-                                    console.warn('Warning: Server returned files but total is 0');
+                                    // total 与 files 不一致时忽略，以 files 为准
                                 }
 
-                                console.log(`Loaded ${files.value.length} files, total: ${total.value}`);
                             } else {
-                                console.error('Files response missing files array:', res.data);
                                 ElMessage?.error?.('服务器返回的文件列表格式不正确');
                                 files.value = [];
                             }
                         } catch (err) {
-                            console.error('Load files error:', err);
                             clearTimeout(timeoutId);
 
                             // 如果是取消错误，直接返回，不要重试
                             if (err.name === 'AbortError' || err.message.includes('canceled')) {
-                                console.log('Request was aborted, not retrying');
                                 fileListLoading.value = false;
                                 isLoading = false;
                                 return;
@@ -3052,10 +3043,8 @@
 
                             // 如果是第一次加载且出现 401，延迟 1 秒后自动重试一次
                             if (forceRefresh && page.value === 1 && err.response?.status === 401) {
-                                console.warn('[loadFiles] First load got 401, retrying after 1s...');
                                 setTimeout(() => {
                                     loadFiles(true).catch(retryErr => {
-                                        console.error('Retry failed:', retryErr);
                                         if (!retryErr.response || retryErr.response.status !== 401) {
                                             fileListLoading.value = false;
                                         }
@@ -3076,7 +3065,6 @@
 
                             while (retryCount < maxRetries) {
                                 retryCount++;
-                                console.log(`Retry ${retryCount}/${maxRetries} for loading files...`);
 
                                 // 为每次重试创建新的AbortController
                                 const retryController = new AbortController();
@@ -3208,7 +3196,7 @@
                                 ElMessage?.error?.(res.data.error || '删除失败');
                             }
                         } catch (err) {
-                            const errorMsg = err.response?.data?.error || err.message || '删除失败';
+                            const errorMsg = translateError(err.response?.data?.error || err.message || '删除失败');
                             ElMessage?.error?.(errorMsg);
                         }
                     };
@@ -3251,7 +3239,7 @@
                                 ElMessage?.error?.(res.data.error || '批量删除失败');
                             }
                         } catch (err) {
-                            const errorMsg = err.response?.data?.error || err.message || '批量删除失败';
+                            const errorMsg = translateError(err.response?.data?.error || err.message || '批量删除失败');
                             ElMessage?.error?.(errorMsg);
                         }
                     };
@@ -3340,7 +3328,6 @@
 
                         // ========== 智能上传路由 ==========
                         const shouldUseDirect = uploadOptimizer.shouldUseDirectUpload(file.size);
-                        console.log(`[Upload] ${name}: ${uploadOptimizer.formatFileSize(file.size)}, Strategy: ${shouldUseDirect ? 'Direct to MinIO' : 'Proxy via Backend'}`);
 
                         try {
                             let res;
@@ -3405,16 +3392,16 @@
                                                 total.value = refreshRes.data.total || 0;
                                             }
                                         }
-                                    } catch (e) { console.log('Background refresh skipped'); }
+                                    } catch (e) { /* 静默处理 */ }
                                 }, 500);
                             } else {
                                 throw new Error(res?.error || '上传失败');
                             }
                         } catch (err) {
                             item.status = 'error';
-                            const errorMsg = err.response?.data?.error || err.message || '上传失败';
+                            const errorMsg = translateError(err.response?.data?.error || err.message || '上传失败');
                             item.statusText = errorMsg;
-                            console.error('Upload error:', err);
+                            // 上传错误由 UI 状态展示
                             Vue.nextTick(() => ElMessage?.error?.(`${name} ${errorMsg}`));
                         }
                     };
@@ -3524,9 +3511,23 @@
                             });
                             xhr.addEventListener('load', () => {
                                 if (xhr.status >= 200 && xhr.status < 300) {
-                                    resolve(true);
+                                    try {
+                                        const resp = JSON.parse(xhr.responseText);
+                                        if (resp.error) {
+                                            reject(new Error(resp.error));
+                                        } else {
+                                            resolve(true);
+                                        }
+                                    } catch (e) {
+                                        resolve(true);
+                                    }
                                 } else {
-                                    reject(new Error(`HTTP ${xhr.status}`));
+                                    try {
+                                        const resp = JSON.parse(xhr.responseText);
+                                        reject(new Error(resp.error || `HTTP ${xhr.status}`));
+                                    } catch (e) {
+                                        reject(new Error(`HTTP ${xhr.status}`));
+                                    }
                                 }
                             });
                             xhr.addEventListener('error', () => reject(new Error('网络错误')));
@@ -3534,118 +3535,92 @@
                             xhr.addEventListener('timeout', () => reject(new Error('上传超时')));
                             xhr.open('PUT', uploadUrl, true);
                             xhr.setRequestHeader('Content-Type', contentType || 'application/octet-stream');
+                            // 服务器代理模式需要 Authorization
+                            const authToken = localStorage.getItem('token') || '';
+                            if (authToken) {
+                                xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+                            }
                             xhr.send(chunkData);
                         });
                     };
 
-                    // 大文件分片上传（断点续传 + 真实进度）
+                    // 大文件预签名URL直传MinIO（绕过后端代理，避免超时）
                     const uploadDirectWithRetry = async (file, name, item, isCancelledFn) => {
                         const maxRetries = UPLOAD_CONFIG.MAX_RETRY_ATTEMPTS;
                         const contentType = file.type || 'application/octet-stream';
-                        const chunkSize = UPLOAD_CONFIG.CHUNK_SIZE;
-                        const totalChunks = Math.ceil(file.size / chunkSize);
 
                         for (let attempt = 0; attempt <= maxRetries; attempt++) {
                             try {
                                 if (isCancelledFn()) throw new Error('上传已取消');
 
-                                // 步骤1：初始化分片上传
-                                item.statusText = '初始化分片上传...';
-                                const initRes = await api.post('/upload/multipart/init', {
+                                // 步骤1：获取预签名上传URL
+                                item.statusText = '获取上传地址...';
+                                const presignRes = await api.post('/upload/presign', {
                                     filename: name,
                                     content_type: contentType,
                                     size: file.size
                                 });
 
-                                if (initRes.data?.error) throw new Error(initRes.data.error);
+                                if (presignRes.data?.error) throw new Error(presignRes.data.error);
 
-                                const { upload_id, chunks } = initRes.data;
-                                console.log(`[Multipart] Initialized: ${upload_id}, ${totalChunks} chunks`);
+                                const { file_id, upload_url, mime_type } = presignRes.data;
+                                if (!upload_url) throw new Error('未获取到上传地址');
 
-                                // 检查 localStorage 中是否有断点续传记录
-                                const storageKey = `upload_progress:${upload_id}`;
-                                let completedChunks = [];
-                                try {
-                                    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
-                                    completedChunks = saved.completed_chunks || [];
-                                } catch (e) {}
+                                // 步骤2：直传MinIO（带进度）
+                                item.statusText = '上传文件中...';
+                                await new Promise((resolve, reject) => {
+                                    const xhr = new XMLHttpRequest();
+                                    xhr.timeout = 600000; // 10分钟超时
 
-                                // 步骤2：逐片上传
-                                let bytesUploaded = completedChunks.reduce((sum, idx) => sum + Math.min(chunkSize, file.size - idx * chunkSize), 0);
-
-                                for (let i = 0; i < chunks.length; i++) {
-                                    if (isCancelledFn()) {
-                                        // 保存进度到 localStorage
-                                        localStorage.setItem(storageKey, JSON.stringify({
-                                            upload_id, filename: name, content_type: contentType,
-                                            file_size: file.size, completed_chunks: completedChunks
-                                        }));
-                                        throw new Error('上传已取消');
-                                    }
-
-                                    // 跳过已完成的分片
-                                    if (completedChunks.includes(i)) {
-                                        const chunkProgress = Math.round(((i + 1) / totalChunks) * 100);
-                                        item.progress = chunkProgress;
-                                        item.statusText = `恢复上传中... (${i + 1}/${totalChunks})`;
-                                        continue;
-                                    }
-
-                                    const start = i * chunkSize;
-                                    const end = Math.min(start + chunkSize, file.size);
-                                    const chunkBlob = file.slice(start, end);
-
-                                    item.statusText = `上传分片 ${i + 1}/${totalChunks}`;
-
-                                    await uploadChunkViaXHR(chunkBlob, chunks[i].presign_url, contentType,
-                                        (chunkProgress, loaded) => {
-                                            const totalProgress = Math.round(((bytesUploaded + loaded) / file.size) * 100);
-                                            item.progress = Math.min(totalProgress, 99);
-                                            const totalKB = (bytesUploaded + loaded) / 1024;
-                                            const elapsed = (Date.now() - item._startTime) / 1000;
-                                            if (elapsed > 0) {
-                                                item.speed = formatSpeed(Math.round(totalKB / elapsed));
-                                                const remainingBytes = file.size - bytesUploaded - loaded;
-                                                const remainingKB = remainingBytes / 1024;
-                                                const speedKB = totalKB / elapsed;
-                                                if (speedKB > 0) {
-                                                    const etaSec = Math.round(remainingKB / speedKB);
-                                                    item.eta = formatETA(etaSec);
-                                                }
+                                    xhr.upload.addEventListener('progress', (e) => {
+                                        if (isCancelledFn() || !e.lengthComputable) return;
+                                        const pct = Math.round((e.loaded * 100) / e.total);
+                                        item.progress = Math.min(pct, 99);
+                                        if (pct >= 90) item.statusText = '已上传，正在确认...';
+                                        // 计算速度
+                                        const elapsed = (Date.now() - item._startTime) / 1000;
+                                        if (elapsed > 0) {
+                                            const speedKB = Math.round((e.loaded / 1024) / elapsed);
+                                            item.speed = formatSpeed(speedKB);
+                                            const remaining = file.size - e.loaded;
+                                            if (speedKB > 0) {
+                                                item.eta = formatETA(Math.round(remaining / (speedKB * 1024)));
                                             }
                                         }
-                                    );
+                                    });
 
-                                    bytesUploaded += (end - start);
-                                    completedChunks.push(i);
+                                    xhr.addEventListener('load', () => {
+                                        if (xhr.status >= 200 && xhr.status < 300) {
+                                            resolve(true);
+                                        } else {
+                                            reject(new Error(`直传失败 HTTP ${xhr.status}`));
+                                        }
+                                    });
+                                    xhr.addEventListener('error', () => reject(new Error('网络错误')));
+                                    xhr.addEventListener('timeout', () => reject(new Error('上传超时')));
+                                    xhr.addEventListener('abort', () => reject(new Error('上传已取消')));
 
-                                    // 每片完成后保存进度到 localStorage
-                                    localStorage.setItem(storageKey, JSON.stringify({
-                                        upload_id, filename: name, content_type: contentType,
-                                        file_size: file.size, completed_chunks: completedChunks
-                                    }));
-                                }
-
-                                // 步骤3：合并分片
-                                item.statusText = '合并分片中...';
-                                item.progress = 99;
-                                const completeRes = await api.post('/upload/multipart/complete', {
-                                    upload_id,
-                                    filename: name,
-                                    content_type: contentType,
-                                    size: file.size,
-                                    total_chunks: totalChunks
+                                    xhr.open('PUT', upload_url, true);
+                                    xhr.setRequestHeader('Content-Type', contentType);
+                                    xhr.send(file);
                                 });
 
-                                if (completeRes.data?.error) throw new Error(completeRes.data.error);
+                                // 步骤3：确认上传，保存元数据
+                                item.statusText = '确认上传中...';
+                                item.progress = 99;
+                                const confirmRes = await api.post('/upload/confirm', {
+                                    file_id,
+                                    filename: name,
+                                    content_type: mime_type || contentType,
+                                    size: file.size
+                                });
 
-                                // 清理 localStorage
-                                localStorage.removeItem(storageKey);
+                                if (confirmRes.data?.error) throw new Error(confirmRes.data.error);
 
-                                return completeRes.data;
+                                return confirmRes.data;
 
                             } catch (error) {
-                                console.error(`[Multipart] Attempt ${attempt + 1} failed:`, error.message);
+                                console.error(`[Presign] Attempt ${attempt + 1} failed:`, error.message);
                                 if (isCancelledFn()) throw error;
                                 if (attempt >= maxRetries) throw error;
                                 const delay = uploadOptimizer.getRetryDelay(attempt);
@@ -3704,54 +3679,34 @@
                         // 设置粘贴事件监听
                         document.addEventListener('paste', handlePaste);
 
-                        // 背景图片轮播
+                        // 从 localStorage 恢复登录状态
                         const storedToken = localStorage.getItem('token');
                         const storedUserId = localStorage.getItem('user_id');
 
-                        console.log('[onMounted] storedToken:', storedToken ? storedToken.substring(0, 20) + '...' : 'MISSING');
-                        console.log('[onMounted] token.value:', token.value ? token.value.substring(0, 20) + '...' : 'EMPTY');
-                        console.log('[onMounted] storedUserId:', storedUserId);
-                        console.log('[onMounted] user_id.value:', user_id.value);
-
-                        // 如果 localStorage 有 token 但 ref 没有，强制同步
                         if (storedToken && !token.value) {
-                            console.log('[onMounted] Syncing token from localStorage');
                             token.value = storedToken;
                         }
 
                         if (token.value) {
-                            // 从 localStorage 获取 user_id
                             let storedUserIdNum = parseInt(storedUserId || '0');
-                            console.log('[onMounted] storedUserId from localStorage:', storedUserIdNum);
 
-                            // 如果 user_id 为 0，尝试从 token 解析
                             if (storedUserIdNum === 0) {
                                 const tokenParts = token.value.split('-');
                                 if (tokenParts.length > 0) {
                                     const parsedUserId = parseInt(tokenParts[0]);
                                     if (!isNaN(parsedUserId) && parsedUserId > 0) {
                                         user_id.value = parsedUserId;
-                                        console.log('[onMounted] Parsed user_id from token:', user_id.value);
-                                    } else {
-                                        console.warn('[onMounted] Could not parse user_id, parts:', tokenParts);
                                     }
                                 }
                             } else {
                                 user_id.value = storedUserIdNum;
-                                console.log('[onMounted] Using stored user_id:', user_id.value);
                             }
 
-                            console.log('[onMounted] Final user_id:', user_id.value);
-
-                            // 只有 user_id 有效才加载文件
                             if (user_id.value > 0) {
                                 loadFiles(true);
                             } else {
-                                console.error('[onMounted] Invalid user_id:', user_id.value);
                                 ElMessage?.error?.('用户ID无效，请重新登录');
                             }
-                        } else {
-                            console.log('[onMounted] No token - showing login screen');
                         }
                     });
 
@@ -3814,9 +3769,7 @@
             try {
                 app.use(ElementPlus);
                 app.mount('#app');
-                console.log('AeroImageHost 应用初始化成功');
             } catch (e) {
-                console.error('应用挂载失败:', e);
                 showError(`应用初始化失败: ${e.message}`);
             }
         }

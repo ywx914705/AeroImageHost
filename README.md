@@ -66,61 +66,71 @@
 ### 整体架构图
 
 ```
-┌───────────────────────────────────────────────────────┐
-│                    Client (浏览器)                      │
-│                    Vue 3 SPA                           │
-└──────────────────────────┬────────────────────────────┘
-                           │ HTTP REST API
-                           ▼
-┌───────────────────────────────────────────────────────┐
-│  HttpServer (cpprestsdk)                              │
-│  统一路由 handleAll() · CORS 预检                      │
-└──────────────────────────┬────────────────────────────┘
-                           ▼
-┌───────────────────────────────────────────────────────┐
-│  Auth                                                 │
-│  Bearer Token → Redis 验证 · SHA-256 + 固定盐值哈希   │
-└──────────────────────────┬────────────────────────────┘
-                           ▼
-┌───────────────────────────────────────────────────────┐
-│  Handlers (业务逻辑)                                   │
-│  上传 · 删除 · 缩略图 · 搜索 · 邮件验证                │
-└──────┬──────────────────┬──────────────────┬──────────┘
-       │                  │                  │
-       ▼                  ▼                  ▼
-┌─────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ FileMetaDAO │  │   MinIOClient   │  │ ImageProcessor  │
-│ MySQL CRUD  │  │   S3 对象操作   │  │ libvips 缩略图  │
-└──────┬──────┘  └────────┬────────┘  └─────────────────┘
-       │                  │
-       │    ┌─────────────┘
-       │    │  AeroQueue (4 工作线程)
-       │    │  · 缩略图缓存异步回写 MinIO
-       │    │  · 邮件异步发送
-       ▼    ▼
-┌───────────────────────────────────────────────────────┐
-│  外部服务                                              │
-│                                                       │
-│  ┌───────────────┐  ┌──────────┐  ┌────────────────┐  │
-│  │   MySQL 8.0   │  │ Redis 7  │  │     MinIO      │  │
-│  │  users        │  │  Token   │  │  objects/      │  │
-│  │  files        │  │  缓存    │  │  thumbs/ 缓存  │  │
-│  │  连接池 (32)  │  │ 连接(16) │  │  chunks/ 分片  │  │
-│  └───────────────┘  └──────────┘  └────────────────┘  │
-└───────────────────────────────────────────────────────┘
+                          ┌─────────────────────┐
+                          │   Browser / Client  │
+                          │     Vue 3 SPA       │
+                          └─────────┬───────────┘
+                                    │ HTTP REST API
+                                    ▼
+                ┌───────────────────────────────────┐
+                │  Nginx (Docker 反向代理)            │
+                │  /api/ → App  / → Frontend         │
+                └───────────────┬───────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    C++ App (port 8082)                       │
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────────────┐ │
+│  │HttpServer│─→│  Auth    │─→│       Handlers              │ │
+│  │ 路由分发  │  │Token验证 │  │  业务逻辑（不含SQL）         │ │
+│  └──────────┘  └──────────┘  └──┬─────┬─────┬─────┬───────┘ │
+│                                 │     │     │     │         │
+│                   ┌─────────────┘     │     │     │         │
+│                   ▼                   ▼     ▼     ▼         │
+│          ┌──────────────┐  ┌───────┐ ┌────┐ ┌──────────┐   │
+│          │ FileMetaDAO  │  │Users  │ │E-  │ │ MinIO    │   │
+│          │ files 表 SQL │  │DAO    │ │mail│ │ Client   │   │
+│          └──────┬───────┘  │users表│ │DAO │ └────┬─────┘   │
+│                 │          └──┬────┘ └──┬─┘      │         │
+│                 │             │         │        │         │
+│                 ▼             ▼         ▼        ▼         │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │          ConnectionPool (MySQL 连接池 32)           │    │
+│  └────────────────────────┬───────────────────────────┘    │
+│                           │                                │
+│  ┌──────────────┐  ┌──────┴─────┐  ┌──────────────────┐   │
+│  │  AeroQueue   │  │ RedisClient│  │  ImageProcessor   │   │
+│  │  4 工作线程  │  │ 连接池 (16)│  │  libvips 缩略图   │   │
+│  │  异步任务    │  └──────┬─────┘  └──────────────────┘   │
+│  └──────┬───────┘         │                               │
+└─────────┼─────────────────┼───────────────────────────────┘
+          │                 │
+          ▼                 ▼
+┌──────────────────────────────────────────────────────────────┐
+│                        外部服务                               │
+│                                                              │
+│  ┌──────────────┐  ┌──────────┐  ┌──────────────────────┐   │
+│  │  MySQL 8.0   │  │ Redis 7  │  │       MinIO          │   │
+│  │              │  │          │  │                      │   │
+│  │  users       │  │  Token   │  │  objects/   文件存储  │   │
+│  │  files       │  │  缓存    │  │  thumbs/   缩略图缓存│   │
+│  │  email_verif │  │  限流    │  │  chunks/   分片暂存   │   │
+│  └──────────────┘  └──────────┘  └──────────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 #### 数据流说明
 
 ```
-上传:  Client → Handlers ──std::async 并行──┬→ FileMetaDAO → MySQL
-                                             └→ MinIOClient → MinIO
+上传:  Client → Handlers ──std::async 并行──┬→ FileMetaDAO::save → MySQL
+                                             └→ MinIOClient::putObject → MinIO
 
 缩略图: Client → Handlers → ImageProcessor(同步生成)
                              └→ AeroQueue(异步) → MinIO thumbs/ 缓存
 
-批量删除: Client → Handlers ──std::async 并行──→ MinIOClient × N → MinIO
-                           └→ 单次 SQL 批量删除 → MySQL
+批量删除: Client → Handlers → FileMetaDAO(验证归属权) ──std::async 并行──→ MinIOClient × N → MinIO
+                           └→ FileMetaDAO(批量删除) → MySQL
 
 邮件: Client → Handlers → AeroQueue(fire-and-forget) → SMTP
 ```
@@ -164,24 +174,24 @@ std::async 并行 ─┬→ MySQL: 存储元数据 (FileMetaDAO::save)
 
 #### 4. 文件上传流程（分片上传模式）
 ```
-客户端 → POST /api/upload/multipart/init → 获取分片预签名 URL 列表
+客户端 → POST /api/upload/multipart/init → 获取 upload_id + 分片信息
     ↓
-客户端 → 逐片上传到 MinIO（XHR 真实进度 + localStorage 断点记录）
+客户端 → PUT /api/upload/multipart/chunk?upload_id=X&part_number=N → 逐片经服务器代理上传到 MinIO（XHR 真实进度 + localStorage 断点记录）
     ↓
 客户端 → POST /api/upload/multipart/complete → 合并分片
     ↓
-服务端 → 构造分片 key 列表 → MinIO composeObjects 拼接 → 存储元数据 → 返回下载链接
+服务端 → 构造分片 key 列表 → MinIO ComposeObject 服务端合并（零下载） → 存储元数据 → 返回下载链接
 ```
 
 #### 5. 批量删除流程
 ```
 客户端 → POST /api/files/batch-delete → { "file_ids": [...] }
     ↓
-单次 SQL 查询验证归属权 → 获取有效 file_id 列表
+FileMetaDAO::getValidFileIds → 单次 SQL 查询验证归属权
     ↓
 std::async 并行 → N 个 MinIO deleteObject 同时执行
     ↓
-单次 SQL 批量删除 MySQL 记录
+FileMetaDAO::deleteFilesBatch → 单次 SQL 批量删除 MySQL 记录
     ↓
 返回 → { deleted_count, failed_count }
 ```
@@ -588,9 +598,10 @@ curl -X POST http://localhost:8082/api/auth/login \
 | 方法 | 端点 | 描述 | 是否需要认证 |
 |------|------|------|--------------|
 | `POST/PUT` | `/api/upload?filename=xxx` | 直接上传文件 | 是 |
-| `POST` | `/api/upload/request` | 请求预签名上传 URL | 是 |
+| `POST` | `/api/upload/presign` | 请求预签名上传 URL | 是 |
 | `POST` | `/api/upload/confirm` | 确认预签名上传完成 | 是 |
 | `POST` | `/api/upload/multipart/init` | 初始化分片上传 | 是 |
+| `POST/PUT` | `/api/upload/multipart/chunk` | 上传单个分片（服务器代理） | 是 |
 | `POST` | `/api/upload/multipart/complete` | 合并分片完成上传 | 是 |
 | `POST` | `/api/upload/multipart/cleanup` | 清理未完成的分片 | 是 |
 | `GET` | `/api/file/{file_id}/presign` | 按需获取文件预签名 URL | 是 |
@@ -601,6 +612,7 @@ curl -X POST http://localhost:8082/api/auth/login \
 | `POST` | `/api/share/{file_id}` | 获取文件分享链接 | 否 |
 | `GET` | `/api/i/{file_id}?w=200&h=200` | 访问文件（支持缩略图） | 否* |
 | `GET` | `/api/stats` | 获取系统统计 | 否 |
+| `GET` | `/api/health` | 健康检查（MySQL/Redis 连通性） | 否 |
 | `POST` | `/api/cleanup` | 清理孤儿文件（管理员） | 是 |
 
 > \* 公开文件无需认证，私有文件需要认证
@@ -614,7 +626,7 @@ curl -X POST "http://localhost:8082/api/upload?filename=photo.jpg" \
   --data-binary "@photo.jpg"
 
 # 预签名上传（推荐大文件）
-curl -X POST http://localhost:8082/api/upload/request \
+curl -X POST http://localhost:8082/api/upload/presign \
   -H "Authorization: Bearer your_token_here" \
   -H "Content-Type: application/json" \
   -d '{"filename": "large_file.zip", "size": 52428800}'
@@ -775,10 +787,21 @@ Authorization: Bearer {your_token}
 
   "minio": {
     "endpoint": "http://localhost:9000",
+    "presign_endpoint": "",
     "access_key": "minioadmin",
     "secret_key": "minioadmin123",
     "bucket": "images",
     "public_url": "http://localhost:8082/api/i/"
+  },
+
+  "security": {
+    "cors_origin": "*",
+    "max_login_attempts": 5,
+    "login_window_seconds": 900
+  },
+
+  "cleanup": {
+    "multipart_ttl_seconds": 86400
   },
 
   "smtp": {
@@ -814,10 +837,15 @@ Authorization: Bearer {your_token}
 | `redis.port` | integer | 6379 | Redis 端口 |
 | `redis.pool_size` | integer | 16 | Redis 连接池大小 |
 | `minio.endpoint` | string | http://localhost:9000 | MinIO 服务地址（需包含 http:// 或 https:// 前缀） |
+| `minio.presign_endpoint` | string | "" | 预签名 URL 使用的外部地址（为空则与 endpoint 相同，可用于 CDN） |
 | `minio.access_key` | string | minioadmin | MinIO 访问密钥 |
 | `minio.secret_key` | string | minioadmin123 | MinIO 密钥 |
 | `minio.bucket` | string | images | MinIO 存储桶名称 |
 | `minio.public_url` | string | http://localhost:8082/api/i/ | 文件公开访问 URL 前缀 |
+| `security.cors_origin` | string | * | CORS 允许的域名（* 表示允许所有） |
+| `security.max_login_attempts` | integer | 5 | 登录频率限制：窗口期内最大失败次数 |
+| `security.login_window_seconds` | integer | 900 | 登录频率限制：时间窗口（秒，默认 15 分钟） |
+| `cleanup.multipart_ttl_seconds` | integer | 86400 | 分片上传孤儿清理超时时间（秒，默认 24 小时） |
 | `log.file` | string | ./logs/server.log | 日志文件路径 |
 | `log.flush_interval` | integer | 3 | 日志刷新间隔（秒） |
 | `smtp.server` | string | smtp.qq.com | SMTP 服务器地址 |
@@ -909,12 +937,14 @@ AeroImageHost/
 │   ├── Auth.cc                  # Token 认证模块
 │   └── Auth.hpp
 │
-├── storage/                     # 存储层
-│   ├── FileMeta.cc              # 文件元数据 DAO
+├── storage/                     # 数据访问层（每张表一个 DAO）
+│   ├── FileMeta.cc              # files 表 DAO（文件元数据 CRUD）
 │   ├── FileMeta.hpp
+│   ├── UsersDAO.cc              # users 表 DAO（注册、登录、邮箱检查）
+│   ├── UsersDAO.hpp
 │   ├── MinIOClient.cc           # MinIO SDK 客户端
 │   ├── MinIOClient.hpp
-│   ├── EmailVerificationDAO.cpp # 邮箱验证码 DAO
+│   ├── EmailVerificationDAO.cpp # email_verifications 表 DAO（验证码管理）
 │   └── EmailVerificationDAO.hpp
 │
 ├── image/                       # 图像处理
@@ -924,23 +954,24 @@ AeroImageHost/
 ├── src/                         # 基础设施
 │   ├── AeroQueue.cc             # 异步任务队列实现
 │   ├── ConnectionPool.cc        # MySQL 连接池实现
-│   ├── DBManager.cc             # 数据库管理器
 │   ├── Log.cc                   # 异步日志系统实现
 │   └── RedisClient.cc           # Redis 客户端实现
 │
 ├── utils/                       # 工具类
 │   ├── Utils.cc                 # URL 编解码、UUID 生成等
 │   ├── Utils.hpp
-│   ├── EmailSender.cpp          # 邮件发送
-│   └── EmailSender.hpp
+│   ├── EmailSender.cpp          # 邮件发送（SMTP）
+│   ├── EmailSender.hpp
+│   ├── PasswordHash.cc          # PBKDF2 密码哈希（预留升级用）
+│   ├── PasswordHash.hpp
+│   ├── RateLimiter.cc           # 基于 Redis 的登录频率限制
+│   └── RateLimiter.hpp
 │
-├── include/                     # 第三方/公共头文件
+├── include/                     # 基础设施头文件
 │   ├── AeroQueue.hpp            # 异步任务队列头文件
 │   ├── ConnectionPool.hpp       # 连接池接口
-│   ├── DBManager.hpp            # 数据库管理器头文件
 │   ├── Log.hpp                  # 日志系统头文件
 │   ├── RedisClient.hpp          # Redis 客户端头文件
-│   ├── Handlers.hpp             # 处理器头文件（旧版本，已被 http/Handlers.hpp 替代）
 │   ├── concurrentqueue.hpp      # 无锁并发队列库
 │   └── rapidjson/               # RapidJSON 库
 │       ├── document.h           # JSON 文档解析
@@ -1015,14 +1046,14 @@ AeroImageHost/
 
 ### 健康检查
 ```bash
-# 检查服务健康状态
+# 检查服务健康状态（包含 MySQL 和 Redis 连通性）
+curl http://localhost:8082/api/health
+
+# 响应示例
+# {"mysql":"ok","redis":"ok","status":"healthy"}
+
+# 获取系统统计
 curl http://localhost:8082/api/stats
-
-# 检查数据库连接
-mysql -h localhost -u aero_user -p -e "SELECT 1"
-
-# 检查 Redis 连接
-redis-cli ping
 ```
 
 ## 🎯 适用场景

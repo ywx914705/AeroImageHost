@@ -4,6 +4,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <iostream>
+#include <iomanip>
 
 AsyncLog::AsyncLog()
     : running_(false), flushInterval_(3), buffer_(BUFFER_SIZE), nextBuffer_(BUFFER_SIZE) {
@@ -23,20 +24,40 @@ void AsyncLog::init(const std::string& filename, int flushInterval) {
 }
 
 void AsyncLog::write(LogLevel level, const std::string& msg) {
-    // 格式化日志行：时间 + 级别 + 消息
+    // JSON 结构化日志格式
     auto now = std::chrono::system_clock::now();
     auto t = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
     std::string levelStr;
     switch (level) {
-        case LogLevel::DEBUG: levelStr = "[DEBUG]"; break;
-        case LogLevel::INFO:  levelStr = "[INFO]";  break;
-        case LogLevel::WARN:  levelStr = "[WARN]";  break;
-        case LogLevel::ERROR: levelStr = "[ERROR]"; break;
+        case LogLevel::DEBUG: levelStr = "DEBUG"; break;
+        case LogLevel::INFO:  levelStr = "INFO";  break;
+        case LogLevel::WARN:  levelStr = "WARN";  break;
+        case LogLevel::ERROR: levelStr = "ERROR"; break;
     }
 
+    // 格式化时间：2026-05-06T10:30:00.123Z
     std::stringstream ss;
-    ss << std::ctime(&t) << " " << levelStr << " " << msg << "\n";
-    std::string logLine = ss.str();
+    ss << std::put_time(std::localtime(&t), "%Y-%m-%dT%H:%M:%S");
+    ss << "." << std::setfill('0') << std::setw(3) << ms.count();
+
+    // 简单 JSON 序列化（避免依赖外部库）
+    std::string escaped_msg = msg;
+    // 转义 JSON 特殊字符
+    size_t pos = 0;
+    while ((pos = escaped_msg.find('"', pos)) != std::string::npos) {
+        escaped_msg.replace(pos, 1, "\\\"");
+        pos += 2;
+    }
+    pos = 0;
+    while ((pos = escaped_msg.find('\n', pos)) != std::string::npos) {
+        escaped_msg.replace(pos, 1, "\\n");
+        pos += 2;
+    }
+
+    std::string logLine = "{\"timestamp\":\"" + ss.str() + "\",\"level\":\"" + levelStr +
+                          "\",\"message\":\"" + escaped_msg + "\"}\n";
 
     std::unique_lock<std::mutex> lock(mutex_);
     // 如果当前缓冲区剩余空间不足，先交换

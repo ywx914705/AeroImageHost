@@ -1,3 +1,19 @@
+/*
+ * RateLimiter 模块 - 基于 Redis 的频率限制器实现
+ *
+ * 职责：通过 Redis 记录操作失败次数，实现滑动窗口频率限制。
+ *
+ * 核心逻辑：
+ *   - isAllowed(): 检查计数器是否未超过阈值
+ *   - recordFailure(): 递增计数器并刷新过期时间（滑动窗口）
+ *   - reset(): 登录成功后清除计数器
+ *   - getRemainingAttempts(): 返回剩余可用尝试次数
+ *
+ * Redis key 格式："ratelimit:<原始key>"（如 "ratelimit:login:testuser"）
+ *
+ * 在项目中的作用：
+ *   - 登录接口防止暴力破解（默认 5 次失败/15 分钟窗口）
+ */
 // 基于 Redis 的通用频率限制器
 // 原理：用 Redis 记录某个 key 在时间窗口内的失败次数，超过阈值则拒绝
 #include "RateLimiter.hpp"
@@ -29,27 +45,19 @@ bool RateLimiter::isAllowed(const std::string& key, int maxAttempts, int windowS
     return true;
 }
 
-// 记录一次失败尝试，计数器到期自动过期
+// 记录一次失败尝试，使用原子 INCR 避免竞态条件
 void RateLimiter::recordFailure(const std::string& key, int windowSeconds) {
     std::string redisKey = "ratelimit:" + key;
     RedisClient& redis = RedisClient::instance();
 
-    // INCR creates the key if it doesn't exist
-    std::string countStr = redis.get(redisKey);
-    if (countStr.empty()) {
-        redis.set(redisKey, "1");
+    // 原子递增，Redis INCR 在 key 不存在时自动创建并初始化为 0
+    long long count = redis.incr(redisKey);
+    if (count == 1) {
+        // 首次失败，设置过期时间
         redis.expire(redisKey, windowSeconds);
-    } else {
-        // Increment manually since we don't have INCR
-        int count = 0;
-        try { count = std::stoi(countStr); } catch (...) {}
-        count++;
-        redis.set(redisKey, std::to_string(count));
-        // Only set expiry on first failure (when count was 1 after increment)
-        if (count == 1) {
-            redis.expire(redisKey, windowSeconds);
-        }
     }
+    // 每次递增后刷新过期时间，确保窗口从最后一次失败开始计时
+    redis.expire(redisKey, windowSeconds);
 }
 
 // 重置计数器（登录成功后调用）

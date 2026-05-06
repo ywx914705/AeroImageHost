@@ -1,3 +1,19 @@
+/*
+ * RedisClient 模块 - Redis 连接池客户端实现
+ *
+ * 职责：管理 Redis 连接池，封装常用的 Redis 操作。
+ *
+ * 核心功能：
+ *   - 连接池管理：创建/获取/归还连接，带 3 秒超时等待
+ *   - 健康检查：每次获取连接时执行 PING 检查，失效则自动重建
+ *   - String 操作：set/get/del/expire/exists
+ *   - Set 操作：sadd/srem/sismember/smembers/scard
+ *   - List 操作：rpush/lrange/llen/ltrim
+ *   - Hash 操作：hset/hget/hdel/hexists/hlen/hgetall/hkeys/hvals
+ *   - Pipeline 批量操作：multiHget（减少网络往返）
+ *
+ * 设计：单例模式，连接池默认 16 个连接。
+ */
 // Redis 连接池实现
 // 提供连接复用、超时等待、健康检查、自动重建等机制
 #include "RedisClient.hpp"
@@ -128,6 +144,16 @@ bool RedisClient::exists(const std::string& key) {
     if (reply) freeReplyObject(reply);
     releaseContext(ctx);
     return ok;
+}
+
+long long RedisClient::incr(const std::string& key) {
+    redisContext* ctx = getContext();
+    if (!ctx) return -1;
+    redisReply* reply = (redisReply*)redisCommand(ctx, "INCR %s", key.c_str());
+    long long val = (reply && reply->type == REDIS_REPLY_INTEGER) ? reply->integer : -1;
+    if (reply) freeReplyObject(reply);
+    releaseContext(ctx);
+    return val;
 }
 
 long long RedisClient::sadd(const std::string& key, const std::string& member) {

@@ -19,11 +19,13 @@ logs/
 
 # Config (contains passwords)
 config.json
+config/config-docker.json
+.env
 
-# Package files (remove if you need to commit these)
+# Claude Code local settings
+.claude/
+
+# Package files
 *.deb
 *.tar.gz
 *.zip
-
-# Config examples (uncomment if you want to keep config-example.json untracked)
-# config-example.json

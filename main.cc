@@ -1,3 +1,24 @@
+/*
+ * main.cc - AeroImageHost 主程序入口
+ *
+ * 职责：初始化所有服务组件，启动 HTTP 服务器，等待退出信号。
+ *
+ * 启动顺序（严格按依赖关系）：
+ *   1. Config::load()        → 加载 config.json 配置文件
+ *   2. AsyncLog::init()      → 初始化异步日志系统
+ *   3. ConnectionPool::init() → 初始化 MySQL 连接池（默认 32 连接）
+ *   4. RedisClient::init()   → 初始化 Redis 连接池（默认 16 连接）
+ *   5. MinIOClient::init()   → 初始化 MinIO 客户端
+ *   6. AeroQueue::start(4)   → 启动异步任务队列（4 个工作线程）
+ *   7. HttpServer::start()   → 启动 HTTP 服务器（监听端口）
+ *   8. cleanupOrphanChunks() → 清理上一次运行遗留的孤儿分片
+ *
+ * 后台任务：
+ *   - 每小时执行一次 cleanupOrphanChunks()，清理超时的分片上传
+ *
+ * 退出流程：
+ *   收到 SIGINT/SIGTERM → HttpServer::stop() → 等待5秒 → AeroQueue::stop() → ConnectionPool::close() → AsyncLog::stop()
+ */
 #include "Config.hpp"
 #include "Log.hpp"
 #include "HttpServer.hpp"
@@ -105,6 +126,8 @@ int main(int argc, char* argv[]) {
     }
 
     LOG_INFO("正在关闭服务...");
+    server.stop();
+    std::this_thread::sleep_for(std::chrono::seconds(5));
     AeroQueue::instance().stop();
     ConnectionPool::getInstance().close();
     AsyncLog::instance().stop();

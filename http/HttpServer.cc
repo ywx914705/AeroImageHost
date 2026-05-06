@@ -1,3 +1,17 @@
+/*
+ * HttpServer 模块 - HTTP 服务器实现
+ *
+ * 职责：
+ *   1. 监听 HTTP 端口，接收所有 /api/* 请求
+ *   2. handleAll() 统一分发路由到对应的 handler 方法
+ *   3. handler 方法解析请求参数，调用 Handlers 模块执行业务逻辑
+ *   4. 处理 CORS 预检请求（OPTIONS）
+ *   5. 文件访问时支持缩略图生成、ETag 缓存、302 重定向到 MinIO
+ *
+ * 核心流程：
+ *   请求 → handleAll() 路由分发 → handler 解析参数 → Auth::verify() 验证身份
+ *   → Handlers::handle*() 执行业务逻辑 → replyJsonWithCors() 返回 JSON 响应
+ */
 #include "FileMeta.hpp"
 #include "HttpServer.hpp"
 #include "Handlers.hpp"
@@ -8,6 +22,9 @@
 #include "ImageProcessor.hpp"
 #include "AeroQueue.hpp"
 #include "Config.hpp"
+#include "ConnectionPool.hpp"
+#include "RedisClient.hpp"
+#include "RateLimiter.hpp"
 #include <cpprest/http_listener.h>
 #include <cpprest/json.h>
 #include <cpprest/http_headers.h>
@@ -29,6 +46,25 @@ using namespace web;
 using namespace web::http;
 using namespace web::http::experimental::listener;
 
+// 线程本地存储：当前请求 ID（用于日志关联）
+static thread_local std::string current_request_id;
+
+// 获取客户端 IP 地址（用于限流）
+static std::string getClientIP(const http_request& request) {
+    auto addr = request.remote_address();
+    if (!addr.empty()) {
+        return addr;
+    }
+    // 尝试从 X-Forwarded-For 获取（经过 Nginx 代理时）
+    auto forwarded = request.headers().find(U("X-Forwarded-For"));
+    if (forwarded != request.headers().end()) {
+        std::string value = utility::conversions::to_utf8string(forwarded->second);
+        size_t comma = value.find(',');
+        return (comma != std::string::npos) ? value.substr(0, comma) : value;
+    }
+    return "unknown";
+}
+
 // 获取 CORS 允许的域名，从配置文件读取，默认允许所有
 static std::string getCorsOrigin() {
     return Config::instance().getString("security.cors_origin", "*");
@@ -38,6 +74,9 @@ void replyJsonWithCors(http_request request, status_code code, const json::value
     http_response response(code);
     response.headers().add(U("Access-Control-Allow-Origin"), utility::conversions::to_string_t(getCorsOrigin()));
     response.headers().add(U("Content-Type"), U("application/json; charset=utf-8"));
+    if (!current_request_id.empty()) {
+        response.headers().add(U("X-Request-Id"), utility::conversions::to_string_t(current_request_id));
+    }
     response.set_body(json);
     request.reply(response);
 }
@@ -45,6 +84,9 @@ void replyJsonWithCors(http_request request, status_code code, const json::value
 void replyErrorWithCors(http_request request, status_code code, const utility::string_t& msg) {
     http_response response(code);
     response.headers().add(U("Access-Control-Allow-Origin"), utility::conversions::to_string_t(getCorsOrigin()));
+    if (!current_request_id.empty()) {
+        response.headers().add(U("X-Request-Id"), utility::conversions::to_string_t(current_request_id));
+    }
     response.set_body(msg);
     request.reply(response);
 }
@@ -76,25 +118,29 @@ void HttpServer::start() {
     LOG_INFO("HTTP server listening on port " + std::to_string(port_));
 }
 
+void HttpServer::stop() {
+    if (listener_) {
+        listener_->close().wait();
+        LOG_INFO("HTTP server stopped");
+    }
+}
+
 void HttpServer::handleAll(http_request request) {
+    // 生成请求 ID 用于日志关联
+    current_request_id = generateUUID();
+
     auto path = request.request_uri().path();
     std::string path_str = utility::conversions::to_utf8string(path);
     auto method = request.method();
     std::string method_str = utility::conversions::to_utf8string(method);
 
-    LOG_INFO("handleAll: " + method_str + " " + path_str);
+    LOG_INFO("handleAll: " + method_str + " " + path_str + " [" + current_request_id + "]");
 
     if (method == methods::POST && path_str == "/api/auth/register") {
         handleRegister(request);
     }
     else if (method == methods::POST && path_str == "/api/auth/login") {
         handleLogin(request);
-    }
-    else if (method == methods::POST && path_str == "/api/upload/request") {
-        handleRequestUploadUrl(request);
-    }
-    else if (method == methods::POST && path_str == "/api/upload/confirm") {
-        handleConfirmUpload(request);
     }
     else if ((method == methods::POST || method == methods::PUT) && path_str == "/api/upload") {
         handleUpload(request);
@@ -129,6 +175,9 @@ void HttpServer::handleAll(http_request request) {
     else if (method == methods::GET && path_str == "/api/stats") {
         handleStats(request);
     }
+    else if (method == methods::GET && path_str == "/api/health") {
+        handleHealth(request);
+    }
     else if (method == methods::POST && path_str == "/api/auth/register/email") {
         handleEmailRegister(request);
     }
@@ -157,6 +206,13 @@ void HttpServer::handleAll(http_request request) {
 }
 
 void HttpServer::handleRegister(http_request request) {
+    // 注册限流：每 IP 每小时最多 10 次
+    std::string rateLimitKey = "register:" + getClientIP(request);
+    if (!RateLimiter::isAllowed(rateLimitKey, 10, 3600)) {
+        replyErrorWithCors(request, status_codes::TooManyRequests, U("Too many registration attempts"));
+        return;
+    }
+
     request.extract_json().then([=](json::value json) {
         if (!json.has_field(U("account")) || !json.has_field(U("password"))) {
             replyErrorWithCors(request, status_codes::BadRequest, U("Missing account or password"));
@@ -166,7 +222,8 @@ void HttpServer::handleRegister(http_request request) {
         std::string password = utility::conversions::to_utf8string(json.at(U("password")).as_string());
 
         auto respJson = ::handleRegister(account, password);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+        replyJsonWithCors(request, code, respJson);
     });
 }
 
@@ -180,7 +237,8 @@ void HttpServer::handleLogin(http_request request) {
         std::string password = utility::conversions::to_utf8string(json.at(U("password")).as_string());
 
         auto respJson = ::handleLogin(account, password);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code = respJson.has_field(U("error")) ? status_codes::Unauthorized : status_codes::OK;
+        replyJsonWithCors(request, code, respJson);
     });
 }
 
@@ -188,6 +246,14 @@ void HttpServer::handleUpload(http_request request) {
     auto user = Auth::verify(request);
     if (!user) {
         replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
+        return;
+    }
+
+    // 检查请求体大小限制
+    auto content_length = request.headers().content_length();
+    size_t maxSize = static_cast<size_t>(Config::instance().getInt("max_file_size", 100 * 1024 * 1024));
+    if (content_length > maxSize) {
+        replyErrorWithCors(request, status_codes::PayloadTooLarge, U("Request body too large"));
         return;
     }
 
@@ -218,7 +284,8 @@ void HttpServer::handleUpload(http_request request) {
     request.extract_vector().then([=](std::vector<unsigned char> data) {
         // 直接传 unsigned char 向量，避免拷贝到 vector<char>
         auto respJson = ::handleUpload(user->user_id, filename, data, content_type);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+        replyJsonWithCors(request, code, respJson);
     });
 }
 
@@ -240,7 +307,8 @@ void HttpServer::handlePresignUpload(http_request request) {
         size_t file_size = static_cast<size_t>(json.at(U("size")).as_number().to_uint64());
 
         auto respJson = ::handleRequestUploadUrl(user->user_id, filename, content_type, file_size);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+        replyJsonWithCors(request, code, respJson);
     });
 }
 
@@ -264,7 +332,8 @@ void HttpServer::handleConfirmUploadRoute(http_request request) {
             static_cast<size_t>(json.at(U("size")).as_number().to_uint64()) : 0;
 
         auto respJson = ::handleConfirmUpload(user->user_id, file_id, filename, content_type, file_size);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+        replyJsonWithCors(request, code, respJson);
     });
 }
 
@@ -345,7 +414,8 @@ void HttpServer::handleDeleteFile(http_request request) {
     std::string file_id = path_str.substr(prefix.length());
 
     auto respJson = ::handleDeleteFile(user->user_id, file_id);
-    replyJsonWithCors(request, status_codes::OK, respJson);
+    auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+    replyJsonWithCors(request, code, respJson);
 }
 
 void HttpServer::handleBatchDeleteFiles(http_request request) {
@@ -373,7 +443,8 @@ void HttpServer::handleBatchDeleteFiles(http_request request) {
         }
 
         auto respJson = ::handleBatchDeleteFiles(user->user_id, file_ids);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+        replyJsonWithCors(request, code, respJson);
     });
 }
 
@@ -388,7 +459,8 @@ void HttpServer::handleShare(http_request request) {
     std::string file_id = path_str.substr(prefix.length());
 
     auto respJson = ::handleShare(file_id);
-    replyJsonWithCors(request, status_codes::OK, respJson);
+    auto code = respJson.has_field(U("error")) ? status_codes::NotFound : status_codes::OK;
+    replyJsonWithCors(request, code, respJson);
 }
 
 void HttpServer::handleSetPublic(http_request request) {
@@ -415,7 +487,8 @@ void HttpServer::handleSetPublic(http_request request) {
     }
 
     auto respJson = ::handleSetPublic(user->user_id, file_id);
-    replyJsonWithCors(request, status_codes::OK, respJson);
+    auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+    replyJsonWithCors(request, code, respJson);
 }
 
 void HttpServer::handleGetFile(http_request request) {
@@ -577,51 +650,6 @@ void HttpServer::handleGetFile(http_request request) {
     replyErrorWithCors(request, status_codes::InternalError, U("Failed to generate download URL"));
 }
 
-void HttpServer::handleRequestUploadUrl(http_request request) {
-    auto user = Auth::verify(request);
-    if (!user) {
-        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
-        return;
-    }
-
-    request.extract_json().then([=](json::value json) {
-        if (!json.has_field(U("filename")) || !json.has_field(U("size"))) {
-            replyErrorWithCors(request, status_codes::BadRequest, U("Missing filename or size"));
-            return;
-        }
-        std::string filename = utility::conversions::to_utf8string(json.at(U("filename")).as_string());
-        std::string content_type = json.has_field(U("content_type")) ?
-            utility::conversions::to_utf8string(json.at(U("content_type")).as_string()) : "";
-        size_t file_size = static_cast<size_t>(json.at(U("size")).as_number().to_uint64());
-
-        auto respJson = ::handleRequestUploadUrl(user->user_id, filename, content_type, file_size);
-        replyJsonWithCors(request, status_codes::OK, respJson);
-    });
-}
-
-void HttpServer::handleConfirmUpload(http_request request) {
-    auto user = Auth::verify(request);
-    if (!user) {
-        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
-        return;
-    }
-
-    request.extract_json().then([=](json::value json) {
-        if (!json.has_field(U("file_id")) || !json.has_field(U("filename")) || !json.has_field(U("size"))) {
-            replyErrorWithCors(request, status_codes::BadRequest, U("Missing required fields"));
-            return;
-        }
-        std::string file_id = utility::conversions::to_utf8string(json.at(U("file_id")).as_string());
-        std::string filename = utility::conversions::to_utf8string(json.at(U("filename")).as_string());
-        std::string content_type = json.has_field(U("content_type")) ?
-            utility::conversions::to_utf8string(json.at(U("content_type")).as_string()) : "";
-        size_t file_size = static_cast<size_t>(json.at(U("size")).as_number().to_uint64());
-
-        auto respJson = ::handleConfirmUpload(user->user_id, file_id, filename, content_type, file_size);
-        replyJsonWithCors(request, status_codes::OK, respJson);
-    });
-}
-
 void HttpServer::handleCleanup(http_request request) {
     auto user = Auth::verify(request);
     if (!user) {
@@ -652,14 +680,38 @@ void HttpServer::handleCleanup(http_request request) {
 }
 
 void HttpServer::handleStats(http_request request) {
-    // 统计接口需要登录认证
-    auto user = Auth::verify(request);
-    if (!user) {
-        replyErrorWithCors(request, status_codes::Unauthorized, U("Unauthorized"));
-        return;
-    }
     auto respJson = ::handleStats();
     replyJsonWithCors(request, status_codes::OK, respJson);
+}
+
+void HttpServer::handleHealth(http_request request) {
+    json::value respJson;
+    bool healthy = true;
+
+    // 检查 MySQL 连接
+    MYSQL* conn = ConnectionPool::getInstance().getConnection();
+    if (conn) {
+        ConnectionPool::getInstance().releaseConnection(conn);
+        respJson["mysql"] = json::value::string("ok");
+    } else {
+        respJson["mysql"] = json::value::string("error");
+        healthy = false;
+    }
+
+    // 检查 Redis 连接（通过设置和获取一个临时 key）
+    bool redisOk = RedisClient::instance().set("__health_check__", "1");
+    if (redisOk) {
+        RedisClient::instance().del("__health_check__");
+        respJson["redis"] = json::value::string("ok");
+    } else {
+        respJson["redis"] = json::value::string("error");
+        healthy = false;
+    }
+
+    respJson["status"] = json::value::string(healthy ? "healthy" : "unhealthy");
+
+    auto code = healthy ? status_codes::OK : status_codes::ServiceUnavailable;
+    replyJsonWithCors(request, code, respJson);
 }
 
 void HttpServer::handleSendVerificationCode(http_request request) {
@@ -670,8 +722,16 @@ void HttpServer::handleSendVerificationCode(http_request request) {
         }
         std::string email = utility::conversions::to_utf8string(json.at(U("email")).as_string());
 
+        // 邮箱验证码限流：每邮箱每 5 分钟最多 5 次
+        std::string rateLimitKey = "verify:" + email;
+        if (!RateLimiter::isAllowed(rateLimitKey, 5, 300)) {
+            replyErrorWithCors(request, status_codes::TooManyRequests, U("Too many verification code requests"));
+            return;
+        }
+
         auto respJson = ::handleSendVerificationCode(email);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+        replyJsonWithCors(request, code, respJson);
     });
 }
 
@@ -688,7 +748,8 @@ void HttpServer::handleEmailRegister(http_request request) {
         std::string code = utility::conversions::to_utf8string(json.at(U("code")).as_string());
 
         auto respJson = ::handleEmailRegister(account, password, email, code);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code_status = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+        replyJsonWithCors(request, code_status, respJson);
     });
 }
 
@@ -710,7 +771,8 @@ void HttpServer::handleMultipartInit(http_request request) {
         size_t file_size = static_cast<size_t>(json.at(U("size")).as_number().to_uint64());
 
         auto respJson = ::handleMultipartInit(user->user_id, filename, content_type, file_size);
-        replyJsonWithCors(request, status_codes::OK, respJson);
+        auto code = respJson.has_field(U("error")) ? status_codes::BadRequest : status_codes::OK;
+        replyJsonWithCors(request, code, respJson);
     });
 }
 

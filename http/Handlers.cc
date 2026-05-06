@@ -1,9 +1,27 @@
+/*
+ * Handlers 模块 - 业务逻辑处理实现
+ *
+ * 职责：实现所有 API 端点的业务逻辑，包括：
+ *   - 用户注册/登录（SHA-256 密码哈希 + Redis Token）
+ *   - 文件上传（直接上传 + 预签名上传 + 分片上传三种模式）
+ *   - 文件管理（列表、搜索、删除、批量删除、公开/私有切换）
+ *   - 缩略图生成（libvips + MinIO 缓存）
+ *   - 邮箱验证码（SMTP 异步发送）
+ *   - 系统统计和孤儿文件清理
+ *
+ * 核心设计：
+ *   - 无状态函数，所有参数由 HttpServer 传入
+ *   - 使用 std::async 并行化 MinIO 操作（上传/批量删除）
+ *   - 使用 AeroQueue 异步执行耗时操作（缩略图缓存、邮件发送）
+ *   - 所有数据库操作通过各自的 DAO 类访问
+ */
 #include <curl/curl.h>
 #include "Handlers.hpp"
 #include "Auth.hpp"
 #include "FileMeta.hpp"
 #include "MinIOClient.hpp"
 #include "ImageProcessor.hpp"
+#include "UsersDAO.hpp"
 #include "ConnectionPool.hpp"
 #include "RedisClient.hpp"
 #include "Utils.hpp"
@@ -18,6 +36,10 @@
 #include <rapidjson/stringbuffer.h>
 #include <openssl/evp.h>
 #include <sstream>
+
+// 孤儿分片跟踪函数前向声明
+static void trackMultipartUpload(const std::string& upload_id, int total_chunks);
+static void untrackMultipartUpload(const std::string& upload_id);
 #include <iomanip>
 #include <cpprest/json.h>
 #include <future>
@@ -25,10 +47,6 @@
 #include "AeroQueue.hpp"
 
 using namespace rapidjson;
-
-static void releaseConn(MYSQL* conn) {
-    ConnectionPool::getInstance().releaseConnection(conn);
-}
 
 // 固定盐值（兼容现有 users 表中的密码哈希）
 static const std::string PASSWORD_SALT = "aero_image_host_2026_secure_salt";
@@ -119,30 +137,25 @@ web::json::value handleUpload(int user_id, const std::string& filename, const st
     meta.upload_time = time(nullptr);
     meta.is_public = false;
 
-    // 并行执行：MySQL 元数据保存 + MinIO 文件上传
-    auto mysqlFuture = std::async(std::launch::async, [&meta]() {
-        return FileMetaDAO::instance().save(meta);
-    });
-    auto minioFuture = std::async(std::launch::async, [&file_id, &file_data, &detected_mime]() {
-        return uploadFileToMinIO(file_id, file_data, detected_mime);
-    });
-
-    bool mysqlOk = mysqlFuture.get();
-    bool minioOk = minioFuture.get();
-    auto afterParallel = std::chrono::steady_clock::now();
-
-    if (!mysqlOk) {
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "Failed to save metadata", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
+    // 顺序执行：先 MinIO 后 MySQL，确保数据一致性
+    // 如果 MinIO 失败，无需清理；如果 MySQL 失败，回滚 MinIO
+    auto uploadStart2 = std::chrono::steady_clock::now();
+    bool minioOk = uploadFileToMinIO(file_id, file_data, detected_mime);
     if (!minioOk) {
-        FileMetaDAO::instance().del(file_id);
         Document resp; resp.SetObject();
         resp.AddMember("error", "MinIO upload failed", resp.GetAllocator());
         return docToJsonValue(resp);
     }
-    auto afterMinio = afterParallel;
+
+    bool mysqlOk = FileMetaDAO::instance().save(meta);
+    if (!mysqlOk) {
+        // 回滚：删除已上传的 MinIO 对象
+        MinIOClient::instance().deleteObject(file_id);
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Failed to save metadata", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
+    auto afterMinio = std::chrono::steady_clock::now();
 
     auto totalMs = std::chrono::duration_cast<std::chrono::milliseconds>(afterMinio - uploadStart).count();
     LOG_INFO("[Upload] " + filename + " (" + std::to_string(file_data.size()) + " bytes) - total:" +
@@ -211,16 +224,14 @@ web::json::value handleDeleteFile(int user_id, const std::string& file_id) {
         resp.AddMember("error", "Permission denied", resp.GetAllocator());
         return docToJsonValue(resp);
     }
-    if (!MinIOClient::instance().deleteObject(file_id)) {
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "Failed to delete file from storage", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
+    // 先删 MySQL 元数据，再删 MinIO 对象
+    // 如果 MinIO 删除失败，孤儿清理任务会兜底
     if (!FileMetaDAO::instance().del(file_id)) {
         Document resp; resp.SetObject();
         resp.AddMember("error", "Failed to delete metadata", resp.GetAllocator());
         return docToJsonValue(resp);
     }
+    MinIOClient::instance().deleteObject(file_id);
     Document resp; resp.SetObject();
     resp.AddMember("status", "success", resp.GetAllocator());
     return docToJsonValue(resp);
@@ -229,52 +240,20 @@ web::json::value handleDeleteFile(int user_id, const std::string& file_id) {
 web::json::value handleBatchDeleteFiles(int user_id, const std::vector<std::string>& file_ids) {
     Document resp; resp.SetObject();
 
-    // 1. 批量查询验证归属权（1次SQL替代N次）
-    MYSQL* conn = ConnectionPool::getInstance().getConnection();
-    std::vector<std::string> valid_ids;
-    if (conn && !file_ids.empty()) {
-        std::string placeholders;
-        for (size_t i = 0; i < file_ids.size(); ++i) {
-            if (i > 0) placeholders += ",";
-            placeholders += "?";
-        }
-        std::string sql = "SELECT file_id FROM files WHERE file_id IN (" + placeholders + ") AND user_id = ?";
-        MYSQL_STMT* stmt = mysql_stmt_init(conn);
-        if (stmt && mysql_stmt_prepare(stmt, sql.c_str(), sql.length()) == 0) {
-            std::vector<MYSQL_BIND> params(file_ids.size() + 1);
-            memset(params.data(), 0, params.size() * sizeof(MYSQL_BIND));
-            std::vector<std::string> id_copies(file_ids);
-            for (size_t i = 0; i < file_ids.size(); ++i) {
-                params[i].buffer_type = MYSQL_TYPE_STRING;
-                params[i].buffer = (char*)id_copies[i].c_str();
-                params[i].buffer_length = id_copies[i].size();
-            }
-            params[file_ids.size()].buffer_type = MYSQL_TYPE_LONG;
-            params[file_ids.size()].buffer = &user_id;
-            mysql_stmt_bind_param(stmt, params.data());
-
-            if (mysql_stmt_execute(stmt) == 0) {
-                char fid_buf[64] = {0};
-                MYSQL_BIND result; memset(&result, 0, sizeof(result));
-                result.buffer_type = MYSQL_TYPE_STRING;
-                result.buffer = fid_buf;
-                result.buffer_length = sizeof(fid_buf);
-                mysql_stmt_bind_result(stmt, &result);
-                mysql_stmt_store_result(stmt);
-                while (mysql_stmt_fetch(stmt) == 0) {
-                    valid_ids.push_back(fid_buf);
-                }
-            }
-            mysql_stmt_close(stmt);
-        }
-        ConnectionPool::getInstance().releaseConnection(conn);
+    if (file_ids.empty()) {
+        resp.AddMember("status", "success", resp.GetAllocator());
+        resp.AddMember("deleted_count", 0, resp.GetAllocator());
+        return docToJsonValue(resp);
     }
+
+    // 1. 批量查询验证归属权
+    auto valid_ids = FileMetaDAO::instance().getValidFileIds(file_ids, user_id);
 
     // 2. 并行删除 MinIO 对象
     std::vector<std::future<bool>> deleteFutures;
     deleteFutures.reserve(valid_ids.size());
     for (const auto& fid : valid_ids) {
-        std::string key = fid;  // 拷贝一份，避免引用被循环覆盖
+        std::string key = fid;
         deleteFutures.push_back(std::async(std::launch::async, [key]() {
             return MinIOClient::instance().deleteObject(key);
         }));
@@ -283,32 +262,9 @@ web::json::value handleBatchDeleteFiles(int user_id, const std::vector<std::stri
         f.get();
     }
 
-    // 3. 批量删除 MySQL 记录（1次SQL替代N次）
+    // 3. 批量删除 MySQL 记录
     if (!valid_ids.empty()) {
-        conn = ConnectionPool::getInstance().getConnection();
-        if (conn) {
-            std::string placeholders;
-            for (size_t i = 0; i < valid_ids.size(); ++i) {
-                if (i > 0) placeholders += ",";
-                placeholders += "?";
-            }
-            std::string sql = "DELETE FROM files WHERE file_id IN (" + placeholders + ")";
-            MYSQL_STMT* stmt = mysql_stmt_init(conn);
-            if (stmt && mysql_stmt_prepare(stmt, sql.c_str(), sql.length()) == 0) {
-                std::vector<MYSQL_BIND> params(valid_ids.size());
-                memset(params.data(), 0, params.size() * sizeof(MYSQL_BIND));
-                std::vector<std::string> id_copies(valid_ids);
-                for (size_t i = 0; i < valid_ids.size(); ++i) {
-                    params[i].buffer_type = MYSQL_TYPE_STRING;
-                    params[i].buffer = (char*)id_copies[i].c_str();
-                    params[i].buffer_length = id_copies[i].size();
-                }
-                mysql_stmt_bind_param(stmt, params.data());
-                mysql_stmt_execute(stmt);
-            }
-            if (stmt) mysql_stmt_close(stmt);
-            ConnectionPool::getInstance().releaseConnection(conn);
-        }
+        FileMetaDAO::instance().deleteFilesBatch(valid_ids);
     }
 
     int success_count = static_cast<int>(valid_ids.size());
@@ -387,50 +343,12 @@ web::json::value handleRegister(const std::string& account, const std::string& p
         return docToJsonValue(resp);
     }
 
-    MYSQL* conn = ConnectionPool::getInstance().getConnection();
-    if (!conn) {
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "Database error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    const char* sql = "INSERT INTO users (account, password_hash) VALUES (?, ?)";
-    MYSQL_STMT* stmt = mysql_stmt_init(conn);
-    if (!stmt) {
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-    if (mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
-        mysql_stmt_close(stmt);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    // 固定盐 + SHA-256 哈希
     std::string hash = sha256(PASSWORD_SALT + password);
+    bool ok = UsersDAO::instance().registerUser(account, hash);
 
-    MYSQL_BIND bind[2];
-    memset(bind, 0, sizeof(bind));
-    bind[0].buffer_type = MYSQL_TYPE_STRING;
-    bind[0].buffer = (char*)account.c_str();
-    bind[0].buffer_length = account.size();
-    bind[1].buffer_type = MYSQL_TYPE_STRING;
-    bind[1].buffer = (char*)hash.c_str();
-    bind[1].buffer_length = hash.size();
-    mysql_stmt_bind_param(stmt, bind);
-
-    int ret = mysql_stmt_execute(stmt);
-    mysql_stmt_close(stmt);
-    releaseConn(conn);
-
-    if (ret != 0) {
-        std::string errorMsg = "Account exists";
+    if (!ok) {
         Document resp; resp.SetObject();
-        resp.AddMember("error", StringRef(errorMsg.c_str()), resp.GetAllocator());
+        resp.AddMember("error", "Account exists", resp.GetAllocator());
         return docToJsonValue(resp);
     }
 
@@ -446,13 +364,12 @@ web::json::value handleLogin(const std::string& account, const std::string& pass
         return docToJsonValue(resp);
     }
 
-    // 登录频率限制：同一账号在窗口期内最多允许 N 次失败，防止暴力破解
+    // 登录频率限制
     const int MAX_LOGIN_ATTEMPTS = Config::instance().getInt("security.max_login_attempts", 5);
     const int LOGIN_WINDOW_SECONDS = Config::instance().getInt("security.login_window_seconds", 900);
     std::string rateLimitKey = "login:" + account;
 
     if (!RateLimiter::isAllowed(rateLimitKey, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS)) {
-        int remaining = RateLimiter::getRemainingAttempts(rateLimitKey, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS);
         LOG_WARN("[Login] Rate limit exceeded for account: " + account);
         Document resp; resp.SetObject();
         resp.AddMember("error", "Too many failed attempts. Please try again later.", resp.GetAllocator());
@@ -460,71 +377,25 @@ web::json::value handleLogin(const std::string& account, const std::string& pass
         return docToJsonValue(resp);
     }
 
-    MYSQL* conn = ConnectionPool::getInstance().getConnection();
-    if (!conn) {
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "Database error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
+    // 查询用户
+    std::string storedHash;
+    int user_id = UsersDAO::instance().loginUser(account, storedHash);
 
-    const char* sql = "SELECT id, password_hash FROM users WHERE account = ?";
-    MYSQL_STMT* stmt = mysql_stmt_init(conn);
-    if (!stmt) {
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-    if (mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
-        mysql_stmt_close(stmt);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    MYSQL_BIND param;
-    memset(&param, 0, sizeof(param));
-    param.buffer_type = MYSQL_TYPE_STRING;
-    param.buffer = (char*)account.c_str();
-    param.buffer_length = account.size();
-    mysql_stmt_bind_param(stmt, &param);
-
-    if (mysql_stmt_execute(stmt) != 0) {
-        mysql_stmt_close(stmt);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    int user_id = 0;
-    char storedHashBuf[65] = {0};
-    MYSQL_BIND result[2];
-    memset(result, 0, sizeof(result));
-    result[0].buffer_type = MYSQL_TYPE_LONG;
-    result[0].buffer = &user_id;
-    result[1].buffer_type = MYSQL_TYPE_STRING;
-    result[1].buffer = storedHashBuf;
-    result[1].buffer_length = sizeof(storedHashBuf) - 1;
-    mysql_stmt_bind_result(stmt, result);
-    mysql_stmt_store_result(stmt);
-
-    if (mysql_stmt_fetch(stmt) != 0) {
-        mysql_stmt_close(stmt);
-        releaseConn(conn);
+    if (user_id == 0) {
         RateLimiter::recordFailure(rateLimitKey, LOGIN_WINDOW_SECONDS);
         Document resp; resp.SetObject();
         resp.AddMember("error", "Invalid credentials", resp.GetAllocator());
         return docToJsonValue(resp);
     }
+    if (user_id < 0) {
+        Document resp; resp.SetObject();
+        resp.AddMember("error", "Database error", resp.GetAllocator());
+        return docToJsonValue(resp);
+    }
 
-    mysql_stmt_close(stmt);
-    releaseConn(conn);
-
-    // 固定盐 + SHA-256 验证密码
+    // 验证密码
     std::string computed = sha256(PASSWORD_SALT + password);
-    if (computed != std::string(storedHashBuf)) {
+    if (computed != storedHash) {
         RateLimiter::recordFailure(rateLimitKey, LOGIN_WINDOW_SECONDS);
         int remaining = RateLimiter::getRemainingAttempts(rateLimitKey, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS);
         LOG_WARN("[Login] 登录失败: " + account + ", 剩余次数: " + std::to_string(remaining));
@@ -533,7 +404,7 @@ web::json::value handleLogin(const std::string& account, const std::string& pass
         return docToJsonValue(resp);
     }
 
-    // 登录成功，重置频率限制计数器
+    // 登录成功，重置频率限制
     RateLimiter::reset(rateLimitKey);
 
     std::string token = Auth::generateToken(user_id, "");
@@ -626,45 +497,8 @@ web::json::value handleStats() {
     int total_users = 0, total_files = 0, total_images = 0;
     long long total_size = 0;
 
-    MYSQL* conn = ConnectionPool::getInstance().getConnection();
-    if (!conn) {
-        LOG_ERROR("handleStats: failed to get database connection");
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "Database error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    // 单次查询获取文件统计（数量 + 图片数 + 总大小）
-    {
-        const char* sql = "SELECT COUNT(*), COUNT(CASE WHEN mime_type LIKE 'image/%' THEN 1 END), COALESCE(SUM(size), 0) FROM files";
-        MYSQL_STMT* stmt = mysql_stmt_init(conn);
-        if (stmt && mysql_stmt_prepare(stmt, sql, strlen(sql)) == 0 && mysql_stmt_execute(stmt) == 0) {
-            MYSQL_BIND result[3]; memset(result, 0, sizeof(result));
-            result[0].buffer_type = MYSQL_TYPE_LONG; result[0].buffer = &total_files;
-            result[1].buffer_type = MYSQL_TYPE_LONG; result[1].buffer = &total_images;
-            result[2].buffer_type = MYSQL_TYPE_LONGLONG; result[2].buffer = &total_size;
-            mysql_stmt_bind_result(stmt, result);
-            mysql_stmt_store_result(stmt);
-            mysql_stmt_fetch(stmt);
-        }
-        if (stmt) mysql_stmt_close(stmt);
-    }
-
-    // 用户统计（复用同一连接）
-    {
-        const char* sql = "SELECT COUNT(*) FROM users";
-        MYSQL_STMT* stmt = mysql_stmt_init(conn);
-        if (stmt && mysql_stmt_prepare(stmt, sql, strlen(sql)) == 0 && mysql_stmt_execute(stmt) == 0) {
-            MYSQL_BIND result; memset(&result, 0, sizeof(result));
-            result.buffer_type = MYSQL_TYPE_LONG; result.buffer = &total_users;
-            mysql_stmt_bind_result(stmt, &result);
-            mysql_stmt_store_result(stmt);
-            mysql_stmt_fetch(stmt);
-        }
-        if (stmt) mysql_stmt_close(stmt);
-    }
-
-    ConnectionPool::getInstance().releaseConnection(conn);
+    FileMetaDAO::instance().getFileStats(total_files, total_images, total_size);
+    total_users = UsersDAO::instance().getUserCount();
 
     LOG_INFO("handleStats: users=" + std::to_string(total_users) +
              " files=" + std::to_string(total_files) +
@@ -770,158 +604,37 @@ web::json::value handleEmailRegister(const std::string& account, const std::stri
     // 开始事务
     mysql_autocommit(conn, 0);
 
-    const char* sql_check_email = "SELECT id FROM users WHERE email = ?";
-    MYSQL_STMT* stmt_check_email = mysql_stmt_init(conn);
-    if (!stmt_check_email) {
+    // 检查邮箱是否已注册
+    if (UsersDAO::instance().emailExists(conn, email)) {
         mysql_rollback(conn);
         mysql_autocommit(conn, 1);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    if (mysql_stmt_prepare(stmt_check_email, sql_check_email, strlen(sql_check_email)) != 0) {
-        mysql_stmt_close(stmt_check_email);
-        mysql_rollback(conn);
-        mysql_autocommit(conn, 1);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    MYSQL_BIND bind_check[1];
-    memset(bind_check, 0, sizeof(bind_check));
-    bind_check[0].buffer_type = MYSQL_TYPE_STRING;
-    bind_check[0].buffer = (char*)email.c_str();
-    bind_check[0].buffer_length = email.size();
-
-    if (mysql_stmt_bind_param(stmt_check_email, bind_check) != 0) {
-        mysql_stmt_close(stmt_check_email);
-        mysql_rollback(conn);
-        mysql_autocommit(conn, 1);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    if (mysql_stmt_execute(stmt_check_email) != 0) {
-        mysql_stmt_close(stmt_check_email);
-        mysql_rollback(conn);
-        mysql_autocommit(conn, 1);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    MYSQL_BIND result_bind;
-    memset(&result_bind, 0, sizeof(result_bind));
-    int user_id;
-    result_bind.buffer_type = MYSQL_TYPE_LONG;
-    result_bind.buffer = &user_id;
-
-    if (mysql_stmt_bind_result(stmt_check_email, &result_bind) != 0) {
-        mysql_stmt_close(stmt_check_email);
-        mysql_rollback(conn);
-        mysql_autocommit(conn, 1);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    bool email_exists = false;
-    if (mysql_stmt_fetch(stmt_check_email) == 0) {
-        email_exists = true;
-    }
-
-    mysql_stmt_close(stmt_check_email);
-
-    if (email_exists) {
-        mysql_rollback(conn);
-        mysql_autocommit(conn, 1);
-        releaseConn(conn);
+        ConnectionPool::getInstance().releaseConnection(conn);
         Document resp; resp.SetObject();
         resp.AddMember("error", "Email already registered", resp.GetAllocator());
         return docToJsonValue(resp);
     }
 
-    const char* sql_insert = "INSERT INTO users (account, password_hash, email) VALUES (?, ?, ?)";
-    MYSQL_STMT* stmt_insert = mysql_stmt_init(conn);
-    if (!stmt_insert) {
-        mysql_rollback(conn);
-        mysql_autocommit(conn, 1);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    if (mysql_stmt_prepare(stmt_insert, sql_insert, strlen(sql_insert)) != 0) {
-        mysql_stmt_close(stmt_insert);
-        mysql_rollback(conn);
-        mysql_autocommit(conn, 1);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    // 固定盐 + SHA-256 哈希
+    // 插入新用户
     std::string hash = sha256(PASSWORD_SALT + password);
-
-    MYSQL_BIND bind_insert[3];
-    memset(bind_insert, 0, sizeof(bind_insert));
-    bind_insert[0].buffer_type = MYSQL_TYPE_STRING;
-    bind_insert[0].buffer = (char*)account.c_str();
-    bind_insert[0].buffer_length = account.size();
-    bind_insert[1].buffer_type = MYSQL_TYPE_STRING;
-    bind_insert[1].buffer = (char*)hash.c_str();
-    bind_insert[1].buffer_length = hash.size();
-    bind_insert[2].buffer_type = MYSQL_TYPE_STRING;
-    bind_insert[2].buffer = (char*)email.c_str();
-    bind_insert[2].buffer_length = email.size();
-
-    if (mysql_stmt_bind_param(stmt_insert, bind_insert) != 0) {
-        mysql_stmt_close(stmt_insert);
-        mysql_rollback(conn);
-        mysql_autocommit(conn, 1);
-        releaseConn(conn);
-        Document resp; resp.SetObject();
-        resp.AddMember("error", "DB error", resp.GetAllocator());
-        return docToJsonValue(resp);
-    }
-
-    int ret = mysql_stmt_execute(stmt_insert);
-    mysql_stmt_close(stmt_insert);
+    int ret = UsersDAO::instance().registerUserWithEmail(conn, account, hash, email);
 
     if (ret != 0) {
-        // 检查是否是唯一键冲突
-        std::string errorMsg = mysql_error(conn);
-        if (errorMsg.find("Duplicate entry") != std::string::npos) {
-            mysql_rollback(conn);
-            mysql_autocommit(conn, 1);
-            releaseConn(conn);
-            Document resp; resp.SetObject();
+        mysql_rollback(conn);
+        mysql_autocommit(conn, 1);
+        ConnectionPool::getInstance().releaseConnection(conn);
+        Document resp; resp.SetObject();
+        if (ret == -1) {
             resp.AddMember("error", "Account or email already exists", resp.GetAllocator());
-            return docToJsonValue(resp);
         } else {
-            mysql_rollback(conn);
-            mysql_autocommit(conn, 1);
-            releaseConn(conn);
-            Document resp; resp.SetObject();
             resp.AddMember("error", "Registration failed", resp.GetAllocator());
-            return docToJsonValue(resp);
         }
+        return docToJsonValue(resp);
     }
 
     // 提交事务
     mysql_commit(conn);
     mysql_autocommit(conn, 1);
-    releaseConn(conn);
+    ConnectionPool::getInstance().releaseConnection(conn);
 
     // 标记验证码为已使用
     EmailVerificationDAO::instance().markCodeAsUsed(email, code);
@@ -932,7 +645,7 @@ web::json::value handleEmailRegister(const std::string& account, const std::stri
     return docToJsonValue(resp);
 }
 
-// ========== 分片上传接口 ==========
+// 分片上传接口
 
 web::json::value handleMultipartInit(int user_id, const std::string& filename,
                                      const std::string& content_type, size_t file_size) {
@@ -1124,7 +837,7 @@ web::json::value handleGetPresignUrl(int user_id, const std::string& file_id) {
     return docToJsonValue(resp);
 }
 
-// ========== 孤儿分片清理 ==========
+// 孤儿分片清理
 
 // 将活跃的分片上传记录到 Redis 集合，用于超时后清理
 static void trackMultipartUpload(const std::string& upload_id, int total_chunks) {
