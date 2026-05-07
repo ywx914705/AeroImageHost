@@ -1,0 +1,3 @@
+/home/ywx/AeroImageHost/build/CMakeFiles/AeroImageHost.dir
+/home/ywx/AeroImageHost/build/CMakeFiles/edit_cache.dir
+/home/ywx/AeroImageHost/build/CMakeFiles/rebuild_cache.dir

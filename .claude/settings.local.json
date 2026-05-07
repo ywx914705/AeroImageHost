@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Read(//home/ywx/**)",
+      "Bash(cat http/Handlers.hpp)",
+      "Bash(ls *.txt)",
+      "Bash(ls docs/)",
+      "Bash(chmod +x /home/ywx/AeroImageHost/docker-entrypoint.sh)",
+      "Bash(mkdir -p build)",
+      "Bash(cmake -DCMAKE_BUILD_TYPE=Release ..)",
+      "Bash(mkdir -p net)",
+      "Bash(cp -r /home/ywx/http-server/base/* net/)",
+      "Bash(cp -r /home/ywx/http-server/http/* net/)",
+      "Bash(rm -f /home/ywx/AeroImageHost-new/http/HttpServerNew.hpp /home/ywx/AeroImageHost-new/http/HttpServerNew.cc /home/ywx/AeroImageHost-new/build/CMakeCache.txt 2>/dev/null && echo \"清理完成\")"
+    ],
+    "additionalDirectories": [
+      "/home/ywx/AeroImageHost-new/http"
+    ]
+  }
+}
