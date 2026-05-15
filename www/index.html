@@ -18,6 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/landing.css">
 
 <style>
     /* 基础样式 */
@@ -712,603 +713,7 @@
         text-align: right;
     }
 
-    /* 未登录导航栏 */
-    .guest-navbar {
-        background: var(--navbar-bg);
-        backdrop-filter: blur(18px) saturate(180%);
-        -webkit-backdrop-filter: blur(18px) saturate(180%);
-        border-bottom: 1px solid var(--navbar-border);
-        padding: 0 2rem;
-        height: 70px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        position: sticky;
-        top: 0;
-        z-index: 100;
-    }
-    .guest-login-btn {
-        padding: 0.55rem 1.8rem;
-        border-radius: 40px;
-        border: 1px solid var(--accent-border);
-        background: var(--accent-light);
-        color: var(--accent);
-        font-weight: 600;
-        font-size: 0.9rem;
-        cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .guest-login-btn:hover {
-        background: var(--accent);
-        color: white;
-        border-color: var(--accent);
-        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
-        transform: translateY(-1px);
-    }
-    .guest-login-btn:active { transform: translateY(0); }
-
-    /* Landing Page */
-    .landing-hero {
-        position: relative;
-        min-height: 52vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 4.5rem 2rem 4rem;
-        overflow: hidden;
-    }
-    .landing-hero-bg {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        overflow: hidden;
-    }
-    .landing-glow {
-        position: absolute;
-        border-radius: 50%;
-        filter: blur(100px);
-        opacity: 0.35;
-    }
-    .landing-glow-1 {
-        width: 600px; height: 600px;
-        background: radial-gradient(circle, #6366f1 0%, transparent 70%);
-        top: -200px; left: 5%;
-        animation: floatGlow 14s ease-in-out infinite alternate;
-    }
-    .landing-glow-2 {
-        width: 500px; height: 500px;
-        background: radial-gradient(circle, #a855f7 0%, transparent 70%);
-        bottom: -150px; right: 10%;
-        animation: floatGlow 11s ease-in-out infinite alternate-reverse;
-    }
-    .landing-glow-3 {
-        width: 400px; height: 400px;
-        background: radial-gradient(circle, #06b6d4 0%, transparent 70%);
-        top: 40%; left: 55%;
-        transform: translate(-50%, -50%);
-        animation: floatGlow 9s ease-in-out infinite alternate;
-    }
-    @keyframes floatGlow {
-        0% { transform: translate(0, 0) scale(1); }
-        100% { transform: translate(30px, -20px) scale(1.15); }
-    }
-    .landing-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 0.45rem 1.3rem;
-        border-radius: 40px;
-        background: var(--accent-light);
-        border: 1px solid var(--accent-border);
-        color: var(--accent);
-        font-size: 0.82rem;
-        font-weight: 600;
-        margin-bottom: 1.5rem;
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-    }
-    .landing-title {
-        font-size: 3.2rem;
-        font-weight: 800;
-        line-height: 1.12;
-        margin-bottom: 1.4rem;
-        color: var(--text-primary);
-        letter-spacing: -1.5px;
-    }
-    .landing-subtitle {
-        font-size: 1.12rem;
-        color: var(--text-secondary);
-        line-height: 1.75;
-        margin-bottom: 2.5rem;
-        max-width: 620px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    .landing-ctas {
-        display: flex;
-        justify-content: center;
-        gap: 1rem;
-        flex-wrap: wrap;
-    }
-    .landing-btn {
-        padding: 0.8rem 2rem;
-        border-radius: 40px;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        border: none;
-    }
-    .landing-btn-primary {
-        background: var(--gradient-button);
-        color: white;
-        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
-        position: relative;
-        overflow: hidden;
-    }
-    .landing-btn-primary::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-    }
-    .landing-btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 14px 36px rgba(99, 102, 241, 0.45);
-    }
-    .landing-btn-primary:hover::before { opacity: 1; }
-    .landing-btn-primary:active { transform: translateY(0); }
-    .landing-btn-ghost {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-        border: 1px solid var(--border-subtle);
-        backdrop-filter: blur(8px);
-    }
-    .landing-btn-ghost:hover {
-        background: var(--accent-light);
-        border-color: var(--accent-border);
-        color: var(--accent);
-    }
-    .landing-btn-lg {
-        padding: 1rem 2.8rem;
-        font-size: 1.1rem;
-    }
-    .gradient-text {
-        background: var(--gradient-primary);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        background-size: 200% 200%;
-        animation: gradientShift 6s ease-in-out infinite;
-    }
-    @keyframes gradientShift {
-        0%, 100% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-    }
-
-    /* Hero入场动画 */
-    .landing-hero-content {
-        position: relative;
-        z-index: 1;
-        max-width: 800px;
-        animation: heroFadeIn 0.8s ease-out;
-    }
-    @keyframes heroFadeIn {
-        from { opacity: 0; transform: translateY(24px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* 统计区域 */
-    .landing-stats {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1.5rem;
-        max-width: 900px;
-        margin: -2.5rem auto 3rem;
-        padding: 0 2rem;
-        position: relative;
-        z-index: 2;
-    }
-    .stat-card {
-        background: var(--bg-card);
-        backdrop-filter: blur(20px) saturate(200%);
-        -webkit-backdrop-filter: blur(20px) saturate(200%);
-        border: 1px solid var(--border-card);
-        border-radius: 1.4rem;
-        padding: 2rem 1.5rem;
-        text-align: center;
-        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: var(--shadow-sm);
-        position: relative;
-        overflow: hidden;
-        animation: statFadeIn 0.6s ease-out backwards;
-    }
-    .stat-card:nth-child(1) { animation-delay: 0.1s; }
-    .stat-card:nth-child(2) { animation-delay: 0.2s; }
-    .stat-card:nth-child(3) { animation-delay: 0.3s; }
-    @keyframes statFadeIn {
-        from { opacity: 0; transform: translateY(20px) scale(0.95); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    .stat-card::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 3px;
-        background: var(--gradient-primary);
-        opacity: 0;
-        transition: opacity 0.35s ease;
-    }
-    .stat-card:hover {
-        transform: translateY(-6px);
-        box-shadow: var(--shadow-md);
-        border-color: var(--accent-border);
-    }
-    .stat-card:hover::before { opacity: 1; }
-    .stat-icon {
-        width: 48px; height: 48px;
-        border-radius: 14px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.3rem;
-        margin-bottom: 0.8rem;
-    }
-    .stat-number {
-        font-size: 2.4rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        margin-bottom: 0.25rem;
-        letter-spacing: -1px;
-        font-variant-numeric: tabular-nums;
-    }
-    .stat-number .stat-suffix {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: var(--text-secondary);
-        margin-left: 2px;
-    }
-    .stat-label { font-size: 0.82rem; color: var(--text-secondary); font-weight: 500; letter-spacing: 0.02em; }
-
-    /* 通用 Section */
-    .landing-section {
-        max-width: 1100px;
-        margin: 0 auto 4rem;
-        padding: 0 2rem;
-    }
-    .landing-section-header {
-        text-align: center;
-        margin-bottom: 2.5rem;
-    }
-    .landing-section-title {
-        font-size: 2.1rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        margin-bottom: 0.6rem;
-        letter-spacing: -0.8px;
-    }
-    .landing-section-desc {
-        font-size: 1rem;
-        color: var(--text-secondary);
-        line-height: 1.6;
-    }
-
-    /* 3列特性卡片 */
-    .landing-grid-3 {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1.5rem;
-    }
-    .landing-feature-card {
-        background: var(--bg-card);
-        backdrop-filter: blur(16px) saturate(180%);
-        -webkit-backdrop-filter: blur(16px) saturate(180%);
-        border: 1px solid var(--border-card);
-        border-radius: 1.4rem;
-        padding: 2rem 1.5rem;
-        text-align: center;
-        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: var(--shadow-sm);
-        position: relative;
-        overflow: hidden;
-    }
-    .landing-feature-card::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: 1.4rem;
-        background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.06) 0%, transparent 60%);
-        opacity: 0;
-        transition: opacity 0.35s ease;
-        pointer-events: none;
-    }
-    .landing-feature-card:hover {
-        transform: translateY(-6px);
-        border-color: var(--accent-border);
-        box-shadow: var(--shadow-md);
-    }
-    .landing-feature-card:hover::after { opacity: 1; }
-    .landing-feature-icon {
-        width: 56px; height: 56px;
-        border-radius: 16px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.4rem;
-        margin-bottom: 1rem;
-        position: relative;
-        z-index: 1;
-    }
-    .landing-feature-title {
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: var(--text-primary);
-        margin-bottom: 0.5rem;
-        position: relative;
-        z-index: 1;
-    }
-    .landing-feature-desc {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        line-height: 1.65;
-        margin-bottom: 1rem;
-        position: relative;
-        z-index: 1;
-    }
-    .landing-feature-tags {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        position: relative;
-        z-index: 1;
-    }
-    .landing-tag {
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        background: var(--accent-light);
-        color: var(--accent);
-        font-size: 0.72rem;
-        font-weight: 600;
-        border: 1px solid var(--accent-border);
-        transition: all 0.2s ease;
-    }
-
-    /* 步骤流程 */
-    .landing-steps {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0;
-        flex-wrap: wrap;
-    }
-    .landing-step {
-        background: var(--bg-card);
-        backdrop-filter: blur(16px) saturate(180%);
-        -webkit-backdrop-filter: blur(16px) saturate(180%);
-        border: 1px solid var(--border-card);
-        border-radius: 1.4rem;
-        padding: 2rem 1.8rem;
-        text-align: center;
-        min-width: 220px;
-        position: relative;
-        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: var(--shadow-sm);
-    }
-    .landing-step:hover {
-        transform: translateY(-6px);
-        box-shadow: var(--shadow-md);
-        border-color: var(--accent-border);
-    }
-    .landing-step-number {
-        position: absolute;
-        top: -12px; left: -12px;
-        width: 32px; height: 32px;
-        border-radius: 50%;
-        background: var(--gradient-button);
-        color: white;
-        font-size: 0.85rem;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-    }
-    .landing-step-icon {
-        font-size: 2.2rem;
-        color: var(--accent);
-        margin-bottom: 0.8rem;
-    }
-    .landing-step-title {
-        font-size: 1rem;
-        font-weight: 700;
-        color: var(--text-primary);
-        margin-bottom: 0.3rem;
-    }
-    .landing-step-desc {
-        font-size: 0.82rem;
-        color: var(--text-secondary);
-    }
-    .landing-step-arrow {
-        font-size: 1.2rem;
-        color: var(--text-tertiary);
-        padding: 0 0.8rem;
-    }
-
-    /* 文件类型 */
-    .landing-file-types {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 1rem;
-    }
-    .landing-file-type {
-        background: var(--bg-card);
-        backdrop-filter: blur(16px) saturate(180%);
-        -webkit-backdrop-filter: blur(16px) saturate(180%);
-        border: 1px solid var(--border-card);
-        border-radius: 1.2rem;
-        padding: 1.5rem 1rem;
-        text-align: center;
-        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: var(--shadow-sm);
-    }
-    .landing-file-type:hover {
-        transform: translateY(-5px);
-        box-shadow: var(--shadow-md);
-        border-color: var(--accent-border);
-    }
-    .landing-file-type i { font-size: 1.8rem; margin-bottom: 0.5rem; display: block; }
-    .landing-file-type span { display: block; font-size: 0.9rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.2rem; }
-    .landing-file-type small { font-size: 0.72rem; color: var(--text-secondary); }
-
-    /* 应用场景 */
-    .landing-use-cases {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 1.5rem;
-        margin: 2rem 0;
-    }
-    .landing-use-case {
-        background: var(--bg-card);
-        backdrop-filter: blur(16px) saturate(180%);
-        -webkit-backdrop-filter: blur(16px) saturate(180%);
-        border: 1px solid var(--border-card);
-        border-radius: 1.2rem;
-        padding: 2rem;
-        text-align: center;
-        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: var(--shadow-sm);
-    }
-    .landing-use-case:hover {
-        transform: translateY(-5px);
-        box-shadow: var(--shadow-md);
-        border-color: var(--accent-border);
-    }
-    .landing-use-case-icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        display: block;
-        color: var(--accent);
-    }
-    .landing-use-case h4 {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        margin: 0.5rem 0;
-    }
-    .landing-use-case p {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        line-height: 1.4;
-    }
-
-    /* FAQ */
-    .landing-faq {
-        max-width: 800px;
-        margin: 2rem auto;
-    }
-    .landing-faq-item {
-        background: var(--bg-card);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid var(--border-card);
-        border-radius: 0.8rem;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        transition: all 0.3s ease;
-    }
-    .landing-faq-item:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-sm);
-    }
-    .landing-faq-question {
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: 0.8rem;
-        font-size: 0.95rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    .landing-faq-answer {
-        color: var(--text-secondary);
-        line-height: 1.6;
-        font-size: 0.85rem;
-    }
-
-    /* CTA */
-    .landing-cta {
-        background: var(--gradient-primary);
-        border-radius: 1.5rem;
-        padding: 3.5rem 2rem;
-        text-align: center;
-        max-width: 1100px;
-        margin: 0 auto 4rem;
-        position: relative;
-        overflow: hidden;
-    }
-    .landing-cta::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.15) 0%, transparent 60%);
-        pointer-events: none;
-    }
-    .landing-cta-content { position: relative; z-index: 1; }
-    .landing-cta-title {
-        font-size: 2rem;
-        font-weight: 800;
-        color: white;
-        margin-bottom: 0.6rem;
-    }
-    .landing-cta-desc {
-        font-size: 1rem;
-        color: rgba(255,255,255,0.85);
-        margin-bottom: 2rem;
-    }
-    .landing-cta .landing-btn-primary {
-        background: white;
-        color: #2563eb;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    }
-    .landing-cta .landing-btn-primary:hover {
-        box-shadow: 0 12px 32px rgba(0,0,0,0.25);
-    }
-
-    /* 响应式 */
-    @media (max-width: 900px) {
-        .landing-title { font-size: 2.4rem; letter-spacing: -1px; }
-        .landing-stats { grid-template-columns: repeat(3, 1fr); gap: 1rem; max-width: 100%; padding: 0 1.5rem; }
-        .landing-grid-3 { grid-template-columns: repeat(2, 1fr); }
-        .landing-file-types { grid-template-columns: repeat(2, 1fr); }
-        .landing-use-cases { grid-template-columns: repeat(2, 1fr); }
-        .landing-steps { flex-direction: column; }
-        .landing-step-arrow { transform: rotate(90deg); padding: 0.4rem 0; }
-        .stat-number { font-size: 2rem; }
-    }
-    @media (max-width: 600px) {
-        .landing-hero { min-height: 42vh; padding: 3rem 1rem 2.5rem; }
-        .landing-title { font-size: 1.9rem; letter-spacing: -0.5px; }
-        .landing-subtitle { font-size: 0.95rem; }
-        .landing-stats { grid-template-columns: repeat(2, 1fr); gap: 0.8rem; padding: 0 1rem; }
-        .stat-card { padding: 1.4rem 1rem; }
-        .stat-number { font-size: 1.7rem; }
-        .stat-icon { width: 40px; height: 40px; font-size: 1.1rem; }
-        .landing-grid-3 { grid-template-columns: 1fr; }
-        .landing-file-types { grid-template-columns: repeat(2, 1fr); }
-        .landing-section { padding: 0 1rem; }
-        .guest-navbar { padding: 0 1rem; }
-        .landing-ctas { flex-direction: column; align-items: center; }
-    }
+    /* Landing page styles extracted to /assets/landing.css */
 
     /* 粘贴上传提示 */
     .paste-hint {
@@ -1352,7 +757,8 @@
     <div class="app">
         <!-- 未登录 -->
         <div v-if="!token">
-            <div class="guest-navbar">
+            <!-- 导航栏 -->
+            <nav class="guest-navbar">
                 <div class="brand-logo">
                     <span class="brand-icon"><img src="/assets/logo.png" alt="AeroImageHost"></span>
                     <span class="brand-text">AeroImageHost</span>
@@ -1365,31 +771,33 @@
                         <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'"></i>
                     </button>
                 </div>
-            </div>
+            </nav>
 
-            <!-- Hero 首屏 -->
-            <div class="landing-hero">
+            <!-- Hero -->
+            <!-- Hero -->
+            <section class="landing-hero">
                 <div class="landing-hero-bg">
                     <div class="landing-glow landing-glow-1"></div>
                     <div class="landing-glow landing-glow-2"></div>
                     <div class="landing-glow landing-glow-3"></div>
                 </div>
                 <div class="landing-hero-content">
-                    <div class="landing-badge"><i class="fas fa-rocket"></i> 极速 · 安全 · 可靠</div>
-                    <h1 class="landing-title">
-                        你的文件，<span class="gradient-text">即刻分享</span>
-                    </h1>
+                    <div class="landing-badge"><i class="fas fa-rocket"></i> 高性能 C++17 驱动</div>
+                    <h1 class="landing-title">企业级图床，<span class="gradient-text">毫秒级响应</span></h1>
                     <p class="landing-subtitle">
-                        图片、视频、文档、音频一站托管，拖拽粘贴秒传，大文件断点续传不怕断网，在线预览无需下载，永久链接一键分享。
-                        <br>无需注册即可浏览公开内容，注册后享受完整功能。
+                        基于 Drogon C++ 框架与 MinIO 分布式存储构建，支持大文件断点续传、图片智能缩略、多格式在线预览。<br>私有化部署，数据完全自主可控。
                     </p>
+                    <div class="landing-ctas">
+                        <button class="landing-btn landing-btn-primary landing-btn-lg" @click="showAuthModal = true; activeTab = 'register'"><i class="fas fa-user-plus"></i> 免费注册</button>
+                        <button class="landing-btn landing-btn-ghost landing-btn-lg" @click="showAuthModal = true; activeTab = 'login'"><i class="fas fa-sign-in-alt"></i> 立即登录</button>
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- 数据统计 -->
+            <!-- 统计 -->
             <div class="landing-stats">
                 <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(59,130,246,0.12); color: #3b82f6;"><i class="fas fa-users"></i></div>
+                    <div class="stat-icon" style="background: rgba(99,102,241,0.12); color: #6366f1;"><i class="fas fa-users"></i></div>
                     <div class="stat-number">{{ displayStats.total_users }}<span class="stat-suffix">+</span></div>
                     <div class="stat-label">注册用户</div>
                 </div>
@@ -1405,316 +813,99 @@
                 </div>
             </div>
 
-            <!-- 核心功能 -->
-            <div class="landing-section">
+            <!-- 核心能力 Bento Grid -->
+            <section class="landing-section">
                 <div class="landing-section-header">
-                    <h2 class="landing-section-title">为什么选择 <span class="gradient-text">AeroImageHost</span>？</h2>
-                    <p class="landing-section-desc">一站式文件托管与分享平台</p>
+                    <h2 class="landing-section-title">为什么选择 <span class="gradient-text">AeroImageHost</span></h2>
+                    <p class="landing-section-desc">不只是图床，更是全格式文件托管平台</p>
                 </div>
-                <div class="landing-grid-3">
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(59,130,246,0.12); color: #3b82f6;">
-                            <i class="fas fa-bolt"></i>
-                        </div>
-                        <h3 class="landing-feature-title">极速上传</h3>
-                        <p class="landing-feature-desc">拖拽、粘贴、点击上传，大文件自动分片，断网重连自动继续，上传进度实时可见。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">断点续传</span>
-                            <span class="landing-tag">真实进度</span>
-                            <span class="landing-tag">拖拽上传</span>
-                        </div>
+                <div class="bento-grid">
+                    <div class="bento-card bento-lg" style="grid-column: span 2;">
+                        <div class="bento-card-glow" style="background: radial-gradient(circle at 80% 20%, rgba(99,102,241,0.15), transparent 60%);"></div>
+                        <div class="bento-icon" style="background: rgba(99,102,241,0.12); color: #6366f1;"><i class="fas fa-bolt"></i></div>
+                        <h3 class="bento-title">极致性能架构</h3>
+                        <p class="bento-desc">C++17 + Drogon 异步框架，MySQL/Redis 双连接池，多层缓存策略。接口响应 &lt; 10ms，内存占用 80~120MB，无 GC 停顿。</p>
+                        <div class="bento-tags"><span class="bento-tag">Drogon 异步IO</span><span class="bento-tag">连接池复用</span><span class="bento-tag">LRU 缓存</span></div>
                     </div>
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(34,197,94,0.12); color: #22c55e;">
-                            <i class="fas fa-shield-alt"></i>
-                        </div>
-                        <h3 class="landing-feature-title">安全可靠</h3>
-                        <p class="landing-feature-desc">数据多副本备份不丢失，私有/公开权限一键切换，登录态安全加密保护。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">多副本备份</span>
-                            <span class="landing-tag">权限控制</span>
-                            <span class="landing-tag">安全加密</span>
-                        </div>
+                    <div class="bento-card bento-lg">
+                        <div class="bento-card-glow" style="background: radial-gradient(circle at 20% 80%, rgba(34,197,94,0.15), transparent 60%);"></div>
+                        <div class="bento-icon" style="background: rgba(34,197,94,0.12); color: #22c55e;"><i class="fas fa-server"></i></div>
+                        <h3 class="bento-title">MinIO 分布式存储</h3>
+                        <p class="bento-desc">S3 兼容对象存储，支持水平扩展与多副本高可用，数据安全有保障。</p>
                     </div>
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(168,85,247,0.12); color: #a855f7;">
-                            <i class="fas fa-search"></i>
-                        </div>
-                        <h3 class="landing-feature-title">智能搜索</h3>
-                        <p class="landing-feature-desc">输入文件名即时过滤，支持分页浏览，海量文件也能快速找到。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">实时搜索</span>
-                            <span class="landing-tag">分页浏览</span>
-                            <span class="landing-tag">快速定位</span>
-                        </div>
+                    <div class="bento-card bento-lg">
+                        <div class="bento-card-glow" style="background: radial-gradient(circle at 80% 80%, rgba(249,115,22,0.15), transparent 60%);"></div>
+                        <div class="bento-icon" style="background: rgba(249,115,22,0.12); color: #f97316;"><i class="fas fa-cloud-upload-alt"></i></div>
+                        <h3 class="bento-title">大文件断点续传</h3>
+                        <p class="bento-desc">自动分片上传，断网重连自动继续，真实进度追踪。单文件最大 100MB。</p>
                     </div>
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(249,115,22,0.12); color: #f97316;">
-                            <i class="fas fa-link"></i>
-                        </div>
-                        <h3 class="landing-feature-title">永久链接</h3>
-                        <p class="landing-feature-desc">每个文件自动生成永久分享链接，链接不过期、不失效，嵌入博客或直接发给朋友。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">永不过期</span>
-                            <span class="landing-tag">外链可用</span>
-                            <span class="landing-tag">一键复制</span>
-                        </div>
+                    <div class="bento-card bento-lg" style="grid-column: span 2;">
+                        <div class="bento-card-glow" style="background: radial-gradient(circle at 20% 20%, rgba(168,85,247,0.15), transparent 60%);"></div>
+                        <div class="bento-icon" style="background: rgba(168,85,247,0.12); color: #a855f7;"><i class="fas fa-images"></i></div>
+                        <h3 class="bento-title">智能图片处理</h3>
+                        <p class="bento-desc">基于 libvips 的按需缩略图生成，Redis 互斥锁防并发，缩略图缓存到 MinIO。支持 JPEG/PNG/WebP/GIF。</p>
+                        <div class="bento-tags"><span class="bento-tag">libvips 引擎</span><span class="bento-tag">按需生成</span><span class="bento-tag">防抖缓存</span></div>
                     </div>
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(168,85,247,0.12); color: #a855f7;">
-                            <i class="fas fa-images"></i>
-                        </div>
-                        <h3 class="landing-feature-title">图片管理</h3>
-                        <p class="landing-feature-desc">自动生成缩略图，网格瀑布流浏览，图片在线预览，支持 JPEG/PNG/WebP 等格式。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">自动缩略图</span>
-                            <span class="landing-tag">在线预览</span>
-                            <span class="landing-tag">多格式</span>
-                        </div>
+                    <div class="bento-card">
+                        <div class="bento-icon-sm" style="background: rgba(236,72,153,0.12); color: #ec4899;"><i class="fas fa-eye"></i></div>
+                        <h3 class="bento-title-sm">多格式预览</h3>
+                        <p class="bento-desc-sm">PDF 全屏、视频播放、音频试听，无需下载即可预览。</p>
                     </div>
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(236,72,153,0.12); color: #ec4899;">
-                            <i class="fas fa-eye"></i>
-                        </div>
-                        <h3 class="landing-feature-title">多格式预览</h3>
-                        <p class="landing-feature-desc">PDF 全屏查看、视频在线播放、音频直接试听，无需下载即可预览文件内容。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">PDF 全屏</span>
-                            <span class="landing-tag">视频播放</span>
-                            <span class="landing-tag">音频试听</span>
-                        </div>
+                    <div class="bento-card">
+                        <div class="bento-icon-sm" style="background: rgba(6,182,212,0.12); color: #06b6d4;"><i class="fas fa-share-alt"></i></div>
+                        <h3 class="bento-title-sm">永久外链</h3>
+                        <p class="bento-desc-sm">一键生成永久链接，支持域名白名单，嵌入任何网站。</p>
                     </div>
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(239,68,68,0.12); color: #ef4444;">
-                            <i class="fas fa-tasks"></i>
-                        </div>
-                        <h3 class="landing-feature-title">批量管理</h3>
-                        <p class="landing-feature-desc">多选、全选、批量删除，一键管理多个文件，高效清理存储空间。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">多选操作</span>
-                            <span class="landing-tag">全选/反选</span>
-                            <span class="landing-tag">批量删除</span>
-                        </div>
-                    </div>
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(6,182,212,0.12); color: #06b6d4;">
-                            <i class="fas fa-share-alt"></i>
-                        </div>
-                        <h3 class="landing-feature-title">轻松分享</h3>
-                        <p class="landing-feature-desc">公开文件无需登录即可查看和下载，一键分享给任何人，分享就是这么简单。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">无需登录</span>
-                            <span class="landing-tag">在线查看</span>
-                            <span class="landing-tag">直接下载</span>
-                        </div>
-                    </div>
-                    <div class="landing-feature-card">
-                        <div class="landing-feature-icon" style="background: rgba(245,158,11,0.12); color: #f59e0b;">
-                            <i class="fas fa-tachometer-alt"></i>
-                        </div>
-                        <h3 class="landing-feature-title">极致性能</h3>
-                        <p class="landing-feature-desc">毫秒级接口响应，图片智能缓存重复访问零延迟，文件列表秒开不卡顿。</p>
-                        <div class="landing-feature-tags">
-                            <span class="landing-tag">毫秒响应</span>
-                            <span class="landing-tag">智能缓存</span>
-                            <span class="landing-tag">秒开体验</span>
-                        </div>
+                    <div class="bento-card">
+                        <div class="bento-icon-sm" style="background: rgba(239,68,68,0.12); color: #ef4444;"><i class="fas fa-shield-alt"></i></div>
+                        <h3 class="bento-title-sm">安全管控</h3>
+                        <p class="bento-desc-sm">私有/公开权限切换，登录频率限制，IP 级访问控制。</p>
                     </div>
                 </div>
-            </div>
+            </section>
+
+            <!-- 技术栈 -->
+            <section class="landing-section">
+                <div class="landing-section-header">
+                    <h2 class="landing-section-title">技术栈</h2>
+                    <p class="landing-section-desc">每一层都为生产环境而设计</p>
+                </div>
+                <div class="tech-stack-grid">
+                    <div class="tech-item"><div class="tech-icon" style="color: #6366f1;"><i class="fas fa-code"></i></div><div class="tech-name">C++17 / Drogon</div><div class="tech-role">异步 HTTP 后端</div></div>
+                    <div class="tech-item"><div class="tech-icon" style="color: #22c55e;"><i class="fas fa-server"></i></div><div class="tech-name">MinIO</div><div class="tech-role">S3 对象存储</div></div>
+                    <div class="tech-item"><div class="tech-icon" style="color: #3b82f6;"><i class="fas fa-database"></i></div><div class="tech-name">MySQL 8</div><div class="tech-role">元数据存储</div></div>
+                    <div class="tech-item"><div class="tech-icon" style="color: #ef4444;"><i class="fas fa-bolt"></i></div><div class="tech-name">Redis</div><div class="tech-role">缓存 / 会话 / 限流</div></div>
+                    <div class="tech-item"><div class="tech-icon" style="color: #a855f7;"><i class="fas fa-image"></i></div><div class="tech-name">libvips</div><div class="tech-role">图片缩略处理</div></div>
+                    <div class="tech-item"><div class="tech-icon" style="color: #06b6d4;"><i class="fab fa-docker"></i></div><div class="tech-name">Docker</div><div class="tech-role">一键部署</div></div>
+                </div>
+            </section>
 
             <!-- 使用流程 -->
-            <div class="landing-section">
-                <div class="landing-section-header">
-                    <h2 class="landing-section-title">三步搞定文件上传</h2>
-                    <p class="landing-section-desc">简单到任何人都能上手</p>
-                </div>
+            <section class="landing-section">
+                <div class="landing-section-header"><h2 class="landing-section-title">三步开始使用</h2></div>
                 <div class="landing-steps">
-                    <div class="landing-step">
-                        <div class="landing-step-number">1</div>
-                        <div class="landing-step-icon"><i class="fas fa-user-plus"></i></div>
-                        <h4 class="landing-step-title">注册账号</h4>
-                        <p class="landing-step-desc">支持普通注册 / 邮箱验证码注册</p>
-                    </div>
+                    <div class="landing-step"><div class="landing-step-number">1</div><div class="landing-step-icon"><i class="fas fa-user-plus"></i></div><h4 class="landing-step-title">注册账号</h4><p class="landing-step-desc">支持账号注册 / 邮箱验证码注册</p></div>
                     <div class="landing-step-arrow"><i class="fas fa-chevron-right"></i></div>
-                    <div class="landing-step">
-                        <div class="landing-step-number">2</div>
-                        <div class="landing-step-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                        <h4 class="landing-step-title">上传文件</h4>
-                        <p class="landing-step-desc">拖拽 / 粘贴 / 点击，大文件自动分片断点续传</p>
-                    </div>
+                    <div class="landing-step"><div class="landing-step-number">2</div><div class="landing-step-icon"><i class="fas fa-cloud-upload-alt"></i></div><h4 class="landing-step-title">上传文件</h4><p class="landing-step-desc">拖拽 / 粘贴 / 点击，大文件自动分片</p></div>
                     <div class="landing-step-arrow"><i class="fas fa-chevron-right"></i></div>
-                    <div class="landing-step">
-                        <div class="landing-step-number">3</div>
-                        <div class="landing-step-icon"><i class="fas fa-link"></i></div>
-                        <h4 class="landing-step-title">分享链接</h4>
-                        <p class="landing-step-desc">一键生成永久链接，支持在线预览 / 直接下载</p>
-                    </div>
+                    <div class="landing-step"><div class="landing-step-number">3</div><div class="landing-step-icon"><i class="fas fa-link"></i></div><h4 class="landing-step-title">分享链接</h4><p class="landing-step-desc">永久链接，在线预览，一键分享</p></div>
                 </div>
-            </div>
+            </section>
 
-            <!-- 技术架构 -->
-            <div class="landing-section">
-                <div class="landing-section-header">
-                    <h2 class="landing-section-title"><i class="fas fa-microchip"></i> 技术架构</h2>
-                    <p class="landing-section-desc">每一层都为性能而设计</p>
-                </div>
-                <div class="landing-grid-3">
-                    <div class="landing-feature-card" style="text-align: center;">
-                        <div class="landing-feature-icon" style="background: rgba(59,130,246,0.12); color: #3b82f6; margin: 0 auto 1rem;">
-                            <i class="fas fa-code"></i>
-                        </div>
-                        <h3 class="landing-feature-title">C++17 后端</h3>
-                        <p class="landing-feature-desc">cpprestsdk 异步 HTTP 处理，内存占用 &lt; 100MB，无 GC 停顿</p>
-                    </div>
-                    <div class="landing-feature-card" style="text-align: center;">
-                        <div class="landing-feature-icon" style="background: rgba(34,197,94,0.12); color: #22c55e; margin: 0 auto 1rem;">
-                            <i class="fas fa-server"></i>
-                        </div>
-                        <h3 class="landing-feature-title">MinIO 分布式存储</h3>
-                        <p class="landing-feature-desc">S3 兼容对象存储，支持水平扩展，数据多副本高可用</p>
-                    </div>
-                    <div class="landing-feature-card" style="text-align: center;">
-                        <div class="landing-feature-icon" style="background: rgba(168,85,247,0.12); color: #a855f7; margin: 0 auto 1rem;">
-                            <i class="fas fa-database"></i>
-                        </div>
-                        <h3 class="landing-feature-title">MySQL + Redis</h3>
-                        <p class="landing-feature-desc">双连接池 + 定时验证，Redis 会话管理，毫秒级响应</p>
+            <!-- CTA -->
+            <section class="landing-section">
+                <div class="landing-cta">
+                    <div class="landing-cta-content">
+                        <h2 class="landing-cta-title">开始你的高速图床体验</h2>
+                        <p class="landing-cta-desc">注册即可免费使用全部功能，数据完全自主可控</p>
+                        <button class="landing-btn landing-btn-primary landing-btn-lg" @click="showAuthModal = true; activeTab = 'register'"><i class="fas fa-rocket"></i> 立即注册</button>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- 智能搜索功能 -->
-            <div class="landing-section" style="background: var(--bg-secondary); border-radius: 2rem; margin: 3rem auto; padding: 3rem 2rem;">
-                <div class="landing-section-header">
-                    <h2 class="landing-section-title"><i class="fas fa-search"></i> 智能搜索功能</h2>
-                    <p class="landing-section-desc">海量文件，一键直达</p>
-                </div>
-                <div class="landing-grid-3">
-                    <div class="landing-feature-card" style="text-align: center;">
-                        <div class="landing-feature-icon" style="background: rgba(59,130,246,0.12); color: #3b82f6; margin: 0 auto 1rem;">
-                            <i class="fas fa-keyboard"></i>
-                        </div>
-                        <h3 class="landing-feature-title">实时搜索</h3>
-                        <p class="landing-feature-desc">输入文件名即可快速过滤，支持实时搜索和回车确认</p>
-                    </div>
-                    <div class="landing-feature-card" style="text-align: center;">
-                        <div class="landing-feature-icon" style="background: rgba(34,197,94,0.12); color: #22c55e; margin: 0 auto 1rem;">
-                            <i class="fas fa-list-ol"></i>
-                        </div>
-                        <h3 class="landing-feature-title">分页浏览</h3>
-                        <p class="landing-feature-desc">支持每页 10/20/50/100 条文件切换，灵活控制浏览体验</p>
-                    </div>
-                    <div class="landing-feature-card" style="text-align: center;">
-                        <div class="landing-feature-icon" style="background: rgba(168,85,247,0.12); color: #a855f7; margin: 0 auto 1rem;">
-                            <i class="fas fa-broom"></i>
-                        </div>
-                        <h3 class="landing-feature-title">快速清除</h3>
-                        <p class="landing-feature-desc">一键清除搜索关键词，立即返回全部文件列表</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 支持的文件类型 -->
-            <div class="landing-section">
-                <div class="landing-section-header">
-                    <h2 class="landing-section-title">支持的文件类型</h2>
-                    <p class="landing-section-desc">几乎所有常见文件类型都能上传，单个文件最大 100MB</p>
-                </div>
-                <div class="landing-file-types">
-                    <div class="landing-file-type">
-                        <i class="fas fa-image" style="color: #3b82f6;"></i>
-                        <span>图片</span>
-                        <small>JPG / PNG / GIF / WebP</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-file-pdf" style="color: #ef4444;"></i>
-                        <span>PDF 文档</span>
-                        <small>支持在线预览</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-video" style="color: #8b5cf6;"></i>
-                        <span>视频</span>
-                        <small>MP4 / WebM / MOV</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-music" style="color: #ec4899;"></i>
-                        <span>音频</span>
-                        <small>MP3 / WAV / FLAC</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-file-word" style="color: #2563eb;"></i>
-                        <span>文档</span>
-                        <small>DOC / DOCX</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-file-excel" style="color: #22c55e;"></i>
-                        <span>表格</span>
-                        <small>XLS / XLSX</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-file-powerpoint" style="color: #f59e0b;"></i>
-                        <span>演示文稿</span>
-                        <small>PPT / PPTX</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-file-archive" style="color: #f59e0b;"></i>
-                        <span>压缩包</span>
-                        <small>ZIP / RAR / 7Z</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-file-alt" style="color: #6b7280;"></i>
-                        <span>文本</span>
-                        <small>TXT / JSON / XML</small>
-                    </div>
-                    <div class="landing-file-type">
-                        <i class="fas fa-file-code" style="color: #06b6d4;"></i>
-                        <span>源代码</span>
-                        <small>其他格式</small>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 应用场景 -->
-            <div class="landing-section">
-                <h2 class="landing-section-title"><i class="fas fa-lightbulb"></i> 应用场景</h2>
-                <div class="landing-use-cases">
-                    <div class="landing-use-case">
-                        <div class="landing-use-case-icon"><i class="fas fa-blog" style="color: #3b82f6;"></i></div>
-                        <h4>博客/论坛配图</h4>
-                        <p>为您的文章、帖子提供稳定的图片托管服务</p>
-                    </div>
-                    <div class="landing-use-case">
-                        <div class="landing-use-case-icon"><i class="fas fa-shopping-cart" style="color: #22c55e;"></i></div>
-                        <h4>电商商品展示</h4>
-                        <p>产品图片、宣传海报的快速上传与分享</p>
-                    </div>
-                    <div class="landing-use-case">
-                        <div class="landing-use-case-icon"><i class="fas fa-share-alt" style="color: #f59e0b;"></i></div>
-                        <h4>社交媒体分享</h4>
-                        <p>一键复制链接，快速分享到微博、朋友圈</p>
-                    </div>
-                    <div class="landing-use-case">
-                        <div class="landing-use-case-icon"><i class="fas fa-file-alt" style="color: #8b5cf6;"></i></div>
-                        <h4>文档资料托管</h4>
-                        <p>PDF、Word、Excel 等文档的便捷存储</p>
-                    </div>
-                    <div class="landing-use-case">
-                        <div class="landing-use-case-icon"><i class="fas fa-code" style="color: #06b6d4;"></i></div>
-                        <h4>开发者文档</h4>
-                        <p>项目截图、流程图、架构图的托管</p>
-                    </div>
-                    <div class="landing-use-case">
-                        <div class="landing-use-case-icon"><i class="fas fa-graduation-cap" style="color: #ec4899;"></i></div>
-                        <h4>教育学习</h4>
-                        <p>课件、作业、学习资料的云端存储</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 常见问题 FAQ -->
-            <div class="landing-section">
-                <h2 class="landing-section-title"><i class="fas fa-question-circle"></i> 常见问题</h2>
+            <!-- FAQ -->
+            <section class="landing-section">
+                <h2 class="landing-section-title">常见问题</h2>
                 <div class="landing-faq">
                     <div class="landing-faq-item">
                         <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 支持哪些文件格式？</div>
@@ -1738,21 +929,10 @@
                     </div>
                     <div class="landing-faq-item">
                         <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 技术栈是什么？</div>
-                        <div class="landing-faq-answer">C++17 后端（cpprestsdk）、MinIO 分布式对象存储、MySQL 8.0 数据库、Redis 7.x 会话缓存、libvips 图像处理，Docker 一键部署。</div>
+                        <div class="landing-faq-answer">C++17 后端（Drogon 异步框架）、MinIO 分布式对象存储、MySQL 8 数据库、Redis 缓存与会话管理、libvips 图像处理，Docker 一键部署。</div>
                     </div>
                 </div>
-            </div>
-
-            <!-- CTA 行动号召 -->
-            <div class="landing-cta">
-                <div class="landing-cta-content">
-                    <h2 class="landing-cta-title">准备好开始了吗？</h2>
-                    <p class="landing-cta-desc">加入 AeroImageHost，体验极致的文件上传与分享</p>
-                    <button class="landing-btn landing-btn-primary landing-btn-lg" @click="showAuthModal = true">
-                        <i class="fas fa-rocket"></i> 立即免费注册
-                    </button>
-                </div>
-            </div>
+            </section>
         </div>
 
         <!-- 已登录 -->
@@ -3635,12 +2815,11 @@
                                 }
                             });
 
-                            xhr.open('POST', `${API_BASE}/upload?filename=${encodeURIComponent(name)}`, true);
+                            xhr.open('POST', `${API_BASE}/upload`, true);
                             xhr.setRequestHeader('Authorization', `Bearer ${token.value}`);
-                            xhr.setRequestHeader('X-File-Name', encodeURIComponent(name));
-                            xhr.setRequestHeader('X-File-Size', file.size.toString());
-                            xhr.setRequestHeader('X-File-Type', file.type || 'application/octet-stream');
-                            xhr.send(file);
+                            const formData = new FormData();
+                            formData.append('file', file, name);
+                            xhr.send(formData);
                         });
                     };
 
