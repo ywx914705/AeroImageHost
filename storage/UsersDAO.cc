@@ -215,3 +215,44 @@ int UsersDAO::getUserCount() {
     releaseConn(conn);
     return count;
 }
+
+// 更新用户密码哈希（用于自动升级旧格式密码）
+bool UsersDAO::updatePasswordHash(int user_id, const std::string& newHash) {
+    MYSQL* conn = getConn();
+    if (!conn) return false;
+
+    const char* sql = "UPDATE users SET password_hash = ? WHERE id = ?";
+    MYSQL_STMT* stmt = mysql_stmt_init(conn);
+    if (!stmt) {
+        releaseConn(conn);
+        return false;
+    }
+    if (mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+        mysql_stmt_close(stmt);
+        releaseConn(conn);
+        return false;
+    }
+
+    MYSQL_BIND params[2];
+    memset(params, 0, sizeof(params));
+
+    // password_hash
+    params[0].buffer_type = MYSQL_TYPE_STRING;
+    params[0].buffer = (void*)newHash.c_str();
+    params[0].buffer_length = newHash.size();
+
+    // user_id
+    params[1].buffer_type = MYSQL_TYPE_LONG;
+    params[1].buffer = &user_id;
+
+    if (mysql_stmt_bind_param(stmt, params) != 0) {
+        mysql_stmt_close(stmt);
+        releaseConn(conn);
+        return false;
+    }
+
+    bool ok = (mysql_stmt_execute(stmt) == 0);
+    mysql_stmt_close(stmt);
+    releaseConn(conn);
+    return ok;
+}

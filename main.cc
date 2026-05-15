@@ -1,62 +1,177 @@
-/*
- * main.cc - AeroImageHost 主程序入口
- *
- * 职责：初始化所有服务组件，启动 HTTP 服务器，等待退出信号。
- *
- * 启动顺序（严格按依赖关系）：
- *   1. Config::load()        → 加载 config.json 配置文件
- *   2. AsyncLog::init()      → 初始化异步日志系统
- *   3. ConnectionPool::init() → 初始化 MySQL 连接池（默认 32 连接）
- *   4. RedisClient::init()   → 初始化 Redis 连接池（默认 16 连接）
- *   5. MinIOClient::init()   → 初始化 MinIO 客户端
- *   6. AeroQueue::start(4)   → 启动异步任务队列（4 个工作线程）
- *   7. HttpServer::start()   → 启动 HTTP 服务器（监听端口）
- *   8. cleanupOrphanChunks() → 清理上一次运行遗留的孤儿分片
- *
- * 后台任务：
- *   - 每小时执行一次 cleanupOrphanChunks()，清理超时的分片上传
- *
- * 退出流程：
- *   收到 SIGINT/SIGTERM → HttpServer::stop() → 等待5秒 → AeroQueue::stop() → ConnectionPool::close() → AsyncLog::stop()
- */
 #include "Config.hpp"
+#include "ConfigValidator.hpp"
 #include "Log.hpp"
-#include "HttpServer.hpp"
 #include "ConnectionPool.hpp"
 #include "RedisClient.hpp"
 #include "MinIOClient.hpp"
 #include "FileMeta.hpp"
 #include "AeroQueue.hpp"
 #include "Handlers.hpp"
+#include "Auth.hpp"
+#include "ImageProcessor.hpp"
+#include "Utils.hpp"
+#include "MetricsCollector.hpp"
 #include <iostream>
 #include <csignal>
 #include <cstdlib>
 #include <thread>
+#include <atomic>
+#include <condition_variable>
+#include <random>
 
-std::atomic<bool> running(true);
+#include <drogon/drogon.h>
+
+static std::atomic<bool> running(true);
+static std::condition_variable shutdownCv;
+static std::mutex shutdownMutex;
 
 void signalHandler(int) {
     running = false;
+    shutdownCv.notify_all();
+    drogon::app().quit();
+}
+
+static void fileAccessHandler(const drogon::HttpRequestPtr &req,
+                              std::function<void(const drogon::HttpResponsePtr &)> &&callback,
+                              const std::string &file_id) {
+    std::string auth = req->getHeader("Authorization");
+    if (auth.empty()) auth = req->getHeader("authorization");
+    auto user = Auth::verify(auth);
+    int user_id = user ? user->user_id : 0;
+
+    FileMeta meta = FileMetaDAO::instance().get(file_id);
+    if (meta.file_id.empty()) {
+        auto resp = drogon::HttpResponse::newHttpResponse();
+        resp->setStatusCode(drogon::k404NotFound);
+        resp->setBody(errorResponse("File not found"));
+        callback(resp);
+        return;
+    }
+
+    if (!meta.is_public && meta.user_id != user_id) {
+        auto resp = drogon::HttpResponse::newHttpResponse();
+        resp->setStatusCode(drogon::k403Forbidden);
+        resp->setBody(errorResponse("Access denied"));
+        callback(resp);
+        return;
+    }
+
+    bool isImageFile = isImage(meta.mime_type);
+    if (isImageFile) {
+        std::string etag = "W/\"" + file_id + "\"";
+        auto ifNoneMatch = req->getHeader("If-None-Match");
+        if (!ifNoneMatch.empty() && ifNoneMatch == etag) {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setStatusCode(drogon::k304NotModified);
+            resp->addHeader("Cache-Control", "public, max-age=3600");
+            resp->addHeader("ETag", etag);
+            callback(resp);
+            return;
+        }
+    }
+
+    RedisClient::instance().incr("file_views:" + file_id);
+    AeroQueue::instance().post([file_id]() {
+        RedisClient::instance().sadd("file_views_keys", "file_views:" + file_id);
+    });
+
+    std::string sizeParam = req->getParameter("size");
+    bool isThumbRequest = false;
+    if (!sizeParam.empty()) {
+        int thumbSize = 0;
+        try { thumbSize = std::stoi(sizeParam); } catch (...) {}
+        if (thumbSize > 0 && thumbSize <= 2000) {
+            isThumbRequest = true;
+            std::string thumbKey = "thumbs/" + file_id + "_" + std::to_string(thumbSize);
+            if (MinIOClient::instance().objectExists(thumbKey)) {
+                std::string thumbUrl = MinIOClient::instance().presignGetUrl(thumbKey, 3600);
+                if (!thumbUrl.empty()) {
+                    auto resp = drogon::HttpResponse::newHttpResponse();
+                    resp->setStatusCode(drogon::k302Found);
+                    resp->addHeader("Location", thumbUrl);
+                    resp->addHeader("Cache-Control", "public, max-age=86400");
+                    callback(resp);
+                    return;
+                }
+            }
+            // 互斥锁：多客户端同时请求同一缩略图时，仅一个后台任务拉原图并生成，避免惊群打满 MinIO/CPU
+            std::string lockKey = "thumbgen:" + file_id + ":" + std::to_string(thumbSize);
+            constexpr int kThumbGenLockSec = 300;
+            if (RedisClient::instance().setNxEx(lockKey, "1", kThumbGenLockSec)) {
+                AeroQueue::instance().post([file_id, thumbSize, lockKey]() {
+                    try {
+                        std::vector<char> srcData;
+                        if (!MinIOClient::instance().getObject(file_id, srcData) || srcData.empty()) {
+                            RedisClient::instance().del(lockKey);
+                            return;
+                        }
+                        std::vector<char> thumbData;
+                        if (!ImageProcessor::generateThumbnail(srcData, thumbData, thumbSize, thumbSize)) {
+                            RedisClient::instance().del(lockKey);
+                            return;
+                        }
+                        std::vector<unsigned char> uploadData(thumbData.begin(), thumbData.end());
+                        std::string genThumbKey = "thumbs/" + file_id + "_" + std::to_string(thumbSize);
+                        if (!MinIOClient::instance().putObject(genThumbKey, uploadData, "image/jpeg")) {
+                            RedisClient::instance().del(lockKey);
+                        }
+                    } catch (const std::exception& e) {
+                        RedisClient::instance().del(lockKey);
+                        AERO_LOG_ERROR("[Thumbnail] Generation failed for " + file_id + ": " + std::string(e.what()));
+                    }
+                });
+            }
+        }
+    }
+
+    std::string safeFilename = sanitizeFilename(meta.filename);
+    std::string encodedFilename = urlEncode(safeFilename);
+    std::string disposition;
+    if (isAttachmentType(meta.mime_type) || !isImageFile) {
+        disposition = "attachment; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
+    } else {
+        disposition = "inline; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
+    }
+
+    std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600, disposition);
+    if (presignUrl.empty()) {
+        auto resp = drogon::HttpResponse::newHttpResponse();
+        resp->setStatusCode(drogon::k500InternalServerError);
+        resp->setBody(errorResponse("Failed to generate download URL"));
+        callback(resp);
+        return;
+    }
+
+    auto resp = drogon::HttpResponse::newHttpResponse();
+    resp->setStatusCode(drogon::k302Found);
+    resp->addHeader("Location", presignUrl);
+    if (isImageFile && !isThumbRequest) {
+        resp->addHeader("ETag", "W/\"" + file_id + "\"");
+        resp->addHeader("Cache-Control", "public, max-age=3600");
+    }
+    callback(resp);
 }
 
 int main(int argc, char* argv[]) {
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
 
-    // 加载配置文件
     std::string configFile = (argc > 1) ? argv[1] : "config.json";
     if (!Config::instance().load(configFile)) {
         std::cerr << "Failed to load config file: " << configFile << std::endl;
         return 1;
     }
 
-    // 初始化日志系统
     std::string logFile = Config::instance().getString("log.file", "/opt/image_host/logs/server.log");
     int flushInterval = Config::instance().getInt("log.flush_interval", 3);
     AsyncLog::instance().init(logFile, flushInterval);
-    LOG_INFO("日志系统初始化完成，日志文件: " + logFile);
+    AsyncLog::instance().write(LogLevel::INFO, "Log system initialized: " + logFile);
 
-    // 初始化 MySQL 连接池
+    if (!ConfigValidator::validate()) {
+        std::cerr << "Configuration validation failed. Check log for details." << std::endl;
+        return 1;
+    }
+
     auto& pool = ConnectionPool::getInstance();
     if (!pool.init(
             Config::instance().getString("mysql.host"),
@@ -64,73 +179,224 @@ int main(int argc, char* argv[]) {
             Config::instance().getString("mysql.password"),
             Config::instance().getString("mysql.db"),
             Config::instance().getInt("mysql.port", 3306),
-            Config::instance().getInt("mysql.pool_size", 32))) {
-        LOG_ERROR("MySQL 连接池初始化失败");
+            Config::instance().getInt("mysql.pool_size", 64))) {
+        AsyncLog::instance().write(LogLevel::ERROR, "MySQL connection pool init failed");
         return 1;
     }
-    LOG_INFO("MySQL 连接池初始化成功");
+    AsyncLog::instance().write(LogLevel::INFO, "MySQL connection pool initialized");
 
-    // 初始化 Redis 连接池
     if (!RedisClient::instance().init(
             Config::instance().getString("redis.host", "127.0.0.1"),
             Config::instance().getInt("redis.port", 6379),
-            Config::instance().getInt("redis.pool_size", 16))) {
-        LOG_ERROR("Redis 连接池初始化失败");
+            Config::instance().getInt("redis.pool_size", 32),
+            Config::instance().getString("redis.password", ""))) {
+        AsyncLog::instance().write(LogLevel::ERROR, "Redis connection pool init failed");
         return 1;
     }
-    LOG_INFO("Redis 连接池初始化成功");
+    AsyncLog::instance().write(LogLevel::INFO, "Redis connection pool initialized");
 
-    // 初始化 MinIO 客户端
     if (!MinIOClient::instance().init(
             Config::instance().getString("minio.endpoint"),
             Config::instance().getString("minio.access_key"),
             Config::instance().getString("minio.secret_key"),
             Config::instance().getString("minio.bucket"),
             Config::instance().getString("minio.presign_endpoint", ""))) {
-        LOG_ERROR("MinIO 客户端初始化失败");
+        AsyncLog::instance().write(LogLevel::ERROR, "MinIO client init failed");
         return 1;
     }
-    LOG_INFO("MinIO 客户端初始化成功");
+    AsyncLog::instance().write(LogLevel::INFO, "MinIO client initialized");
 
-    // 初始化 AeroQueue（异步任务队列）
     AeroQueue::instance().start(4);
-    LOG_INFO("AeroQueue 启动成功");
+    AsyncLog::instance().write(LogLevel::INFO, "AeroQueue started");
 
-    // 启动 HTTP 服务
-    int httpPort = Config::instance().getInt("http_port", 8082);
-    HttpServer server(httpPort);
-    server.start();
-    LOG_INFO("HTTP 服务启动成功，监听端口: " + std::to_string(httpPort));
+    try {
+        cleanupOrphanChunks();
+    } catch (const std::exception& e) {
+        AsyncLog::instance().write(LogLevel::WARN, "[Cleanup] Startup cleanup failed: " + std::string(e.what()));
+    }
 
-    // 启动时清理上一次运行遗留的孤儿分片
-    cleanupOrphanChunks();
+    std::vector<std::thread> backgroundThreads;
 
-    // 后台线程：每小时执行一次孤儿分片清理，防止 MinIO 存储空间泄漏
-    std::thread cleanupThread([]() {
+    backgroundThreads.emplace_back([]() {
         while (running) {
-            std::this_thread::sleep_for(std::chrono::hours(1));
-            if (running) {
-                try {
-                    cleanupOrphanChunks();
-                } catch (const std::exception& e) {
-                    LOG_ERROR("[Cleanup] 定时清理失败: " + std::string(e.what()));
-                }
+            std::unique_lock<std::mutex> lock(shutdownMutex);
+            shutdownCv.wait_for(lock, std::chrono::seconds(3600), []() { return !running.load(); });
+            if (!running) break;
+            try {
+                cleanupOrphanChunks();
+            } catch (const std::exception& e) {
+                AsyncLog::instance().write(LogLevel::ERROR, "[Cleanup] Scheduled cleanup failed: " + std::string(e.what()));
             }
         }
     });
-    cleanupThread.detach();
 
-    // 主循环等待退出信号
-    while (running) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+    backgroundThreads.emplace_back([]() {
+        while (running) {
+            std::unique_lock<std::mutex> lock(shutdownMutex);
+            shutdownCv.wait_for(lock, std::chrono::seconds(300), []() { return !running.load(); });
+            if (!running) break;
+            try {
+                auto& redis = RedisClient::instance();
+                std::vector<std::pair<std::string, long long>> updates;
+                auto keys = redis.smembers("file_views_keys");
+                for (const auto& key : keys) {
+                    std::string val = redis.get(key);
+                    if (val.empty()) continue;
+                    long long count = std::stoll(val);
+                    std::string file_id = key.substr(11);
+                    updates.emplace_back(file_id, count);
+                }
+                if (!updates.empty()) {
+                    FileMetaDAO::instance().batchUpdateViewCount(updates);
+                    for (const auto& key : keys) {
+                        redis.del(key);
+                    }
+                    redis.del("file_views_keys");
+                    AsyncLog::instance().write(LogLevel::INFO, "[ViewSync] Synced " + std::to_string(updates.size()) + " view counts");
+                }
+            } catch (const std::exception& e) {
+                AsyncLog::instance().write(LogLevel::ERROR, "[ViewSync] Failed: " + std::string(e.what()));
+            }
+        }
+    });
+
+    backgroundThreads.emplace_back([]() {
+        while (running) {
+            std::unique_lock<std::mutex> lock(shutdownMutex);
+            shutdownCv.wait_for(lock, std::chrono::seconds(1), []() { return !running.load(); });
+            if (!running) break;
+            MetricsCollector::instance().tick();
+        }
+    });
+
+    {
+        AsyncLog::instance().write(LogLevel::INFO, "[Warmup] Starting connection pool warmup...");
+        try {
+            FileMetaDAO::instance().countByUserWithSearch(0, "");
+            AsyncLog::instance().write(LogLevel::INFO, "[Warmup] MySQL pool warmed up");
+        } catch (...) {
+            AsyncLog::instance().write(LogLevel::WARN, "[Warmup] MySQL pool warmup failed");
+        }
+        std::string pong = RedisClient::instance().ping();
+        if (pong == "PONG") {
+            AsyncLog::instance().write(LogLevel::INFO, "[Warmup] Redis pool warmed up");
+        } else {
+            AsyncLog::instance().write(LogLevel::WARN, "[Warmup] Redis pool warmup failed: " + pong);
+        }
     }
 
-    LOG_INFO("正在关闭服务...");
-    server.stop();
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    int httpPort = Config::instance().getInt("http_port", 8082);
+    int numThreads = Config::instance().getInt("http_threads", std::max(1, (int)std::thread::hardware_concurrency()));
+    std::string corsOrigin = Config::instance().getString("security.cors_origin", "*");
+
+    AsyncLog::instance().write(LogLevel::INFO, "HTTP server starting on port " + std::to_string(httpPort) + " with " + std::to_string(numThreads) + " threads");
+
+    auto corsHandler = [corsOrigin](const drogon::HttpRequestPtr &,
+                                     std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
+        auto resp = drogon::HttpResponse::newHttpResponse();
+        resp->addHeader("Access-Control-Allow-Origin", corsOrigin);
+        resp->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        resp->addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        resp->addHeader("Access-Control-Expose-Headers", "*");
+        resp->addHeader("Access-Control-Max-Age", "86400");
+        callback(resp);
+    };
+
+    const std::vector<std::string> apiPaths = {
+        "/api/auth/login", "/api/auth/register", "/api/auth/send-code", "/api/auth/email-register",
+        "/api/upload", "/api/upload/presign", "/api/upload/confirm",
+        "/api/upload/multipart/init", "/api/upload/multipart/chunk",
+        "/api/upload/multipart/complete", "/api/upload/multipart/cleanup",
+        "/api/files",
+        "/api/health", "/api/stats", "/api/metrics",
+        "/api/files/batch-delete", "/api/monitor"
+    };
+    for (const auto& path : apiPaths) {
+        drogon::app().registerHandler(path, corsHandler, {drogon::Options});
+    }
+
+    drogon::app().registerPreHandlingAdvice(
+        [](const drogon::HttpRequestPtr &req,
+           std::function<void(const drogon::HttpResponsePtr &)> &&,
+           std::function<void()> &&chain) {
+            auto attrs = req->getAttributes();
+            if (attrs) {
+                attrs->insert("metrics_start", std::chrono::steady_clock::now());
+
+                // Generate request ID if not provided by client
+                std::string reqId = req->getHeader("X-Request-Id");
+                if (reqId.empty()) {
+                    static thread_local std::random_device rd;
+                    static thread_local std::mt19937 gen(rd());
+                    static thread_local std::uniform_int_distribution<> dis(0, 15);
+                    reqId.reserve(16);
+                    for (int i = 0; i < 16; ++i) {
+                        reqId += "0123456789abcdef"[dis(gen)];
+                    }
+                }
+                attrs->insert("request_id", reqId);
+            }
+            chain();
+        });
+
+    drogon::app().registerPostHandlingAdvice(
+        [corsOrigin](const drogon::HttpRequestPtr &req, const drogon::HttpResponsePtr &resp) {
+            resp->addHeader("Access-Control-Allow-Origin", corsOrigin);
+
+            auto attrs = req->getAttributes();
+            if (attrs && attrs->find("request_id")) {
+                std::string reqId = attrs->get<std::string>("request_id");
+                resp->addHeader("X-Request-Id", reqId);
+            }
+
+            double durationMs = 0;
+            if (attrs && attrs->find("metrics_start")) {
+                auto startTime = attrs->get<std::chrono::steady_clock::time_point>("metrics_start");
+                durationMs = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - startTime).count();
+            }
+            std::string path = std::string(req->path());
+            int statusCode = static_cast<int>(resp->statusCode());
+            MetricsCollector::instance().recordRequest(path, durationMs > 0 ? durationMs : 1.0, statusCode);
+        });
+
+    drogon::app().registerPreSendingAdvice(
+        [](const drogon::HttpRequestPtr &req, const drogon::HttpResponsePtr &resp) {
+            if (req->method() == drogon::Options) {
+                resp->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                resp->addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+                resp->addHeader("Access-Control-Expose-Headers", "*");
+                resp->addHeader("Access-Control-Max-Age", "86400");
+            }
+        });
+
+    drogon::app().registerHandler(
+        "/api/i/{1}",
+        [](const drogon::HttpRequestPtr &req,
+           std::function<void(const drogon::HttpResponsePtr &)> &&callback,
+           const std::string &file_id) {
+            fileAccessHandler(req, std::move(callback), file_id);
+        },
+        {drogon::Get});
+
+    drogon::app()
+        .addListener("0.0.0.0", httpPort)
+        .setThreadNum(numThreads)
+        .setClientMaxBodySize(100 * 1024 * 1024)
+        .setClientMaxMemoryBodySize(10 * 1024 * 1024)
+        .setDocumentRoot("./www")
+        .setFileTypes({"html","css","js","json","png","jpg","jpeg","gif","ico","svg","woff","woff2","ttf","map"})
+        .run();
+
+    AsyncLog::instance().write(LogLevel::INFO, "Shutting down...");
+
+    for (auto& t : backgroundThreads) {
+        if (t.joinable()) t.join();
+    }
+
     AeroQueue::instance().stop();
     ConnectionPool::getInstance().close();
+    AsyncLog::instance().write(LogLevel::INFO, "Service safely exited");
     AsyncLog::instance().stop();
-    LOG_INFO("服务已安全退出");
     return 0;
 }

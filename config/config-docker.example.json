@@ -1,11 +1,22 @@
 {
   "http_port": 8082,
   "max_file_size": 104857600,
+  "stats_cache_ttl_seconds": 60,
 
   "security": {
     "cors_origin": "*",
     "max_login_attempts": 5,
-    "login_window_seconds": 900
+    "max_login_attempts_per_ip": 30,
+    "login_window_seconds": 900,
+    "max_send_code_requests_per_ip_per_hour": 10,
+    "send_code_ip_window_seconds": 3600,
+    "admin_user_id": 1
+  },
+
+  "files_list": {
+    "max_page_size": 100,
+    "max_offset": 5000000,
+    "max_search_keyword_length": 128
   },
 
   "cleanup": {
@@ -24,7 +35,8 @@
   "redis": {
     "host": "redis",
     "port": 6379,
-    "pool_size": 16
+    "pool_size": 16,
+    "password": "CHANGE_ME_redis_password"
   },
 
   "minio": {

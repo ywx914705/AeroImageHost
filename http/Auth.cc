@@ -3,25 +3,55 @@
  *
  * 核心流程：
  *   1. 用户登录 → generateToken() → 生成 32 位随机字符串 → 存入 Redis（auth_token:<token> = user_id，TTL=24h）
- *   2. API 请求 → verify() → 从 Authorization 头提取 token → Redis 查找 user_id → 返回 UserInfo
- *   3. 登出 → revokeToken() → 从 Redis 删除 token
- *
- * Token 存储在 Redis 中，key 格式为 "auth_token:<token>"，value 为 user_id 字符串。
+ *   2. API 请求 → verify() → 先查本地 LRU 缓存 → 未命中则查 Redis → 返回 UserInfo
+ *   3. 登出 → revokeToken() → 从 Redis 和本地缓存中删除 token
  */
 #include "Auth.hpp"
 #include "Config.hpp"
 #include "Log.hpp"
 #include "RedisClient.hpp"
+#include "MetricsCollector.hpp"
 #include <random>
-#include <sstream>
-#include <cpprest/http_headers.h>
+#include <algorithm>
+#include <unordered_map>
+#include <list>
+#include <mutex>
+#include <chrono>
 
-// 生成指定长度的随机字符串（字母+数字），用于 Token 生成
+// ========== 本地 LRU 缓存（list + unordered_map 实现真正的 LRU 淘汰） ==========
+static const size_t TOKEN_CACHE_CAPACITY = 10000;
+static const int TOKEN_CACHE_TTL_SECONDS = 60;
+
+struct CacheEntry {
+    int user_id;
+    std::chrono::steady_clock::time_point expire_at;
+};
+
+// LRU 缓存：list 前端 = 最近使用，后端 = 最久未使用
+using LruList = std::list<std::pair<std::string, CacheEntry>>;
+static LruList lruList_;
+static std::unordered_map<std::string, LruList::iterator> tokenCache_;
+static std::mutex cacheMutex_;
+
+// 采样清理：随机检查部分条目，移除过期项（避免全表扫描阻塞）
+static void cleanExpiredCache() {
+    auto now = std::chrono::steady_clock::now();
+    int checkCount = std::min(static_cast<int>(tokenCache_.size()), 100);
+    auto it = lruList_.end();
+    for (int i = 0; i < checkCount && it != lruList_.begin(); ++i) {
+        --it;
+        if (it->second.expire_at < now) {
+            tokenCache_.erase(it->first);
+            it = lruList_.erase(it);
+        }
+    }
+}
+
 static std::string generateRandomString(size_t length) {
     static const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    static std::uniform_int_distribution<> dis(0, sizeof(charset) - 2);
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937 gen(rd());
+    static thread_local std::uniform_int_distribution<> dis(0, sizeof(charset) - 2);
     std::string result;
     result.reserve(length);
     for (size_t i = 0; i < length; ++i) {
@@ -30,49 +60,79 @@ static std::string generateRandomString(size_t length) {
     return result;
 }
 
-// 验证 HTTP 请求中的 Bearer Token
-// 从 Authorization 头提取 token → Redis 查找对应 user_id → 返回 UserInfo
-std::shared_ptr<UserInfo> Auth::verify(const web::http::http_request& req) {
-    // 1. 检查是否存在 Authorization 头
-    auto auth_hdr = req.headers().find(web::http::header_names::authorization);
-    if (auth_hdr == req.headers().end()) {
-        LOG_WARN("[Auth] No Authorization header found");
-        return nullptr;
-    }
+std::shared_ptr<UserInfo> Auth::verify(const std::string& auth_header) {
+    std::string auth = auth_header;
+    if (auth.empty()) return nullptr;
 
-    // 2. 验证格式为 "Bearer <token>"
-    const auto& auth = auth_hdr->second;
     if (auth.size() < 7 || (auth.substr(0, 7) != "Bearer " && auth.substr(0, 7) != "bearer ")) {
-        LOG_WARN("[Auth] Invalid Authorization format: " + utility::conversions::to_utf8string(auth));
         return nullptr;
     }
     std::string token = auth.substr(7);
-
-    // 移除 token 中可能的空白字符
     token.erase(std::remove_if(token.begin(), token.end(), ::isspace), token.end());
-    if (token.empty()) {
-        LOG_WARN("[Auth] Token is empty after removing whitespace");
-        return nullptr;
+    if (token.empty()) return nullptr;
+
+    // 先查本地 LRU 缓存
+    {
+        std::lock_guard<std::mutex> lock(cacheMutex_);
+        auto it = tokenCache_.find(token);
+        if (it != tokenCache_.end()) {
+            auto now = std::chrono::steady_clock::now();
+            if (it->second->second.expire_at > now) {
+                auto user = std::make_shared<UserInfo>();
+                user->user_id = it->second->second.user_id;
+                // 命中：移到链表头部（最近使用），滑动过期
+                it->second->second.expire_at = now + std::chrono::seconds(TOKEN_CACHE_TTL_SECONDS);
+                lruList_.splice(lruList_.begin(), lruList_, it->second);
+                MetricsCollector::instance().recordCacheHit("lru", true);
+                return user;
+            }
+            // 已过期，移除
+            lruList_.erase(it->second);
+            tokenCache_.erase(it);
+        }
     }
 
-    // 3. 从 Redis 查找 token 对应的 user_id
-    LOG_INFO("[Auth] 验证 token: " + token.substr(0, 8) + "...");
+    // 本地缓存未命中，查 Redis
+    MetricsCollector::instance().recordCacheHit("lru", false);
     std::string key = "auth_token:" + token;
     RedisClient& redis = RedisClient::instance();
     std::string userIdStr = redis.get(key);
 
-    // 清理 userIdStr 中的空白字符
     userIdStr.erase(std::remove_if(userIdStr.begin(), userIdStr.end(), ::isspace), userIdStr.end());
     if (userIdStr.empty()) {
-        LOG_WARN("[Auth] Token 无效或已过期");
+        MetricsCollector::instance().recordCacheHit("redis", false);
         return nullptr;
     }
 
-    // 4. 解析 user_id 并返回 UserInfo
     try {
         int user_id = std::stoi(userIdStr);
         auto user = std::make_shared<UserInfo>();
         user->user_id = user_id;
+
+        MetricsCollector::instance().recordCacheHit("redis", true);
+
+        // 滑动过期：刷新 Redis TTL
+        redis.expire(key, 86400);
+
+        // 写入本地缓存
+        {
+            std::lock_guard<std::mutex> lock(cacheMutex_);
+            // 超过容量时清理过期条目
+            if (tokenCache_.size() >= TOKEN_CACHE_CAPACITY) {
+                cleanExpiredCache();
+            }
+            // 仍超容量，淘汰链表尾部（最久未使用）
+            if (tokenCache_.size() >= TOKEN_CACHE_CAPACITY) {
+                auto& lru_back = lruList_.back();
+                tokenCache_.erase(lru_back.first);
+                lruList_.pop_back();
+            }
+            // 插入到链表头部（最近使用）
+            lruList_.emplace_front(token, CacheEntry{user_id,
+                std::chrono::steady_clock::now() + std::chrono::seconds(TOKEN_CACHE_TTL_SECONDS)});
+            tokenCache_[token] = lruList_.begin();
+        }
+
         return user;
     } catch (const std::exception& e) {
         LOG_ERROR("[Auth] Failed to parse user ID from Redis: " + std::string(e.what()));
@@ -80,30 +140,36 @@ std::shared_ptr<UserInfo> Auth::verify(const web::http::http_request& req) {
     }
 }
 
-// 生成认证 Token：创建 32 位随机字符串，存入 Redis 并设置 24 小时过期
 std::string Auth::generateToken(int user_id, const std::string& /* username */) {
     std::string token = generateRandomString(32);
     std::string key = "auth_token:" + token;
     RedisClient& redis = RedisClient::instance();
 
-    // 存储 token → user_id 映射
-    if (!redis.set(key, std::to_string(user_id))) {
+    if (!redis.setex(key, std::to_string(user_id), 86400)) {
         LOG_ERROR("Failed to store auth token in Redis");
-        return ""; // 返回空字符串表示失败
+        return "";
     }
 
-    // 设置 24 小时过期，过期后 token 自动失效
-    if (!redis.expire(key, 86400)) {
-        LOG_ERROR("Failed to set token expiration in Redis");
-        redis.del(key); // 清理已设置的 key
-        return "";
+    // 同时写入本地缓存（插入头部）
+    {
+        std::lock_guard<std::mutex> lock(cacheMutex_);
+        lruList_.emplace_front(token, CacheEntry{user_id,
+            std::chrono::steady_clock::now() + std::chrono::seconds(TOKEN_CACHE_TTL_SECONDS)});
+        tokenCache_[token] = lruList_.begin();
     }
 
     return token;
 }
 
-// 撤销 Token：从 Redis 中删除，立即失效
 void Auth::revokeToken(const std::string& token) {
     std::string key = "auth_token:" + token;
     RedisClient::instance().del(key);
+
+    // 同时删除本地缓存
+    std::lock_guard<std::mutex> lock(cacheMutex_);
+    auto it = tokenCache_.find(token);
+    if (it != tokenCache_.end()) {
+        lruList_.erase(it->second);
+        tokenCache_.erase(it);
+    }
 }

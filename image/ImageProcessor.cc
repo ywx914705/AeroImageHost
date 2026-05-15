@@ -34,33 +34,26 @@ static bool ensureVips() {
 }
 
 bool ImageProcessor::getImageSize(const std::vector<char>& data, int& width, int& height) {
+    if (data.empty()) return false;
+    return getImageSize(reinterpret_cast<const unsigned char*>(data.data()), data.size(), width, height);
+}
+
+bool ImageProcessor::getImageSize(const unsigned char* data, size_t len, int& width, int& height) {
     if (!ensureVips()) return false;
-    
-    if (data.empty()) {
-        LOG_ERROR("getImageSize: input data is empty");
-        return false;
-    }
-    
-    // 注意：vips_image_new_from_buffer 返回 VipsImage*，失败时返回 NULL
+    if (!data || len == 0) return false;
+
     VipsImage* img = vips_image_new_from_buffer(
-        reinterpret_cast<const void*>(data.data()),
-        data.size(),
-        nullptr,   // option_string
-        nullptr    // 参数列表结束标志
-    );
-    
+        reinterpret_cast<const void*>(data), len, nullptr, nullptr);
+
     if (img == nullptr) {
-        // 获取 libvips 错误信息并记录
         const char* err = vips_error_buffer();
         if (err && strlen(err) > 0) {
             LOG_ERROR("vips_image_new_from_buffer failed: " + std::string(err));
             vips_error_clear();
-        } else {
-            LOG_ERROR("vips_image_new_from_buffer failed, data size: " + std::to_string(data.size()));
         }
         return false;
     }
-    
+
     width = img->Xsize;
     height = img->Ysize;
     g_object_unref(img);

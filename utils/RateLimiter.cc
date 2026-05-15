@@ -19,6 +19,7 @@
 #include "RateLimiter.hpp"
 #include "RedisClient.hpp"
 #include "Log.hpp"
+#include <hiredis/hiredis.h>
 #include <sstream>
 
 // 检查某个 key 是否在允许范围内（未超过最大尝试次数）
@@ -28,7 +29,7 @@ bool RateLimiter::isAllowed(const std::string& key, int maxAttempts, int windowS
 
     std::string countStr = redis.get(redisKey);
     if (countStr.empty()) {
-        return true; // No record = allowed
+        return true; // 无记录 = 允许
     }
 
     int count = 0;
@@ -45,19 +46,14 @@ bool RateLimiter::isAllowed(const std::string& key, int maxAttempts, int windowS
     return true;
 }
 
-// 记录一次失败尝试，使用原子 INCR 避免竞态条件
+// 记录一次失败尝试，使用 Lua 脚本保证原子递增+过期设置
 void RateLimiter::recordFailure(const std::string& key, int windowSeconds) {
     std::string redisKey = "ratelimit:" + key;
     RedisClient& redis = RedisClient::instance();
 
-    // 原子递增，Redis INCR 在 key 不存在时自动创建并初始化为 0
-    long long count = redis.incr(redisKey);
-    if (count == 1) {
-        // 首次失败，设置过期时间
-        redis.expire(redisKey, windowSeconds);
-    }
-    // 每次递增后刷新过期时间，确保窗口从最后一次失败开始计时
-    redis.expire(redisKey, windowSeconds);
+    // 使用 incrWithExpire 保证 INCR + EXPIRE 原子执行
+    // 首次递增时自动设置过期时间，后续递增不重置 TTL
+    redis.incrWithExpire(redisKey, windowSeconds);
 }
 
 // 重置计数器（登录成功后调用）
@@ -76,4 +72,13 @@ int RateLimiter::getRemainingAttempts(const std::string& key, int maxAttempts, i
     try { count = std::stoi(countStr); } catch (...) {}
     int remaining = maxAttempts - count;
     return remaining > 0 ? remaining : 0;
+}
+
+bool RateLimiter::allowConsume(const std::string& key, int maxPerWindow, int windowSeconds) {
+    std::string redisKey = "ratelimit:consume:" + key;
+    long long v = RedisClient::instance().incrWithExpire(redisKey, windowSeconds);
+    if (v < 0) {
+        return true;
+    }
+    return v <= static_cast<long long>(maxPerWindow);
 }

@@ -46,3 +46,12 @@ bool isValidImageMimeType(const std::string& mime);
 std::string getUserFilesKey(int userId, int page, int pageSize);
 // Redis 键名生成：文件浏览次数 key
 std::string getFileViewsKey(const std::string& fileId);
+
+// 将 RapidJSON Document 序列化为 JSON 字符串（别名）
+std::string docToString(const rapidjson::Document& doc);
+// 创建错误响应 JSON 字符串
+std::string errorResponse(const std::string& msg);
+// 根据错误消息推断合适的 HTTP 状态码
+int errorToHttpStatus(const std::string& errorMsg);
+// 过滤文件名中的危险字符（控制字符、双引号、反斜杠），防止 HTTP 头注入
+std::string sanitizeFilename(const std::string& filename);

@@ -1,4 +1,11 @@
-// AeroQueue 实现：基于无锁队列 + 条件变量的异步任务队列
+/*
+ * AeroQueue.cc - 异步任务队列实现
+ *
+ * 在项目中的作用：提供异步任务执行能力，将耗时操作（MinIO上传、文件删除等）从 Drogon 工作线程卸载。
+ * 核心机制：基于 moodycamel::ConcurrentQueue（无锁队列）+ 条件变量，4 个工作线程消费任务。
+ * 使用方式：AeroQueue::instance().post(lambda) 投递任务，工作线程异步执行。
+ * 典型场景：直接上传、预签名确认、分片合并/清理、批量删除等 MinIO I/O 密集型操作。
+ */
 #include "AeroQueue.hpp"
 #include "Log.hpp"
 #include <iostream>
@@ -39,11 +46,14 @@ void AeroQueue::workerThread() {
     while (!stopped_) {
         Task task;
         if (tasks_.try_dequeue(task)) {
+            total_tasks_++;
             try {
                 task();
             } catch (const std::exception& e) {
+                failed_tasks_++;
                 LOG_ERROR("[AeroQueue] 任务异常: " + std::string(e.what()));
             } catch (...) {
+                failed_tasks_++;
                 LOG_ERROR("[AeroQueue] 未知异常");
             }
         } else {

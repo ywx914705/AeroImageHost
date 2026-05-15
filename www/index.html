@@ -2,13 +2,19 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="AeroImageHost 高性能图床：快速上传、图片与文件管理、缩略图与预签名直传，支持私有化部署。">
+<meta name="theme-color" content="#2563eb">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AeroImageHost · 极速图床">
+<meta property="og:description" content="现代化图床与文件托管，高性能后端与 MinIO 对象存储，支持 Docker 一键部署。">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/logo.png">
 <title>AeroImageHost · 极速图床</title>
-<link rel="icon" href="https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29" type="image/x-icon">
 
 <!-- 必要的CSS -->
-<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link rel="stylesheet" href="/assets/element-plus.css">
+<link rel="stylesheet" href="/assets/font-awesome.css">
 
 <style>
     /* 基础样式 */
@@ -92,6 +98,14 @@
 
     [data-theme="dark"] body::before {
         background: linear-gradient(160deg, #0f172a 0%, #1e293b 30%, #0f172a 60%, #1a1f2e 100%);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: 0.001ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.001ms !important;
+        }
     }
 
     .bg-slideshow { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; }
@@ -1245,7 +1259,7 @@
         <div v-if="!token">
             <div class="guest-navbar">
                 <div class="brand-logo">
-                    <span class="brand-icon"><img src="https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29" alt="AeroImageHost"></span>
+                    <span class="brand-icon"><img src="/assets/logo.png" alt="AeroImageHost"></span>
                     <span class="brand-text">AeroImageHost</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 1rem;">
@@ -1650,7 +1664,7 @@
         <div v-else>
             <div class="navbar">
                 <div class="brand-logo">
-                    <span class="brand-icon"><img src="https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29" alt="AeroImageHost"></span>
+                    <span class="brand-icon"><img src="/assets/logo.png" alt="AeroImageHost"></span>
                     <span class="brand-text">AeroImageHost</span>
                 </div>
                 <div class="user-area">
@@ -1662,6 +1676,7 @@
                         <span style="cursor: pointer; background: var(--bg-secondary); padding: 0.5rem 0.9rem; border-radius: 30px; border: 1px solid var(--navbar-border);"><i class="fas fa-cog" style="color: var(--text-secondary);"></i></span>
                         <template #dropdown>
                             <el-dropdown-menu>
+                                <el-dropdown-item command="monitor"><i class="fas fa-tachometer-alt"></i> 系统监控</el-dropdown-item>
                                 <el-dropdown-item command="stats"><i class="fas fa-chart-bar"></i> 使用统计</el-dropdown-item>
                                 <el-dropdown-item command="shortcuts"><i class="fas fa-keyboard"></i> 快捷键</el-dropdown-item>
                                 <el-dropdown-item command="logout" divided style="color: #ef4444;"><i class="fas fa-sign-out-alt"></i> 退出登录</el-dropdown-item>
@@ -1792,7 +1807,7 @@
                                 <el-checkbox v-model="file.selected" @change="handleFileSelect(file)"></el-checkbox>
                             </div>
                             <div class="file-thumb">
-                                <img v-if="isImageFile(file)" :src="getImageSrc(file)" :alt="file.filename" loading="lazy" @error="handleImageError" />
+                                <img v-if="isImageFile(file)" :src="getImageSrc(file)" :alt="file.filename" loading="lazy" decoding="async" @error="handleImageError" />
                                 <div v-else class="file-icon-container">
                                     <i :class="getFileIconClass(file)" class="file-icon-large" :style="{ color: getFileColor(file) }"></i>
                                     <span class="file-extension-tag" :style="{ backgroundColor: getFileColor(file) }">{{ getFileExtension(file.filename) }}</span>
@@ -1870,7 +1885,7 @@
                 <div class="file-detail-header">
                     <!-- 图片预览 -->
                     <div class="file-detail-preview" v-if="isImageFile(detailFile)" @click="previewFromDetail(detailFile)" style="cursor: pointer;">
-                        <img :src="getImageSrc(detailFile)" />
+                        <img :src="getImageSrc(detailFile)" :alt="detailFile.filename" loading="lazy" decoding="async" />
                     </div>
                     <!-- 其他文件图标 -->
                     <div class="file-detail-preview" v-else-if="!isPdfFile(detailFile) && !isVideoFile(detailFile) && !isAudioFile(detailFile) && !isTextFile(detailFile)">
@@ -1949,7 +1964,7 @@
 
         <!-- 图片预览弹窗 -->
         <div v-if="previewImage" class="image-preview-overlay" @click="closeImagePreview">
-            <img :src="getImageSrc(previewImage)" :alt="previewImage.filename" @click.stop />
+            <img :src="getImageSrc(previewImage)" :alt="previewImage.filename" loading="eager" decoding="async" @click.stop />
             <div class="image-preview-close" @click="closeImagePreview">
                 <i class="fas fa-times"></i>
             </div>
@@ -1963,7 +1978,7 @@
         <el-dialog v-model="showAuthModal" :close-on-click-modal="false" width="850px" center>
             <div style="display: flex; border-radius: 12px; overflow: hidden; min-height: 460px;">
                 <div style="width: 40%; background: linear-gradient(135deg, #2563eb, #0ea5e9); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem; color: white;">
-                    <div style="margin-bottom: 1rem;"><img src="https://imagehost.aeroserver.ccwu.cc/api/i/0c4c7edb-f2d0-421a-95c0-f5b706ab7b29" alt="AeroImageHost" style="width: 120px; height: 120px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);"></div>
+                    <div style="margin-bottom: 1rem;"><img src="/assets/logo.png" alt="AeroImageHost" style="width: 120px; height: 120px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);"></div>
                     <div style="font-size: 2rem; font-weight: 800; margin-bottom: 0.4rem;">AeroImageHost</div>
                     <div style="font-size: 0.95rem; opacity: 0.85; text-align: center; line-height: 1.6;">极速 · 安全 · 云存储<br>文件轻松上传与分享</div>
                 </div>
@@ -2007,11 +2022,10 @@
 </div>
 
 <!-- 外部资源加载 -->
-<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="https://unpkg.com/element-plus"></script>
-<script src="https://unpkg.com/@vueuse/components"></script>
-<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-<script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+<script src="/assets/vue.global.prod.js"></script>
+<script src="/assets/element-plus.js"></script>
+<script src="/assets/axios.min.js"></script>
+<script src="/assets/dayjs.min.js"></script>
 
 <script>
     // 全局错误处理
@@ -2536,8 +2550,9 @@
                         return colorMap[ext] || '#64748b';
                     };
 
+                    const THUMB_GRID_SIZE = 200;
                     const getFileUrl = (fileId, thumbnail = false) => {
-                        return `${API_BASE}/i/${fileId}${thumbnail ? '?w=200&h=200' : ''}`;
+                        return `${API_BASE}/i/${fileId}${thumbnail ? `?size=${THUMB_GRID_SIZE}` : ''}`;
                     };
 
                     // 获取图片 src：优先使用 presign_url（已签名直链，<img> 可直接加载）
@@ -2641,8 +2656,16 @@
 
                     // 加载站点统计
                     const loadStats = async () => {
+                        const t = token.value || localStorage.getItem('token');
+                        if (!t) {
+                            stats.total_users = stats.total_files = stats.total_images = 0;
+                            return;
+                        }
                         try {
-                            const res = await axios.get('/api/stats', { timeout: 5000 });
+                            const res = await axios.get('/api/stats', {
+                                timeout: 5000,
+                                headers: { Authorization: `Bearer ${t}` }
+                            });
                             if (res.data) {
                                 stats.total_users = res.data.total_users || 0;
                                 stats.total_files = res.data.total_files || 0;
@@ -2660,8 +2683,8 @@
                     });
 
                     api.interceptors.request.use(config => {
-                        // Skip auth for login/register endpoints
-                        if (config.url.includes('/auth/login') || config.url.includes('/auth/register')) {
+                        const publicAuthPaths = ['/auth/login', '/auth/register', '/auth/send-code', '/auth/email-register'];
+                        if (publicAuthPaths.some(p => config.url.includes(p))) {
                             return config;
                         }
                         const currentToken = token.value || localStorage.getItem('token') || '';
@@ -2733,6 +2756,7 @@
                             localStorage.setItem('user_id', user_id.value.toString());
 
                             ElMessage?.success?.('登录成功');
+                            await loadStats();
                             await loadFiles(true); // 强制刷新
                         } catch (err) {
                             const errData = err.response?.data;
@@ -2847,8 +2871,15 @@
                                 }
                             }, 1000);
                         } catch (err) {
-                            const errorMsg = translateError(err.response?.data?.error || err.message || '发送验证码失败');
-                            ElMessage?.error?.(errorMsg);
+                            const status = err.response?.status;
+                            const body = err.response?.data;
+                            if (status === 429 && body?.retry_after_seconds) {
+                                const sec = body.retry_after_seconds;
+                                ElMessage?.error?.(`请求过于频繁，请约 ${Math.ceil(sec / 60)} 分钟后再试`);
+                            } else {
+                                const errorMsg = translateError(body?.error || err.message || '发送验证码失败');
+                                ElMessage?.error?.(errorMsg);
+                            }
                         } finally {
                             codeSending.value = false;
                         }
@@ -3636,6 +3667,9 @@
                             case 'logout':
                                 handleLogout();
                                 break;
+                            case 'monitor':
+                                window.open('/monitor/dashboard.html', '_blank', 'noopener,noreferrer');
+                                break;
                             case 'stats':
                                 const stats = {
                                     totalFiles: files.value.length,
@@ -3673,13 +3707,8 @@
 
                     // 挂载时加载文件
                     onMounted(() => {
-                        // 加载站点统计（无论登录与否）
-                        loadStats();
-
-                        // 设置粘贴事件监听
                         document.addEventListener('paste', handlePaste);
 
-                        // 从 localStorage 恢复登录状态
                         const storedToken = localStorage.getItem('token');
                         const storedUserId = localStorage.getItem('user_id');
 
@@ -3703,6 +3732,7 @@
                             }
 
                             if (user_id.value > 0) {
+                                loadStats();
                                 loadFiles(true);
                             } else {
                                 ElMessage?.error?.('用户ID无效，请重新登录');

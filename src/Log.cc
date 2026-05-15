@@ -1,3 +1,11 @@
+/*
+ * Log.cc - 异步日志系统实现
+ *
+ * 在项目中的作用：提供高性能的异步文件日志，不阻塞业务线程。
+ * 核心机制：双缓冲 + 后台线程，前端写入当前缓冲区，后台定时（3秒）将缓冲区内容批量写入文件。
+ * 日志格式：JSON 结构化（{"timestamp":"...","level":"...","message":"..."}），便于 ELK 等工具分析。
+ * 使用方式：LOG_INFO("message"), LOG_ERROR("message"), LOG_WARN("message") 宏。
+ */
 #include "Log.hpp"
 #include <chrono>
 #include <ctime>
@@ -7,18 +15,25 @@
 #include <iomanip>
 
 AsyncLog::AsyncLog()
-    : running_(false), flushInterval_(3), buffer_(BUFFER_SIZE), nextBuffer_(BUFFER_SIZE) {
+    : running_(false), flushInterval_(3), buffer_(BUFFER_SIZE), nextBuffer_(BUFFER_SIZE),
+      maxFileSize_(50 * 1024 * 1024), currentFileSize_(0), fileIndex_(0) {
     buffer_.clear();   // size = 0, capacity = BUFFER_SIZE
     nextBuffer_.clear();
 }
 
-void AsyncLog::init(const std::string& filename, int flushInterval) {
+void AsyncLog::init(const std::string& filename, int flushInterval, int maxFileSizeMB) {
     filename_ = filename;
     flushInterval_ = flushInterval;
+    maxFileSize_ = static_cast<size_t>(maxFileSizeMB) * 1024 * 1024;
+    currentFileSize_ = 0;
+    fileIndex_ = 0;
     file_.open(filename, std::ios::app | std::ios::out);
     if (!file_.is_open()) {
         throw std::runtime_error("Log file open failed: " + filename);
     }
+    // 获取当前文件大小，用于判断是否需要轮转
+    file_.seekp(0, std::ios::end);
+    currentFileSize_ = static_cast<size_t>(file_.tellp());
     running_ = true;
     thread_ = std::thread(&AsyncLog::threadFunc, this);
 }
@@ -37,23 +52,38 @@ void AsyncLog::write(LogLevel level, const std::string& msg) {
         case LogLevel::ERROR: levelStr = "ERROR"; break;
     }
 
-    // 格式化时间：2026-05-06T10:30:00.123Z
+    // 格式化时间：2026-05-06T10:30:00.123Z（使用线程安全的 localtime_r）
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
     std::stringstream ss;
-    ss << std::put_time(std::localtime(&t), "%Y-%m-%dT%H:%M:%S");
+    ss << std::put_time(&tm_buf, "%Y-%m-%dT%H:%M:%S");
     ss << "." << std::setfill('0') << std::setw(3) << ms.count();
 
-    // 简单 JSON 序列化（避免依赖外部库）
-    std::string escaped_msg = msg;
-    // 转义 JSON 特殊字符
-    size_t pos = 0;
-    while ((pos = escaped_msg.find('"', pos)) != std::string::npos) {
-        escaped_msg.replace(pos, 1, "\\\"");
-        pos += 2;
-    }
-    pos = 0;
-    while ((pos = escaped_msg.find('\n', pos)) != std::string::npos) {
-        escaped_msg.replace(pos, 1, "\\n");
-        pos += 2;
+    // 完整 JSON 字符串转义（RFC 8259）
+    std::string escaped_msg;
+    escaped_msg.reserve(msg.size() + msg.size() / 4);
+    for (unsigned char c : msg) {
+        switch (c) {
+            case '"':  escaped_msg += "\\\""; break;
+            case '\\': escaped_msg += "\\\\"; break;
+            case '\n': escaped_msg += "\\n";  break;
+            case '\r': escaped_msg += "\\r";  break;
+            case '\t': escaped_msg += "\\t";  break;
+            case '\b': escaped_msg += "\\b";  break;
+            case '\f': escaped_msg += "\\f";  break;
+            default:
+                if (c < 0x20) {
+                    char buf[8];
+                    snprintf(buf, sizeof(buf), "\\u%04x", c);
+                    escaped_msg += buf;
+                } else {
+                    escaped_msg += static_cast<char>(c);
+                }
+        }
     }
 
     std::string logLine = "{\"timestamp\":\"" + ss.str() + "\",\"level\":\"" + levelStr +
@@ -122,10 +152,14 @@ void AsyncLog::threadFunc() {
             buffersToWrite.swap(buffers_);
         }
 
-        // 写入文件（无锁）
+        // 写入文件（无锁），超限时执行轮转
         for (const auto& buf : buffersToWrite) {
             if (!buf.empty()) {
+                if (currentFileSize_ + buf.size() > maxFileSize_) {
+                    rotateLog();
+                }
                 file_.write(buf.data(), buf.size());
+                currentFileSize_ += buf.size();
             }
         }
         file_.flush();
@@ -142,4 +176,15 @@ void AsyncLog::threadFunc() {
             }
         }
     }
+}
+
+void AsyncLog::rotateLog() {
+    file_.flush();
+    file_.close();
+    fileIndex_++;
+    // 生成轮转文件名：app.log.1, app.log.2, ...
+    std::string rotatedName = filename_ + "." + std::to_string(fileIndex_);
+    std::rename(filename_.c_str(), rotatedName.c_str());
+    file_.open(filename_, std::ios::app | std::ios::out);
+    currentFileSize_ = 0;
 }

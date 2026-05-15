@@ -33,6 +33,6 @@ CREATE TABLE IF NOT EXISTS files (
     allow_domains VARCHAR(512) DEFAULT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY file_id (file_id),
-    KEY user_id (user_id),
+    KEY idx_user_upload (user_id, upload_time),
     KEY upload_time (upload_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

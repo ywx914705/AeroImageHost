@@ -24,10 +24,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-static std::random_device rd;
-static std::mt19937 gen(rd());
-static std::uniform_int_distribution<> dis(0, 15);
-static std::uniform_int_distribution<> dis2(8, 11);
+static thread_local std::random_device rd;
+static thread_local std::mt19937 gen(rd());
+static thread_local std::uniform_int_distribution<> dis(0, 15);
+static thread_local std::uniform_int_distribution<> dis2(8, 11);
 
 std::string generateUUID() {
     std::stringstream ss;
@@ -48,7 +48,13 @@ std::string generateUUID() {
 std::string getCurrentTime() {
     time_t now = time(nullptr);
     char buf[20];
-    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&now));
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &now);
+#else
+    localtime_r(&now, &tm_buf);
+#endif
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm_buf);
     return buf;
 }
 
@@ -179,6 +185,7 @@ std::string getMimeTypeFromExtension(const std::string& filename) {
         {"avi", "video/x-msvideo"},
         {"mov", "video/quicktime"},
         {"wmv", "video/x-ms-wmv"},
+        {"mkv", "video/x-matroska"},
         // 音频
         {"mp3", "audio/mpeg"},
         {"wav", "audio/wav"},
@@ -198,4 +205,50 @@ bool isValidImageMimeType(const std::string& mime) {
            mime == "image/gif" || mime == "image/webp" ||
            mime == "image/bmp" || mime == "image/svg+xml" ||
            mime == "image/tiff";
+}
+
+// 将 RapidJSON Document 序列化为 JSON 字符串
+std::string docToString(const rapidjson::Document& doc) {
+    return serializeJson(doc);
+}
+
+// 创建错误响应 JSON 字符串
+std::string errorResponse(const std::string& msg) {
+    rapidjson::Document doc;
+    doc.SetObject();
+    doc.AddMember("error", rapidjson::Value(msg.c_str(), doc.GetAllocator()), doc.GetAllocator());
+    return serializeJson(doc);
+}
+
+// 根据错误消息关键词推断 HTTP 状态码
+int errorToHttpStatus(const std::string& errorMsg) {
+    if (errorMsg.find("not found") != std::string::npos ||
+        errorMsg.find("Not found") != std::string::npos)
+        return 404;
+    if (errorMsg.find("Permission denied") != std::string::npos ||
+        errorMsg.find("Admin access") != std::string::npos)
+        return 403;
+    if (errorMsg.find("Unauthorized") != std::string::npos ||
+        errorMsg.find("Invalid or expired") != std::string::npos ||
+        errorMsg.find("Invalid credentials") != std::string::npos)
+        return 401;
+    if (errorMsg.find("Too many") != std::string::npos)
+        return 429;
+    if (errorMsg.find("exists") != std::string::npos ||
+        errorMsg.find("Already") != std::string::npos)
+        return 409;
+    return 400;
+}
+
+std::string sanitizeFilename(const std::string& filename) {
+    std::string result;
+    result.reserve(filename.size());
+    for (unsigned char c : filename) {
+        if (c < 0x20 || c == 0x7F || c == '"' || c == '\\') {
+            result += '_';
+        } else {
+            result += static_cast<char>(c);
+        }
+    }
+    return result;
 }

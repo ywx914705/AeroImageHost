@@ -16,11 +16,14 @@
 #define IMAGEPROCESSOR_HPP
 
 #include <vector>
+#include <cstddef>
 
 class ImageProcessor {
 public:
     // 获取图片尺寸：从内存中的图片数据读取宽高，失败返回 false
     static bool getImageSize(const std::vector<char>& data, int& width, int& height);
+    // 获取图片尺寸（零拷贝版本，直接接受原始指针）
+    static bool getImageSize(const unsigned char* data, size_t len, int& width, int& height);
     // 生成缩略图：将 src 中的图片按 maxWidth × maxHeight 缩放，输出为 JPEG 格式到 dst
     static bool generateThumbnail(const std::vector<char>& src, std::vector<char>& dst,
                                   int maxWidth, int maxHeight);

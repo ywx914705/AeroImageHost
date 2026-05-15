@@ -20,26 +20,43 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <chrono>
 #include <condition_variable>
 
 class RedisClient {
 public:
     static RedisClient& instance(); // 获取单例实例
 
-    // 初始化连接池：创建指定数量的 Redis 连接
-    bool init(const std::string& host, int port, int poolSize = 8);
+    // 初始化连接池：创建指定数量的 Redis 连接（password 为空则不发 AUTH，兼容无密码 Redis）
+    bool init(const std::string& host, int port, int poolSize = 32, const std::string& password = "");
     // 获取一个可用连接（带 3 秒超时等待 + 健康检查 + 自动重建）
     redisContext* getContext();
     // 归还连接到连接池
     void releaseContext(redisContext* ctx);
 
+    // 获取连接池统计信息：活跃连接数、空闲连接数
+    struct Stats {
+        int active = 0;   // 活跃连接数 = 总大小 - 空闲数
+        int idle = 0;     // 空闲连接数
+    };
+    Stats getStats();
+
+    // 执行 PING 命令（用于预热和健康检查）
+    std::string ping();
+    // 获取 key 的类型（用于缓存兼容性检查）
+    std::string type(const std::string& key);
+
     // ========== String 操作 ==========
     bool set(const std::string& key, const std::string& value);   // 设置键值对
+    bool setex(const std::string& key, const std::string& value, int seconds); // 原子设置键值对+过期时间
     std::string get(const std::string& key);                       // 获取值
     bool del(const std::string& key);                              // 删除键
     bool expire(const std::string& key, int seconds);              // 设置过期时间
     bool exists(const std::string& key);                           // 检查键是否存在
     long long incr(const std::string& key);                        // 原子递增，返回递增后的值
+    long long incrWithExpire(const std::string& key, int seconds); // 原子递增+设置过期（Lua 脚本）
+    // SET key value NX EX ttl — 仅当 key 不存在时写入；用于缩略图生成互斥，避免惊群重复拉原图
+    bool setNxEx(const std::string& key, const std::string& value, int seconds);
 
     // ========== Set 操作 ==========
     long long sadd(const std::string& key, const std::string& member);   // 添加元素到集合
@@ -67,13 +84,18 @@ public:
     // ========== 批量操作（pipeline） ==========
     // 批量获取多个 key 的同一字段值（减少网络往返）
     std::vector<std::string> multiHget(const std::vector<std::string>& keys, const std::string& field);
+    // 批量删除多个 key（pipeline，一次网络往返）
+    long long delBatch(const std::vector<std::string>& keys);
+    // 批量设置 Hash 字段并指定 TTL
+    bool hsetex(const std::string& key, const std::unordered_map<std::string, std::string>& fields, int seconds);
 
 private:
     RedisClient() = default;
-    std::queue<redisContext*> pool_;      // 空闲连接队列
+    std::queue<std::pair<redisContext*, std::chrono::steady_clock::time_point>> pool_;      // 空闲连接队列
     std::mutex mutex_;                     // 保护连接队列的互斥锁
     std::condition_variable cv_;           // 连接可用时的通知机制
     std::string host_;                     // Redis 服务器地址
     int port_;                             // Redis 端口
     int poolSize_;                         // 连接池大小
+    std::string password_;                 // requirepass / ACL 密码（可为空）
 };

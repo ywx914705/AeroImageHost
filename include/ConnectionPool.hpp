@@ -20,6 +20,7 @@
 #include <condition_variable>
 #include <thread>
 #include <chrono>
+#include <atomic>
 
 class ConnectionPool {
 public:
@@ -28,11 +29,19 @@ public:
     // 初始化连接池：创建指定数量的 MySQL 连接
     bool init(const std::string& host, const std::string& user,
               const std::string& passwd, const std::string& db,
-              unsigned int port = 3306, int poolSize = 128);
+              unsigned int port = 3306, int poolSize = 64);
 
     MYSQL* getConnection();                    // 获取一个可用连接（带超时等待）
     void releaseConnection(MYSQL* conn);       // 归还连接到连接池
     void close();                              // 关闭所有连接
+
+    // 获取连接池统计信息：活跃连接数、空闲连接数、等待连接数
+    struct Stats {
+        int active = 0;   // 活跃连接数 = 总大小 - 空闲数
+        int idle = 0;     // 空闲连接数
+        int waiting = 0;  // 等待连接的线程数
+    };
+    Stats getStats();
 
     ConnectionPool(const ConnectionPool&) = delete;            // 禁止拷贝
     ConnectionPool& operator=(const ConnectionPool&) = delete;
@@ -49,11 +58,12 @@ private:
     std::string passwd_;  // 数据库密码
     std::string db_;      // 数据库名
     unsigned int port_;   // 数据库端口（默认 3306）
-    int poolSize_;        // 连接池大小
+    int poolSize_ = 0;    // 连接池大小
 
     // 空闲连接队列，每个连接记录上次验证时间
     std::queue<std::pair<MYSQL*, std::chrono::steady_clock::time_point>> connections_;
     std::mutex mutex_;                   // 保护连接队列的互斥锁
     std::condition_variable cv_;         // 条件变量：连接可用时通知等待线程
     bool stopped_ = false;              // 连接池是否已关闭
+    std::atomic<int> waitingCount_{0};  // 等待连接的线程数
 };

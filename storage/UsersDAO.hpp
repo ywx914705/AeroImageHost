@@ -36,6 +36,9 @@ public:
     // 获取注册用户总数
     int getUserCount();
 
+    // 更新用户密码哈希（用于自动升级旧格式密码）
+    bool updatePasswordHash(int user_id, const std::string& newHash);
+
 private:
     UsersDAO() = default;
     ~UsersDAO() = default;

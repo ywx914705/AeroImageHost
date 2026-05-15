@@ -3,6 +3,12 @@ project(AeroImageHost)
 
 set(CMAKE_CXX_STANDARD 17)
 
+list(APPEND CMAKE_PREFIX_PATH "/usr/local")
+if(DEFINED ENV{HOME})
+    list(APPEND CMAKE_PREFIX_PATH "$ENV{HOME}/.local")
+endif()
+
+find_package(Drogon CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VIPS REQUIRED vips)
 find_package(CURL REQUIRED)
@@ -32,6 +38,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/image
     ${CMAKE_SOURCE_DIR}/utils
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/monitor
     ${MYSQL_INCLUDE_DIR}
     ${VIPS_INCLUDE_DIRS}
     ${CURL_INCLUDE_DIRS}
@@ -43,22 +50,22 @@ include_directories(
 file(GLOB_RECURSE SOURCES
     "config/*.cc"
     "http/*.cc"
+    "http/Controllers/*.cc"
+    "http/Filters/*.cc"
     "storage/*.cc"
     "image/*.cc"
     "utils/*.cc"
     "src/*.cc"
+    "monitor/*.cc"
     "main.cc"
 )
 
-# 添加新创建的文件
-list(APPEND SOURCES
-    "storage/EmailVerificationDAO.cpp"
-    "utils/EmailSender.cpp"
-)
+# .cc 文件由 GLOB_RECURSE 自动发现，无需手动追加
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME}
+    Drogon::Drogon
     crypt
     ${VIPS_LIBRARIES}
     OpenSSL::SSL
@@ -66,7 +73,6 @@ target_link_libraries(${PROJECT_NAME}
     ${MYSQL_LIBRARY}
     hiredis
     pthread
-    cpprest
     ssl
     crypto
     miniocpp
@@ -77,3 +83,14 @@ target_link_libraries(${PROJECT_NAME}
     curl
     z
 )
+
+option(BUILD_TESTING "Build and register unit tests" ON)
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(forwarded_for_parse_tests
+        tests/forwarded_for_parse_test.cc
+        utils/ForwardedForParse.cc)
+    target_include_directories(forwarded_for_parse_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/utils)
+    add_test(NAME forwarded_for_parse_tests COMMAND forwarded_for_parse_tests)
+endif()

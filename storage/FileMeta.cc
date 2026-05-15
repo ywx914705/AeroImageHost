@@ -8,11 +8,55 @@
  */
 #include "FileMeta.hpp"
 #include "ConnectionPool.hpp"
+#include "DbGuard.hpp"
 #include "MinIOClient.hpp"
+#include "RedisClient.hpp"
 #include "Log.hpp"
 #include <mysql/mysql.h>
 #include <cstring>
 #include <ctime>
+
+// FileMeta 序列化为 Redis Hash 字段映射
+static std::unordered_map<std::string, std::string> metaToHash(const FileMeta& m) {
+    return {
+        {"file_id", m.file_id},
+        {"user_id", std::to_string(m.user_id)},
+        {"filename", m.filename},
+        {"size", std::to_string(m.size)},
+        {"mime_type", m.mime_type},
+        {"width", std::to_string(m.width)},
+        {"height", std::to_string(m.height)},
+        {"upload_time", std::to_string(static_cast<long long>(m.upload_time))},
+        {"is_public", std::to_string(m.is_public ? 1 : 0)},
+        {"view_count", std::to_string(m.view_count)},
+        {"allow_domains", m.allow_domains}
+    };
+}
+
+// 从 Redis Hash 字段映射反序列化 FileMeta
+static FileMeta hashToMeta(const std::unordered_map<std::string, std::string>& h) {
+    FileMeta m;
+    auto get = [&](const std::string& k, const std::string& def = "") -> const std::string& {
+        auto it = h.find(k);
+        return (it != h.end()) ? it->second : def;
+    };
+    m.file_id = get("file_id");
+    if (m.file_id.empty()) return m;
+    try { m.user_id = std::stoi(get("user_id", "0")); } catch (...) {}
+    m.filename = get("filename");
+    try { m.size = std::stoll(get("size", "0")); } catch (...) {}
+    m.mime_type = get("mime_type");
+    try { m.width = std::stoi(get("width", "0")); } catch (...) {}
+    try { m.height = std::stoi(get("height", "0")); } catch (...) {}
+    try { m.upload_time = std::stoll(get("upload_time", "0")); } catch (...) {}
+    m.is_public = (get("is_public", "0") == "1");
+    try { m.view_count = std::stoll(get("view_count", "0")); } catch (...) {}
+    m.allow_domains = get("allow_domains");
+    return m;
+}
+
+static const std::string META_CACHE_PREFIX = "file_meta:";
+static const int META_CACHE_TTL = 300;
 
 FileMetaDAO& FileMetaDAO::instance() {
     static FileMetaDAO inst;
@@ -82,6 +126,25 @@ bool FileMetaDAO::save(const FileMeta& meta) {
 }
 
 FileMeta FileMetaDAO::get(const std::string& file_id) {
+    // 先查 Redis Hash 缓存
+    std::string cacheKey = META_CACHE_PREFIX + file_id;
+    auto cached = RedisClient::instance().hgetall(cacheKey);
+    if (!cached.empty()) {
+        if (cached.count("__null__")) {
+            FileMeta empty;
+            empty.file_id = "";
+            return empty;
+        }
+        return hashToMeta(cached);
+    }
+
+    // hgetall 返回空可能是 key 不存在，也可能是类型错误（旧版 String 缓存残留）
+    // 尝试删除旧类型 key，下次 MySQL 查询后会以 Hash 格式重新缓存
+    std::string typeCheck = RedisClient::instance().type(cacheKey);
+    if (typeCheck != "none" && typeCheck != "hash") {
+        RedisClient::instance().del(cacheKey);
+    }
+
     FileMeta meta;
     meta.file_id = "";
     MYSQL* conn = getConn();
@@ -143,14 +206,15 @@ FileMeta FileMetaDAO::get(const std::string& file_id) {
     result[9].buffer = allow_buf;
     result[9].buffer_length = sizeof(allow_buf);
 
-    mysql_stmt_bind_result(stmt, result);
-    mysql_stmt_store_result(stmt);
-
+    // 设置 is_null 标志（必须在 mysql_stmt_bind_result 之前）
     bool file_id_null = false, filename_null = false, mime_null = false, allow_null = false;
     result[0].is_null = &file_id_null;
     result[2].is_null = &filename_null;
     result[4].is_null = &mime_null;
     result[9].is_null = &allow_null;
+
+    mysql_stmt_bind_result(stmt, result);
+    mysql_stmt_store_result(stmt);
 
     if (mysql_stmt_fetch(stmt) == 0) {
         if (!file_id_null) meta.file_id = file_id_buf;
@@ -167,6 +231,15 @@ FileMeta FileMetaDAO::get(const std::string& file_id) {
 
     mysql_stmt_close(stmt);
     releaseConn(conn);
+
+    // 写入 Redis Hash 缓存（存在的记录缓存字段映射，不存在的缓存空值防穿透）
+    if (!meta.file_id.empty()) {
+        RedisClient::instance().hsetex(cacheKey, metaToHash(meta), META_CACHE_TTL);
+    } else {
+        std::unordered_map<std::string, std::string> nullMap = {{"__null__", "1"}};
+        RedisClient::instance().hsetex(cacheKey, nullMap, 30);
+    }
+
     return meta;
 }
 
@@ -179,18 +252,15 @@ int FileMetaDAO::countByUser(int user_id) {
 }
 
 bool FileMetaDAO::del(const std::string& file_id) {
-    MYSQL* conn = getConn();
-    if (!conn) return false;
+    DbGuard guard;
+    if (!guard) return false;
+    MYSQL* conn = guard.get();
 
     const char* sql = "DELETE FROM files WHERE file_id = ?";
     MYSQL_STMT* stmt = mysql_stmt_init(conn);
-    if (!stmt) {
-        releaseConn(conn);
-        return false;
-    }
+    if (!stmt) return false;
     if (mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
         mysql_stmt_close(stmt);
-        releaseConn(conn);
         return false;
     }
 
@@ -204,7 +274,10 @@ bool FileMetaDAO::del(const std::string& file_id) {
     int ret = mysql_stmt_execute(stmt);
     bool success = (ret == 0 && mysql_stmt_affected_rows(stmt) > 0);
     mysql_stmt_close(stmt);
-    releaseConn(conn);
+    // DB 删除成功后再清除缓存
+    if (success) {
+        RedisClient::instance().del(META_CACHE_PREFIX + file_id);
+    }
     return success;
 }
 
@@ -237,6 +310,10 @@ bool FileMetaDAO::updatePublic(const std::string& file_id, bool is_public) {
     int ret = mysql_stmt_execute(stmt);
     mysql_stmt_close(stmt);
     releaseConn(conn);
+    // DB 更新成功后再清除缓存
+    if (ret == 0) {
+        RedisClient::instance().del(META_CACHE_PREFIX + file_id);
+    }
     return (ret == 0);
 }
 
@@ -285,6 +362,59 @@ bool FileMetaDAO::incrementViewCount(const std::string& file_id) {
     mysql_stmt_close(stmt);
     releaseConn(conn);
     return (ret == 0);
+}
+
+// 批量同步浏览计数：将 Redis 中的增量计数合并写入 MySQL（事务保护）
+bool FileMetaDAO::batchUpdateViewCount(const std::vector<std::pair<std::string, long long>>& updates) {
+    if (updates.empty()) return true;
+    MYSQL* conn = getConn();
+    if (!conn) return false;
+
+    mysql_autocommit(conn, 0);
+
+    const char* sql = "UPDATE files SET view_count = view_count + ? WHERE file_id = ?";
+    MYSQL_STMT* stmt = mysql_stmt_init(conn);
+    if (!stmt) {
+        mysql_autocommit(conn, 1);
+        releaseConn(conn);
+        return false;
+    }
+    if (mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+        mysql_stmt_close(stmt);
+        mysql_autocommit(conn, 1);
+        releaseConn(conn);
+        return false;
+    }
+
+    bool success = true;
+    for (const auto& [fid, count] : updates) {
+        MYSQL_BIND params[2];
+        memset(params, 0, sizeof(params));
+
+        long long cnt = count;
+        params[0].buffer_type = MYSQL_TYPE_LONGLONG;
+        params[0].buffer = &cnt;
+
+        params[1].buffer_type = MYSQL_TYPE_STRING;
+        params[1].buffer = (char*)fid.c_str();
+        params[1].buffer_length = fid.size();
+
+        mysql_stmt_bind_param(stmt, params);
+        if (mysql_stmt_execute(stmt) != 0) {
+            success = false;
+            break;
+        }
+    }
+
+    mysql_stmt_close(stmt);
+    if (success) {
+        mysql_commit(conn);
+    } else {
+        mysql_rollback(conn);
+    }
+    mysql_autocommit(conn, 1);
+    releaseConn(conn);
+    return success;
 }
 
 std::vector<FileMeta> FileMetaDAO::listByUserWithSearch(int user_id, const std::string& keyword, int offset, int limit) {
@@ -341,9 +471,9 @@ std::vector<FileMeta> FileMetaDAO::listByUserWithSearch(int user_id, const std::
     MYSQL_BIND resultBind[8];
     memset(resultBind, 0, sizeof(resultBind));
     char file_id_buf[64] = {0}, filename_buf[512] = {0}, mime_buf[256] = {0};
-    long long size;
-    int width, height, is_public_int;
-    long long upload_time;
+    long long size = 0;
+    int width = 0, height = 0, is_public_int = 0;
+    long long upload_time = 0;
 
     resultBind[0].buffer_type = MYSQL_TYPE_STRING;
     resultBind[0].buffer = file_id_buf;
@@ -365,8 +495,7 @@ std::vector<FileMeta> FileMetaDAO::listByUserWithSearch(int user_id, const std::
     resultBind[7].buffer_type = MYSQL_TYPE_LONG;
     resultBind[7].buffer = &is_public_int;
 
-    mysql_stmt_bind_result(stmt, resultBind);
-
+    // 必须在 bind_result 之前设置 is_null/length/error 指针
     unsigned long actual_len[8];
     bool is_null[8] = {false};
     bool bind_error[8] = {false};
@@ -375,6 +504,8 @@ std::vector<FileMeta> FileMetaDAO::listByUserWithSearch(int user_id, const std::
         resultBind[i].is_null = &is_null[i];
         resultBind[i].error = &bind_error[i];
     }
+
+    mysql_stmt_bind_result(stmt, resultBind);
 
     mysql_stmt_store_result(stmt);
 
@@ -539,6 +670,12 @@ bool FileMetaDAO::deleteFilesBatch(const std::vector<std::string>& valid_file_id
     int ret = mysql_stmt_execute(stmt);
     mysql_stmt_close(stmt);
     releaseConn(conn);
+    // DB 删除成功后再批量清除缓存
+    if (ret == 0) {
+        for (const auto& fid : valid_file_ids) {
+            RedisClient::instance().del(META_CACHE_PREFIX + fid);
+        }
+    }
     return (ret == 0);
 }
 

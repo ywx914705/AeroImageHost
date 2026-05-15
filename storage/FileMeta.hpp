@@ -60,6 +60,8 @@ public:
     bool updateAllowDomains(const std::string& file_id, const std::string& domains);
     // 增加文件浏览次数
     bool incrementViewCount(const std::string& file_id);
+    // 批量同步浏览计数（从 Redis 同步到 MySQL）
+    bool batchUpdateViewCount(const std::vector<std::pair<std::string, long long>>& updates);
     // 清理 MinIO 中不存在但数据库中仍有记录的孤儿文件
     int cleanupOrphanedFiles();
 

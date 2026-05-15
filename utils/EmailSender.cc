@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <string.h>
+#include <sys/time.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <cstdint>
@@ -119,6 +120,12 @@ private:
         if (sockfd == -1) {
             return false;
         }
+
+        struct timeval tv;
+        tv.tv_sec = 15;
+        tv.tv_usec = 0;
+        setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
         return true;
     }
@@ -219,15 +226,8 @@ public:
         }
 
         if (use_ssl) {
-            // SSL 初始化只需在进程启动时调用一次，通过 static 标志保证
-            static bool ssl_initialized = []() {
-                SSL_library_init();
-                SSL_load_error_strings();
-                OpenSSL_add_all_algorithms();
-                return true;
-            }();
-
-            ctx = SSL_CTX_new(SSLv23_client_method());
+            // OpenSSL 1.1.0+ 自动初始化，无需手动调用 SSL_library_init 等
+            ctx = SSL_CTX_new(TLS_client_method());
             if (!ctx) {
                 LOG_ERROR("Failed to create SSL context");
                 return false;

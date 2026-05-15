@@ -23,6 +23,7 @@
 #include <iostream>
 #include <cstring>
 #include <istream>
+#include <thread>
 
 MinIOClient& MinIOClient::instance() {
     static MinIOClient inst;
@@ -79,6 +80,26 @@ bool MinIOClient::init(const std::string& endpoint, const std::string& accessKey
 
         LOG_INFO("MinIO client initialized: endpoint=" + endpoint_ +
                  " presign=" + presign_endpoint_ + " bucket=" + bucket_);
+
+        // 启动时验证 bucket 是否存在，不存在则自动创建
+        try {
+            minio::s3::BucketExistsArgs beArgs;
+            beArgs.bucket = bucket_;
+            auto beResp = client_->BucketExists(beArgs);
+            if (!beResp.exist) {
+                minio::s3::MakeBucketArgs mbArgs;
+                mbArgs.bucket = bucket_;
+                auto mbResp = client_->MakeBucket(mbArgs);
+                if (mbResp) {
+                    LOG_INFO("MinIO bucket '" + bucket_ + "' 创建成功");
+                } else {
+                    LOG_WARN("MinIO bucket '" + bucket_ + "' 创建失败: " + mbResp.Error().String());
+                }
+            }
+        } catch (const std::exception& e) {
+            LOG_WARN("MinIO bucket 检查失败: " + std::string(e.what()));
+        }
+
         return true;
     } catch (const std::exception& e) {
         LOG_ERROR("MinIO client init failed: " + std::string(e.what()));
@@ -93,6 +114,20 @@ struct ZeroCopyStreambuf : std::streambuf {
     }
 };
 
+bool MinIOClient::retryOp(const std::function<bool()>& op, const std::string& name, int maxRetries) {
+    for (int i = 0; i < maxRetries; ++i) {
+        if (op()) return true;
+        if (i < maxRetries - 1) {
+            int delayMs = 200 * (1 << i);
+            LOG_WARN("[MinIO] " + name + " failed, retry " +
+                     std::to_string(i + 1) + "/" + std::to_string(maxRetries - 1) +
+                     " after " + std::to_string(delayMs) + "ms");
+            std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+        }
+    }
+    return false;
+}
+
 // 上传文件到 MinIO（接受 char 向量，用于分片上传等场景）
 bool MinIOClient::putObject(const std::string& key, const std::vector<char>& data,
                             const std::string& contentType) {
@@ -101,28 +136,27 @@ bool MinIOClient::putObject(const std::string& key, const std::vector<char>& dat
         return false;
     }
 
-    try {
-        ZeroCopyStreambuf buf(data.data(), data.size());
-        std::istream iss(&buf);
-
-        minio::s3::PutObjectArgs args(iss, static_cast<long>(data.size()), 10 * 1024 * 1024);
-        args.bucket = bucket_;
-        args.object = key;
-        args.content_type = contentType.empty() ? "application/octet-stream" : contentType;
-
-        minio::s3::PutObjectResponse resp = client_->PutObject(args);
-
-        if (resp) {
-            LOG_INFO("MinIO PutObject 成功: " + key + " (" + std::to_string(data.size()) + " bytes)");
-            return true;
-        } else {
-            LOG_ERROR("MinIO PutObject 失败: " + resp.Error().String());
+    return retryOp([&]() -> bool {
+        try {
+            ZeroCopyStreambuf buf(data.data(), data.size());
+            std::istream iss(&buf);
+            minio::s3::PutObjectArgs args(iss, static_cast<long>(data.size()), 10 * 1024 * 1024);
+            args.bucket = bucket_;
+            args.object = key;
+            args.content_type = contentType.empty() ? "application/octet-stream" : contentType;
+            minio::s3::PutObjectResponse resp = client_->PutObject(args);
+            if (resp) {
+                LOG_INFO("MinIO PutObject 成功: " + key + " (" + std::to_string(data.size()) + " bytes)");
+                return true;
+            } else {
+                LOG_ERROR("MinIO PutObject 失败: " + resp.Error().String());
+                return false;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("MinIO PutObject 异常: " + std::string(e.what()));
             return false;
         }
-    } catch (const std::exception& e) {
-        LOG_ERROR("MinIO PutObject 异常: " + std::string(e.what()));
-        return false;
-    }
+    }, "PutObject:" + key);
 }
 
 // 零拷贝上传：直接接受 HTTP 层的 unsigned char 向量，省掉一次内存拷贝
@@ -133,28 +167,27 @@ bool MinIOClient::putObject(const std::string& key, const std::vector<unsigned c
         return false;
     }
 
-    try {
-        ZeroCopyStreambuf buf(reinterpret_cast<const char*>(data.data()), data.size());
-        std::istream iss(&buf);
-
-        minio::s3::PutObjectArgs args(iss, static_cast<long>(data.size()), 10 * 1024 * 1024);
-        args.bucket = bucket_;
-        args.object = key;
-        args.content_type = contentType.empty() ? "application/octet-stream" : contentType;
-
-        minio::s3::PutObjectResponse resp = client_->PutObject(args);
-
-        if (resp) {
-            LOG_INFO("MinIO PutObject(uc) 成功: " + key + " (" + std::to_string(data.size()) + " bytes)");
-            return true;
-        } else {
-            LOG_ERROR("MinIO PutObject(uc) 失败: " + resp.Error().String());
+    return retryOp([&]() -> bool {
+        try {
+            ZeroCopyStreambuf buf(reinterpret_cast<const char*>(data.data()), data.size());
+            std::istream iss(&buf);
+            minio::s3::PutObjectArgs args(iss, static_cast<long>(data.size()), 10 * 1024 * 1024);
+            args.bucket = bucket_;
+            args.object = key;
+            args.content_type = contentType.empty() ? "application/octet-stream" : contentType;
+            minio::s3::PutObjectResponse resp = client_->PutObject(args);
+            if (resp) {
+                LOG_INFO("MinIO PutObject(uc) 成功: " + key + " (" + std::to_string(data.size()) + " bytes)");
+                return true;
+            } else {
+                LOG_ERROR("MinIO PutObject(uc) 失败: " + resp.Error().String());
+                return false;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("MinIO PutObject(uc) 异常: " + std::string(e.what()));
             return false;
         }
-    } catch (const std::exception& e) {
-        LOG_ERROR("MinIO PutObject(uc) 异常: " + std::string(e.what()));
-        return false;
-    }
+    }, "PutObject(uc):" + key);
 }
 
 std::string MinIOClient::presignPutUrl(const std::string& key, int expires) {
@@ -216,40 +249,41 @@ std::string MinIOClient::presignGetUrl(const std::string& key, int expires,
 bool MinIOClient::deleteObject(const std::string& key) {
     if (!client_) return false;
 
-    try {
-        minio::s3::RemoveObjectArgs args;
-        args.bucket = bucket_;
-        args.object = key;
-
-        minio::s3::RemoveObjectResponse resp = client_->RemoveObject(args);
-
-        if (resp) {
-            LOG_INFO("MinIO deleteObject success: " + key);
-            return true;
-        } else {
-            LOG_ERROR("MinIO deleteObject failed: " + resp.Error().String());
+    return retryOp([&]() -> bool {
+        try {
+            minio::s3::RemoveObjectArgs args;
+            args.bucket = bucket_;
+            args.object = key;
+            minio::s3::RemoveObjectResponse resp = client_->RemoveObject(args);
+            if (resp) {
+                LOG_INFO("MinIO deleteObject success: " + key);
+                return true;
+            } else {
+                LOG_ERROR("MinIO deleteObject failed: " + resp.Error().String());
+                return false;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("MinIO deleteObject exception: " + std::string(e.what()));
             return false;
         }
-    } catch (const std::exception& e) {
-        LOG_ERROR("MinIO deleteObject exception: " + std::string(e.what()));
-        return false;
-    }
+    }, "deleteObject:" + key);
 }
 
 bool MinIOClient::objectExists(const std::string& key) {
     if (!client_) return false;
 
-    try {
-        minio::s3::StatObjectArgs args;
-        args.bucket = bucket_;
-        args.object = key;
-
-        minio::s3::StatObjectResponse resp = client_->StatObject(args);
-        return static_cast<bool>(resp);
-    } catch (const std::exception& e) {
-        LOG_ERROR("MinIO statObject exception: " + std::string(e.what()));
-        return false;
-    }
+    return retryOp([&]() -> bool {
+        try {
+            minio::s3::StatObjectArgs args;
+            args.bucket = bucket_;
+            args.object = key;
+            minio::s3::StatObjectResponse resp = client_->StatObject(args);
+            return static_cast<bool>(resp);
+        } catch (const std::exception& e) {
+            LOG_ERROR("MinIO statObject exception: " + std::string(e.what()));
+            return false;
+        }
+    }, "objectExists:" + key, 2);
 }
 
 bool MinIOClient::getObject(const std::string& key, std::vector<char>& data) {
@@ -258,32 +292,30 @@ bool MinIOClient::getObject(const std::string& key, std::vector<char>& data) {
         return false;
     }
 
-    try {
-        minio::s3::GetObjectArgs args;
-        args.bucket = bucket_;
-        args.object = key;
-
-        // 直接追加到 vector，避免 ostringstream 的多次 realloc
-        data.clear();
-        args.datafunc = [&data](minio::http::DataFunctionArgs chunk) -> bool {
-            data.insert(data.end(), chunk.datachunk.data(),
-                        chunk.datachunk.data() + chunk.datachunk.size());
-            return true;
-        };
-
-        minio::s3::GetObjectResponse resp = client_->GetObject(args);
-
-        if (resp) {
-            LOG_INFO("MinIO GetObject success: " + key + " (" + std::to_string(data.size()) + " bytes)");
-            return true;
-        } else {
-            LOG_ERROR("MinIO GetObject failed: " + resp.Error().String());
+    return retryOp([&]() -> bool {
+        try {
+            minio::s3::GetObjectArgs args;
+            args.bucket = bucket_;
+            args.object = key;
+            data.clear();
+            args.datafunc = [&data](minio::http::DataFunctionArgs chunk) -> bool {
+                data.insert(data.end(), chunk.datachunk.data(),
+                            chunk.datachunk.data() + chunk.datachunk.size());
+                return true;
+            };
+            minio::s3::GetObjectResponse resp = client_->GetObject(args);
+            if (resp) {
+                LOG_INFO("MinIO GetObject success: " + key + " (" + std::to_string(data.size()) + " bytes)");
+                return true;
+            } else {
+                LOG_ERROR("MinIO GetObject failed: " + resp.Error().String());
+                return false;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("MinIO GetObject exception: " + std::string(e.what()));
             return false;
         }
-    } catch (const std::exception& e) {
-        LOG_ERROR("MinIO GetObject exception: " + std::string(e.what()));
-        return false;
-    }
+    }, "getObject:" + key);
 }
 
 bool MinIOClient::composeObjects(const std::string& destKey, const std::string& contentType,
@@ -293,30 +325,50 @@ bool MinIOClient::composeObjects(const std::string& destKey, const std::string& 
         return false;
     }
 
-    try {
-        minio::s3::ComposeObjectArgs args;
-        args.bucket = bucket_;
-        args.object = destKey;
-
-        for (const auto& key : sourceKeys) {
-            minio::s3::ComposeSource source;
-            source.bucket = bucket_;
-            source.object = key;
-            args.sources.push_back(source);
-        }
-
-        minio::s3::ComposeObjectResponse resp = client_->ComposeObject(args);
-
-        if (resp) {
-            LOG_INFO("MinIO ComposeObject success: " + destKey + " from " +
-                     std::to_string(sourceKeys.size()) + " parts");
-            return true;
-        } else {
-            LOG_ERROR("MinIO ComposeObject failed: " + resp.Error().String());
+    return retryOp([&]() -> bool {
+        try {
+            minio::s3::ComposeObjectArgs args;
+            args.bucket = bucket_;
+            args.object = destKey;
+            if (!contentType.empty()) {
+                args.headers.Add("Content-Type", contentType);
+            }
+            for (const auto& key : sourceKeys) {
+                minio::s3::ComposeSource source;
+                source.bucket = bucket_;
+                source.object = key;
+                args.sources.push_back(source);
+            }
+            minio::s3::ComposeObjectResponse resp = client_->ComposeObject(args);
+            if (resp) {
+                LOG_INFO("MinIO ComposeObject success: " + destKey + " from " +
+                         std::to_string(sourceKeys.size()) + " parts");
+                return true;
+            } else {
+                LOG_ERROR("MinIO ComposeObject failed: " + resp.Error().String());
+                return false;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("MinIO ComposeObject exception: " + std::string(e.what()));
             return false;
         }
-    } catch (const std::exception& e) {
-        LOG_ERROR("MinIO ComposeObject exception: " + std::string(e.what()));
+    }, "composeObjects:" + destKey);
+}
+
+bool MinIOClient::isHealthy() {
+    if (!client_ || bucket_.empty()) {
         return false;
     }
+    return retryOp(
+        [&]() -> bool {
+            try {
+                minio::s3::BucketExistsArgs beArgs;
+                beArgs.bucket = bucket_;
+                auto beResp = client_->BucketExists(beArgs);
+                return static_cast<bool>(beResp) && beResp.exist;
+            } catch (...) {
+                return false;
+            }
+        },
+        "isHealthy", 1);
 }

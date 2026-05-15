@@ -1,0 +1,45 @@
+# Build output
+build/
+*.o
+*.so
+*.dylib
+*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+
+# Config (contains sensitive data)
+config.json
+config/config-docker.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# Node (if any)
+node_modules/
+package-lock.json
+
+# Docker
+.docker/

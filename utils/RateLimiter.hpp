@@ -25,4 +25,7 @@ public:
     static void reset(const std::string& key);
     // 获取剩余可用尝试次数
     static int getRemainingAttempts(const std::string& key, int maxAttempts, int windowSeconds);
+
+    // 原子递增计数；超过 maxPerWindow 返回 false（用于发信等「每次请求计一次」场景）
+    static bool allowConsume(const std::string& key, int maxPerWindow, int windowSeconds);
 };

@@ -1,4 +1,11 @@
-//ConnectionPool是一个同步连接池,它的职责是管理一组MySQL连接,提供获取与归还的接口
+/*
+ * ConnectionPool.cc - MySQL 连接池实现
+ *
+ * 在项目中的作用：管理一组 MySQL 连接，提供获取与归还的接口，避免频繁创建/销毁连接。
+ * 核心机制：同步阻塞连接池，使用条件变量等待可用连接，懒验证（30秒间隔 mysql_ping）。
+ * 使用方式：ConnectionPool::instance().getConnection() 获取连接，用完调用 releaseConnection() 归还。
+ * 推荐：使用 DbGuard RAII 守卫自动管理连接生命周期，防止忘记归还导致连接泄漏。
+ */
 #include "ConnectionPool.hpp"
 #include "Log.hpp"
 #include <iostream>
@@ -95,11 +102,15 @@ MYSQL* ConnectionPool::ensureValidConnection(MYSQL* conn, std::chrono::steady_cl
 //或者超时
 MYSQL* ConnectionPool::getConnection() {
     std::unique_lock<std::mutex> lock(mutex_);
+    waitingCount_.fetch_add(1, std::memory_order_relaxed);
 
     if (!cv_.wait_for(lock, std::chrono::seconds(5), [this]() { return !connections_.empty() || stopped_; })) {
+        waitingCount_.fetch_sub(1, std::memory_order_relaxed);
         LOG_ERROR("[ConnectionPool] 获取连接超时");
         return nullptr;
     }
+
+    waitingCount_.fetch_sub(1, std::memory_order_relaxed);
 
     if (stopped_) {
         LOG_ERROR("[ConnectionPool] 连接池已停止");
@@ -113,7 +124,15 @@ MYSQL* ConnectionPool::getConnection() {
     int retry = 3;
     while (!conn && retry-- > 0) {
         if (connections_.empty()) {
-            if (!cv_.wait_for(lock, std::chrono::seconds(2), [this]() { return !connections_.empty(); })) {
+            // 等待连接归还，同时检查连接池是否已关闭
+            if (!cv_.wait_for(lock, std::chrono::seconds(2), [this]() { return !connections_.empty() || stopped_; })) {
+                // 等待超时，尝试新建一个连接（池中可能全部被占用）
+                lock.unlock();
+                MYSQL* newConn = createConnection();
+                lock.lock();
+                if (newConn) {
+                    conn = ensureValidConnection(newConn, std::chrono::steady_clock::now());
+                }
                 break;
             }
         }
@@ -142,6 +161,15 @@ void ConnectionPool::releaseConnection(MYSQL* conn) {
     // 归还时直接放入队列，不验证（验证延迟到 getConnection 时按需执行）
     connections_.push({conn, now});
     cv_.notify_one();
+}
+
+ConnectionPool::Stats ConnectionPool::getStats() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    Stats s;
+    s.idle = static_cast<int>(connections_.size());
+    s.active = poolSize_ - s.idle;
+    s.waiting = waitingCount_.load(std::memory_order_relaxed);
+    return s;
 }
 
 void ConnectionPool::close() {  //关闭所有的连接

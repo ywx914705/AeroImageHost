@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AeroImageHost · 系统监控</title>
+<style>
+:root{
+  --bg:#0b0f19;--bg-card:#151b2b;--bg-card-hover:#1e2538;
+  --text:#e8ecf1;--text-dim:#8b95a5;--text-muted:#5a6478;
+  --green:#10b981;--green-bg:rgba(16,185,129,.1);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.1);
+  --yellow:#f59e0b;--yellow-bg:rgba(245,158,11,.1);
+  --blue:#3b82f6;--blue-bg:rgba(59,130,246,.1);
+  --purple:#8b5cf6;--purple-bg:rgba(139,92,246,.1);
+  --cyan:#06b6d4;--cyan-bg:rgba(6,182,212,.1);
+  --orange:#f97316;--orange-bg:rgba(249,115,22,.1);
+  --border:rgba(255,255,255,.06);--radius:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:22px;font-weight:600;display:flex;align-items:center;gap:10px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.meta{display:flex;gap:16px;align-items:center;color:var(--text-dim);font-size:13px}
+.badge{padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500}
+.badge-live{background:var(--green-bg);color:var(--green)}
+.container{max-width:1400px;margin:0 auto}
+.grid{display:grid;gap:16px;margin-bottom:16px}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:900px){.grid-2,.grid-4{grid-template-columns:1fr}}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:background .2s}
+.card:hover{background:var(--bg-card-hover)}
+.card-title{font-size:13px;color:var(--text-dim);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.card-value{font-size:32px;font-weight:700;margin-bottom:8px}
+.card-sub{display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted)}
+.card-sub b{color:var(--text-dim)}
+.trend{font-size:11px;padding:2px 6px;border-radius:4px}
+.trend-up{background:var(--green-bg);color:var(--green)}
+.trend-down{background:var(--red-bg);color:var(--red)}
+.mini-chart{height:40px;margin-top:12px;opacity:.6}
+.section-title{font-size:14px;color:var(--text-dim);margin:24px 0 12px;font-weight:500}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:12px 16px;color:var(--text-dim);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:12px 16px;border-bottom:1px solid var(--border);color:var(--text-dim)}
+tr:hover td{background:rgba(255,255,255,.02)}
+.status-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}
+.status-ok{background:var(--green-bg);color:var(--green)}
+.status-warn{background:var(--yellow-bg);color:var(--yellow)}
+.status-error{background:var(--red-bg);color:var(--red)}
+.endpoint-name{color:var(--text);font-family:monospace;font-size:12px}
+.num{color:var(--text);font-weight:500}
+.bar-bg{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-top:6px}
+.bar-fill{height:100%;border-radius:2px;transition:width .3s}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span class="dot"></span>AeroImageHost 系统监控</h1>
+  <div class="meta">
+    <span id="uptime">运行: --</span>
+    <span id="statusBadge" class="badge badge-live">运行中</span>
+    <span>刷新: 2s</span>
+  </div>
+</div>
+<div class="container">
+  <div class="grid grid-4" id="overviewCards">
+    <div class="card">
+      <div class="card-title"><span class="icon" style="background:var(--blue-bg);color:var(--blue)">&#9889;</span>实时 QPS</div>
+      <div class="card-value" id="globalQps">--</div>
+      <div class="card-sub">
+        <span>峰值: <b id="peakQps">--</b></span>
+        <span class="trend trend-up" id="qpsTrend">&#9650; 0%</span>
+      </div>
+      <div class="mini-chart" id="qpsChart"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon" style="background:var(--purple-bg);color:var(--purple)">&#9201;</span>响应延迟</div>
+      <div class="card-value" id="latencyAvg">--</div>
+      <div class="card-sub">
+        <span>P50: <b id="latencyP50">--</b></span>
+        <span>P95: <b id="latencyP95">--</b></span>
+      </div>
+      <div class="mini-chart" id="latencyChart"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon" style="background:var(--red-bg);color:var(--red)">&#128293;</span>错误请求</div>
+      <div class="card-value" id="totalErrors">--</div>
+      <div class="card-sub">
+        <span>错误率: <b id="errorRate">--</b></span>
+        <span class="trend trend-up" id="errorTrend">&#9650; 0%</span>
+      </div>
+      <div class="mini-chart" id="errorChart"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon" style="background:var(--cyan-bg);color:var(--cyan)">&#128230;</span>数据吞吐</div>
+      <div class="card-value" id="throughput">--</div>
+      <div class="card-sub">
+        <span>上传: <b id="uploadBytes">--</b></span>
+        <span>下载: <b id="downloadBytes">--</b></span>
+      </div>
+      <div class="mini-chart" id="throughputChart"></div>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-title"><span class="icon" style="background:var(--green-bg);color:var(--green)">&#128170;</span>缓存命中率</div>
+      <div style="display:flex;justify-content:space-around;margin-top:16px">
+        <div style="text-align:center">
+          <div style="font-size:28px;font-weight:700;color:var(--green)" id="lruRate">--</div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:4px">Token LRU</div>
+          <div style="font-size:11px;color:var(--text-muted)" id="lruDetail">--</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:28px;font-weight:700;color:var(--blue)" id="redisRate">--</div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:4px">Redis 缓存</div>
+          <div style="font-size:11px;color:var(--text-muted)" id="redisDetail">--</div>
+        </div>
+      </div>
+      <div class="bar-bg"><div class="bar-fill" id="lruBar" style="width:0%;background:var(--green)"></div></div>
+      <div class="bar-bg" style="margin-top:8px"><div class="bar-fill" id="redisBar" style="width:0%;background:var(--blue)"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon" style="background:var(--orange-bg);color:var(--orange)">&#128295;</span>连接池状态</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+        <div>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">MySQL 连接池</div>
+          <div style="display:flex;gap:12px;font-size:13px">
+            <span>活跃: <b class="num" id="mysqlActive">--</b></span>
+            <span>空闲: <b class="num" id="mysqlIdle">--</b></span>
+            <span>等待: <b class="num" id="mysqlWait">--</b></span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">Redis 连接池</div>
+          <div style="display:flex;gap:12px;font-size:13px">
+            <span>活跃: <b class="num" id="redisActive">--</b></span>
+            <span>空闲: <b class="num" id="redisIdle">--</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">API 端点性能</div>
+  <div class="card" style="overflow-x:auto;padding:0">
+    <table>
+      <thead>
+        <tr>
+          <th>端点</th>
+          <th>请求数</th>
+          <th>QPS</th>
+          <th>平均延迟</th>
+          <th>错误数</th>
+          <th>错误率</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody id="endpointTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API = '/api/metrics';
+const REFRESH_MS = 2000;
+let qpsHistory = new Array(20).fill(0);
+let peakQps = 0;
+let lastTotalReqs = 0;
+
+function fmt(n, d) {
+  if (n === undefined || n === null) return '--';
+  if (typeof n === 'number') return n.toFixed(d || 0);
+  return n;
+}
+
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  const units = ['B','KB','MB','GB'];
+  let i = 0;
+  while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
+  return b.toFixed(1) + ' ' + units[i];
+}
+
+function fmtUptime(s) {
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return d + '天 ' + h + '小时';
+  if (h > 0) return h + '小时 ' + m + '分钟';
+  return m + '分钟';
+}
+
+function renderSparkline(data, color) {
+  const max = Math.max(...data, 1);
+  const w = 100, h = 40;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - (v / max) * h;
+    return x + ',' + y;
+  }).join(' ');
+  return '<svg width="100%" height="40" viewBox="0 0 100 40" preserveAspectRatio="none">' +
+    '<polyline points="' + points + '" fill="none" stroke="' + color + '" stroke-width="1.5" opacity="0.8"/>' +
+    '</svg>';
+}
+
+function getStatusTag(errorRate) {
+  if (errorRate < 1) return '<span class="status-tag status-ok">正常</span>';
+  if (errorRate < 5) return '<span class="status-tag status-warn">警告</span>';
+  return '<span class="status-tag status-error">严重</span>';
+}
+
+function update(data) {
+  document.getElementById('uptime').textContent = '运行: ' + fmtUptime(data.uptime_seconds);
+
+  const qps = data.global_qps || 0;
+  document.getElementById('globalQps').textContent = fmt(qps, 1);
+  if (qps > peakQps) peakQps = qps;
+  document.getElementById('peakQps').textContent = fmt(peakQps, 1);
+
+  qpsHistory.shift();
+  qpsHistory.push(qps);
+  document.getElementById('qpsChart').innerHTML = renderSparkline(qpsHistory, '#3b82f6');
+
+  const latAvg = data.latency_avg_ms || 0;
+  document.getElementById('latencyAvg').textContent = fmt(latAvg, 1) + ' ms';
+  document.getElementById('latencyP50').textContent = fmt(data.latency_p50_ms, 1) + ' ms';
+  document.getElementById('latencyP95').textContent = fmt(data.latency_p95_ms, 1) + ' ms';
+
+  let totalReqs = 0, totalErrors = 0;
+  const eps = data.endpoints || {};
+  for (const k in eps) {
+    totalReqs += eps[k].total_requests || 0;
+    totalErrors += eps[k].error_count || 0;
+  }
+  document.getElementById('totalErrors').textContent = totalErrors;
+  const errRate = totalReqs > 0 ? (totalErrors / totalReqs * 100) : 0;
+  document.getElementById('errorRate').textContent = fmt(errRate, 2) + '%';
+
+  const tp = data.throughput || {};
+  const totalBytes = (tp.upload_bytes || 0) + (tp.download_bytes || 0);
+  document.getElementById('throughput').textContent = fmtBytes(totalBytes);
+  document.getElementById('uploadBytes').textContent = fmtBytes(tp.upload_bytes || 0);
+  document.getElementById('downloadBytes').textContent = fmtBytes(tp.download_bytes || 0);
+
+  const cache = data.cache || {};
+  const lruH = cache.lru_hits || 0, lruM = cache.lru_misses || 0;
+  const redisH = cache.redis_hits || 0, redisM = cache.redis_misses || 0;
+  const lruRate = (lruH + lruM > 0) ? (lruH / (lruH + lruM) * 100) : 0;
+  const redisRate = (redisH + redisM > 0) ? (redisH / (redisH + redisM) * 100) : 0;
+
+  document.getElementById('lruRate').textContent = fmt(lruRate, 1) + '%';
+  document.getElementById('lruDetail').textContent = '命中 ' + lruH + ' / 未命中 ' + lruM;
+  document.getElementById('lruBar').style.width = lruRate + '%';
+
+  document.getElementById('redisRate').textContent = fmt(redisRate, 1) + '%';
+  document.getElementById('redisDetail').textContent = '命中 ' + redisH + ' / 未命中 ' + redisM;
+  document.getElementById('redisBar').style.width = redisRate + '%';
+
+  const mysql = data.mysql_pool || {};
+  document.getElementById('mysqlActive').textContent = mysql.active || 0;
+  document.getElementById('mysqlIdle').textContent = mysql.idle || 0;
+  document.getElementById('mysqlWait').textContent = mysql.waiting || 0;
+
+  const redis = data.redis_pool || {};
+  document.getElementById('redisActive').textContent = redis.active || 0;
+  document.getElementById('redisIdle').textContent = redis.idle || 0;
+
+  const tbody = document.getElementById('endpointTable');
+  let html = '';
+  const sorted = Object.entries(eps).sort((a, b) => (b[1].total_requests || 0) - (a[1].total_requests || 0));
+  for (const [name, m] of sorted) {
+    const reqs = m.total_requests || 0;
+    const errs = m.error_count || 0;
+    const erate = reqs > 0 ? (errs / reqs * 100) : 0;
+    html += '<tr>' +
+      '<td class="endpoint-name">' + name + '</td>' +
+      '<td class="num">' + reqs + '</td>' +
+      '<td class="num">' + fmt(m.qps, 1) + '</td>' +
+      '<td class="num">' + fmt(m.avg_ms, 1) + ' ms</td>' +
+      '<td class="num">' + errs + '</td>' +
+      '<td class="num" style="color:' + (erate > 5 ? 'var(--red)' : 'var(--green)') + '">' + fmt(erate, 2) + '%</td>' +
+      '<td>' + getStatusTag(erate) + '</td>' +
+      '</tr>';
+  }
+  if (sorted.length === 0) {
+    html = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">暂无数据</td></tr>';
+  }
+  tbody.innerHTML = html;
+}
+
+async function fetchMetrics() {
+  try {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : '';
+    const headers = { Accept: 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(API, { headers, credentials: 'same-origin' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    update(data);
+    document.getElementById('statusBadge').textContent = '运行中';
+    document.getElementById('statusBadge').className = 'badge badge-live';
+  } catch (e) {
+    document.getElementById('statusBadge').textContent = '断开';
+    document.getElementById('statusBadge').className = 'badge';
+    document.getElementById('statusBadge').style.background = 'var(--red-bg)';
+    document.getElementById('statusBadge').style.color = 'var(--red)';
+  }
+}
+
+fetchMetrics();
+setInterval(fetchMetrics, REFRESH_MS);
+</script>
+</body>
+</html>

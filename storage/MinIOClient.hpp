@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <functional>
 #include <miniocpp/client.h>
 
 class MinIOClient {
@@ -47,6 +48,9 @@ public:
     // 检查对象是否存在
     bool objectExists(const std::string& key);
 
+    // 存活探测：客户端已 init 且桶可访问（供 /api/health）
+    bool isHealthy();
+
     // 下载对象到内存（用于缩略图生成等场景）
     bool getObject(const std::string& key, std::vector<char>& data);
 
@@ -55,6 +59,9 @@ public:
                         const std::vector<std::string>& sourceKeys);
 
 private:
+    // 带指数退避的重试辅助方法（maxRetries 次重试，200/400ms 退避）
+    bool retryOp(const std::function<bool()>& op, const std::string& name, int maxRetries = 3);
+
     std::string endpoint_;         // MinIO 服务实际地址
     std::string presign_endpoint_; // 预签名 URL 使用的外部地址（可选 CDN）
     std::string accessKey_;        // MinIO 访问密钥
