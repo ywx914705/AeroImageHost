@@ -54,12 +54,7 @@ void SystemController::health(const HttpRequestPtr& req,
 
 void SystemController::stats(const HttpRequestPtr& req,
                              std::function<void(const HttpResponsePtr&)>&& callback) {
-    int user_id = 0;
-    auto auth = requireAuth(req, user_id);
-    if (auth.status_code != 200) {
-        respond(auth, std::move(callback));
-        return;
-    }
+    (void)req;
     respond(handleStats(), std::move(callback));
 }
 

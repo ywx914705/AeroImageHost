@@ -3,7 +3,7 @@
  *
  * 路由：
  *   GET  /api/health  - 深度健康检查（MySQL / Redis / MinIO）
- *   GET  /api/stats   - 系统统计信息（需登录）
+ *   GET  /api/stats   - 系统统计信息（公开）
  *   GET  /api/metrics - 指标 JSON（需登录）
  *   POST /api/cleanup - 触发孤儿分片清理
  */
