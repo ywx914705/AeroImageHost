@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="AeroImageHost 高性能图床：快速上传、图片与文件管理、缩略图与预签名直传，支持私有化部署。">
 <meta name="theme-color" content="#2563eb">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta property="og:type" content="website">
 <meta property="og:title" content="AeroImageHost · 极速图床">
 <meta property="og:description" content="现代化图床与文件托管，高性能后端与 MinIO 对象存储，支持 Docker 一键部署。">
@@ -18,76 +19,76 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/landing.css">
+<link rel="stylesheet" href="/assets/landing.main.css?v=14">
 
 <style>
     /* 基础样式 */
     :root {
-        --bg-primary: rgba(255, 255, 255, 0.72);
-        --bg-secondary: rgba(255, 255, 255, 0.55);
-        --bg-card: rgba(255, 255, 255, 0.68);
-        --text-primary: #1e293b;
-        --text-secondary: #475569;
-        --text-tertiary: #64748b;
-        --border-subtle: rgba(0, 0, 0, 0.06);
-        --border-card: rgba(255, 255, 255, 0.55);
-        --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.06);
-        --shadow-md: 0 20px 30px -10px rgba(0, 0, 0, 0.15);
-        --shadow-lg: 0 30px 50px -15px rgba(0, 0, 0, 0.2);
-        --glass-bg: rgba(255, 255, 255, 0.6);
-        --glass-border: rgba(255, 255, 255, 0.4);
-        --overlay-bg: rgba(255, 255, 255, 0.15);
-        --upload-zone-bg: rgba(255, 255, 255, 0.4);
-        --thumb-bg: #f1f5f9;
-        --accent: #3b82f6;
-        --accent-light: rgba(59, 130, 246, 0.12);
-        --accent-border: rgba(59, 130, 246, 0.25);
-        --gradient-primary: linear-gradient(135deg, #2563eb, #0ea5e9);
-        --gradient-button: linear-gradient(135deg, #3b82f6, #0ea5e9);
-        --navbar-bg: rgba(255, 255, 255, 0.6);
-        --navbar-border: rgba(0, 0, 0, 0.05);
-        --input-bg: rgba(255, 255, 255, 0.6);
-        --badge-bg: rgba(59, 130, 246, 0.12);
-        --badge-border: rgba(59, 130, 246, 0.25);
+        --bg-primary: #ffffff;
+        --bg-secondary: #f7f8fa;
+        --bg-card: #ffffff;
+        --text-primary: #1a1a2e;
+        --text-secondary: #4e5969;
+        --text-tertiary: #86909c;
+        --border-subtle: #e5e6eb;
+        --border-card: #e5e6eb;
+        --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 1px 6px rgba(0,0,0,0.06);
+        --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+        --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+        --glass-bg: #ffffff;
+        --glass-border: #e5e6eb;
+        --overlay-bg: transparent;
+        --upload-zone-bg: #f7f8fa;
+        --thumb-bg: #f2f3f5;
+        --accent: #2563eb;
+        --accent-light: rgba(37, 99, 235, 0.06);
+        --accent-border: rgba(37, 99, 235, 0.15);
+        --gradient-primary: linear-gradient(135deg, #2563eb, #3b82f6);
+        --gradient-button: linear-gradient(135deg, #2563eb, #3b82f6);
+        --navbar-bg: #ffffff;
+        --navbar-border: #e5e6eb;
+        --input-bg: #f7f8fa;
+        --badge-bg: rgba(37, 99, 235, 0.06);
+        --badge-border: rgba(37, 99, 235, 0.15);
         --empty-icon-opacity: 0.5;
     }
 
     [data-theme="dark"] {
-        --bg-primary: rgba(15, 23, 42, 0.8);
-        --bg-secondary: rgba(30, 41, 59, 0.7);
-        --bg-card: rgba(30, 41, 59, 0.75);
-        --text-primary: #e2e8f0;
-        --text-secondary: #94a3b8;
-        --text-tertiary: #64748b;
-        --border-subtle: rgba(255, 255, 255, 0.08);
-        --border-card: rgba(255, 255, 255, 0.1);
-        --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
-        --shadow-md: 0 20px 30px -10px rgba(0, 0, 0, 0.4);
-        --shadow-lg: 0 30px 50px -15px rgba(0, 0, 0, 0.5);
-        --glass-bg: rgba(30, 41, 59, 0.75);
-        --glass-border: rgba(255, 255, 255, 0.12);
-        --overlay-bg: rgba(0, 0, 0, 0.3);
-        --upload-zone-bg: rgba(30, 41, 59, 0.5);
-        --thumb-bg: #1e293b;
+        --bg-primary: #17171a;
+        --bg-secondary: #232324;
+        --bg-card: #2a2a2d;
+        --text-primary: #e8e8ed;
+        --text-secondary: #a6a6b3;
+        --text-tertiary: #6b6b80;
+        --border-subtle: #3a3a3d;
+        --border-card: #3a3a3d;
+        --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+        --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+        --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+        --glass-bg: #2a2a2d;
+        --glass-border: #3a3a3d;
+        --overlay-bg: #17171a;
+        --upload-zone-bg: #232324;
+        --thumb-bg: #2a2a2d;
         --accent: #60a5fa;
-        --accent-light: rgba(96, 165, 250, 0.15);
-        --accent-border: rgba(96, 165, 250, 0.3);
+        --accent-light: rgba(96, 165, 250, 0.1);
+        --accent-border: rgba(96, 165, 250, 0.2);
         --gradient-primary: linear-gradient(135deg, #3b82f6, #60a5fa);
         --gradient-button: linear-gradient(135deg, #3b82f6, #60a5fa);
-        --navbar-bg: rgba(15, 23, 42, 0.75);
-        --navbar-border: rgba(255, 255, 255, 0.06);
-        --input-bg: rgba(30, 41, 59, 0.7);
-        --badge-bg: rgba(96, 165, 250, 0.2);
-        --badge-border: rgba(96, 165, 250, 0.3);
+        --navbar-bg: #17171a;
+        --navbar-border: #3a3a3d;
+        --input-bg: #232324;
+        --badge-bg: rgba(96, 165, 250, 0.15);
+        --badge-border: rgba(96, 165, 250, 0.25);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', 'Helvetica Neue', Arial, sans-serif;
         color: var(--text-primary);
         min-height: 100vh;
         overflow-x: hidden;
-        background: #0f172a;
+        background: #ffffff;
         transition: background 0.4s ease;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -98,12 +99,12 @@
         position: fixed;
         inset: 0;
         z-index: -3;
-        background: linear-gradient(160deg, #f0f9ff 0%, #e0f2fe 30%, #f8fafc 60%, #f1f5f9 100%);
+        background: #f8f9fb; background-image: radial-gradient(circle, #e0e3e8 1px, transparent 1px); background-size: 20px 20px;
         transition: background 0.4s ease;
     }
 
     [data-theme="dark"] body::before {
-        background: linear-gradient(160deg, #0f172a 0%, #1e293b 30%, #0f172a 60%, #1a1f2e 100%);
+        background: #121215; background-image: radial-gradient(circle, #252528 1px, transparent 1px); background-size: 20px 20px;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -114,7 +115,7 @@
         }
     }
 
-    .bg-slideshow { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; }
+    .bg-slideshow { display: none; }
     .bg-image {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background-size: cover; background-position: center; background-repeat: no-repeat;
@@ -125,8 +126,6 @@
     .bg-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
         background: var(--overlay-bg);
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
         transition: background 0.4s ease;
     }
 
@@ -141,16 +140,16 @@
     .login-logo .brand-icon img { width: 56px; height: 56px; }
     .login-logo .brand-text { font-size: 2.2rem; }
 
-    .glass-card { background: var(--bg-card); backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%); border: 1px solid var(--border-card); border-radius: 2rem; box-shadow: var(--shadow-sm); transition: all 0.3s ease; padding: 1rem; }
+    .glass-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; box-shadow: var(--shadow-md); transition: all 0.25s ease; padding: 1.2rem; }
 
     .navbar {
-        background: var(--navbar-bg); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%);
-        border-bottom: 1px solid var(--navbar-border); padding: 0 2rem; height: 70px;
+        background: var(--navbar-bg); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border-bottom: 1px solid var(--navbar-border); padding: 0 2rem; height: 60px;
         display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100;
     }
 
     .user-area { display: flex; align-items: center; gap: 12px; }
-    .user-badge { background: var(--badge-bg); padding: 0.4rem 1.2rem; border-radius: 40px; font-weight: 500; border: 1px solid var(--badge-border); color: var(--text-primary); font-size: 0.9rem; }
+    .user-badge { background: var(--accent-light); padding: 0.4rem 1.2rem; border-radius: 8px; font-weight: 600; border: 1px solid var(--accent-border); color: var(--accent); font-size: 0.85rem; }
 
     .theme-toggle {
         width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--navbar-border); background: var(--bg-secondary);
@@ -160,6 +159,27 @@
     .theme-toggle:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
 
     .main { max-width: 1360px; margin: 2rem auto; padding: 0 1.8rem; width: 100%; flex: 1; animation: fadeInUp 0.5s ease; }
+
+    /* 欢迎横幅 */
+    .dash-welcome {
+        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); border-radius: 14px; padding: 2rem 2.5rem;
+        margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;
+        color: white; position: relative; overflow: hidden;
+    }
+    .dash-welcome::before {
+        content: ''; position: absolute; inset: 0;
+        background: radial-gradient(circle at 80% 50%, rgba(255,255,255,0.15) 0%, transparent 60%);
+        pointer-events: none;
+    }
+    .dash-welcome::after {
+        content: ''; position: absolute; right: -50px; bottom: -50px;
+        width: 200px; height: 200px; border-radius: 50%;
+        background: rgba(255,255,255,0.08); pointer-events: none;
+    }
+    .dash-welcome-text { position: relative; z-index: 1; }
+    .dash-welcome-text h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .dash-welcome-text p { font-size: 0.9rem; opacity: 0.85; }
+    .dash-welcome-icon { width: 56px; height: 56px; border-radius: 14px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; position: relative; z-index: 1; }
 
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -173,43 +193,39 @@
     }
 
     .upload-zone {
-        border: 2px dashed rgba(59, 130, 246, 0.4); border-radius: 1.8rem; padding: 2.5rem 1.5rem;
-        text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        background: var(--upload-zone-bg); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-        position: relative; overflow: hidden;
+        border: 2px dashed var(--border-subtle); border-radius: 12px; padding: 2.5rem 1.5rem;
+        text-align: center; cursor: pointer; transition: all 0.25s ease;
+        background: linear-gradient(135deg, var(--upload-zone-bg) 0%, var(--bg-card) 100%);
+        position: relative;
     }
-    .upload-zone::before {
-        content: ''; position: absolute; inset: 0; border-radius: 1.8rem;
-        background: radial-gradient(circle at center, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
-        opacity: 0; transition: opacity 0.3s ease;
-    }
-    .upload-zone:hover, .upload-zone.drag-over { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); transform: scale(1.005); box-shadow: 0 0 25px rgba(59, 130, 246, 0.2); }
-    .upload-zone:hover::before, .upload-zone.drag-over::before { opacity: 1; }
-    .upload-zone.drag-over { animation: pulse 1.5s ease-in-out infinite; }
+    .upload-zone:hover { border-color: var(--accent); background: linear-gradient(135deg, var(--accent-light) 0%, var(--bg-card) 100%); transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+    .upload-zone.drag-over { border-color: var(--accent); background: var(--accent-light); transform: scale(1.01); box-shadow: 0 0 0 4px var(--accent-light); }
 
-    .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.8rem; }
+    .file-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
 
     .file-card {
-        background: var(--bg-card); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-        border-radius: 1.5rem; overflow: hidden; border: 1px solid var(--border-card);
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; box-shadow: var(--shadow-sm);
+        background: var(--bg-card);
+        border-radius: 10px; overflow: hidden; border: 1px solid var(--border-subtle);
+        border-top: 3px solid var(--accent);
+        transition: all 0.25s ease; cursor: pointer;
         user-select: none;
     }
-    .file-card:hover { transform: translateY(-5px); border-color: rgba(59, 130, 246, 0.5); box-shadow: var(--shadow-md); }
+    .file-card:hover { transform: translateY(-3px); border-color: var(--accent-border); box-shadow: var(--shadow-md); }
 
     .file-thumb {
-        height: 175px; background: var(--thumb-bg); display: flex; align-items: center; justify-content: center;
+        height: 140px; background: var(--thumb-bg); display: flex; align-items: center; justify-content: center;
         position: relative; overflow: hidden;
     }
-    .file-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
-    .file-card:hover .file-thumb img { transform: scale(1.08); }
+    .file-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
+    .file-card:hover .file-thumb img { transform: scale(1.05); }
 
     .file-icon-container {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         width: 100%; height: 100%; position: relative;
+        background: linear-gradient(135deg, var(--thumb-bg) 0%, var(--bg-secondary) 100%);
     }
     .file-icon-large {
-        font-size: 4rem; transition: all 0.3s ease;
+        font-size: 2rem; transition: all 0.3s ease; margin-bottom: 4px;
     }
     .file-extension-tag {
         position: absolute; bottom: 12px; right: 12px;
@@ -220,33 +236,20 @@
     }
 
     .file-info { padding: 1rem 1.1rem; color: var(--text-primary); }
-    .file-name { font-weight: 600; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.92rem; line-height: 1.35; color: var(--text-primary); }
-    .file-meta { font-size: 0.75rem; color: var(--text-secondary); margin: 0.4rem 0 0.8rem; }
+    .file-name { font-weight: 600; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.85rem; line-height: 1.4; color: var(--text-primary); }
+    .file-meta { font-size: 0.75rem; color: var(--text-tertiary); margin: 4px 0 8px; }
     .file-actions {
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
+        display: flex; gap: 6px;
         border-top: 1px solid var(--border-subtle);
-        padding-top: 0.6rem;
-        gap: 0;
-        flex-wrap: nowrap;
+        padding-top: 8px;
     }
     .file-actions .action-btn {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 2px;
-        padding: 4px 6px;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        font-size: 0.65rem;
-        color: var(--text-secondary);
-        border: none;
-        background: transparent;
-        flex: 1;
-        min-width: 0;
-        text-align: center;
+        display: flex; align-items: center; gap: 4px;
+        padding: 5px 10px; border-radius: 6px;
+        cursor: pointer; transition: all 0.2s ease;
+        font-size: 0.72rem; font-weight: 500;
+        color: var(--text-secondary); border: 1px solid var(--border-subtle);
+        background: var(--bg-card); white-space: nowrap;
     }
     .file-actions .action-btn:hover {
         background: var(--accent-light);
@@ -260,18 +263,22 @@
         color: #ef4444;
     }
     .file-actions .action-btn.success {
-        color: var(--accent);
+        color: var(--accent); border-color: var(--accent-border); background: var(--accent-light);
     }
     .file-actions .action-btn.success:hover {
-        background: rgba(34, 197, 94, 0.1);
-        color: #22c55e;
+        background: var(--accent); color: white;
     }
+    .file-actions .action-btn:hover {
+        border-color: var(--accent-border); color: var(--accent); background: var(--accent-light);
+    }
+    .file-actions .action-btn.danger { color: #ef4444; border-color: rgba(239,68,68,0.2); }
+    .file-actions .action-btn.danger:hover { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.4); }
 
-    .el-button--primary { background: var(--gradient-button) !important; border: none !important; transition: all 0.3s ease !important; }
-    .el-button--primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35); }
+    .el-button--primary { background: var(--accent) !important; border: none !important; transition: all 0.2s ease !important; border-radius: 8px !important; }
+    .el-button--primary:hover { opacity: 0.9; }
 
-    .el-input__wrapper { background: var(--input-bg) !important; border-radius: 40px !important; transition: all 0.3s ease !important; }
-    .el-dialog { background: var(--bg-primary) !important; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 1.8rem !important; color: var(--text-primary); }
+    .el-input__wrapper { background: var(--input-bg) !important; border-radius: 8px !important; transition: all 0.2s ease !important; box-shadow: 0 0 0 1px var(--border-subtle) !important; }
+    .el-dialog { background: var(--bg-primary) !important; border: 1px solid var(--border-subtle); border-radius: 12px !important; color: var(--text-primary); box-shadow: var(--shadow-lg) !important; }
     .el-descriptions__title, .el-descriptions__label, .el-descriptions__content { color: var(--text-primary) !important; }
     .el-tabs__item { color: var(--text-secondary) !important; }
     .el-tabs__item.is-active { color: var(--accent) !important; }
@@ -293,11 +300,11 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.8rem 1.2rem;
-        margin-bottom: 1rem;
+        padding: 10px 16px;
+        margin-bottom: 16px;
         background: var(--bg-card);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
         border-radius: 1rem;
         border: 1px solid var(--border-card);
         box-shadow: var(--shadow-sm);
@@ -616,19 +623,19 @@
 
     .search-container .search-input {
         width: 100%;
-        padding: 0.8rem 1rem 0.8rem 2.8rem;
+        padding: 8px 12px 8px 36px;
         border: 1px solid var(--border-subtle);
-        border-radius: 2rem;
-        background: var(--bg-secondary);
+        border-radius: 8px;
+        background: var(--bg-card);
         color: var(--text-primary);
-        font-size: 0.9rem;
+        font-size: 13px;
         outline: none;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
     }
 
     .search-container .search-input:focus {
         border-color: var(--accent);
-        box-shadow: 0 0 0 3px var(--accent-light);
+        box-shadow: 0 0 0 2px var(--accent-light);
     }
 
     .search-container .search-input::placeholder {
@@ -644,23 +651,23 @@
     }
 
     .search-btn {
-        padding: 0.8rem 1.5rem;
+        padding: 8px 16px;
         border: none;
-        border-radius: 1.5rem;
-        background: var(--gradient-button);
+        border-radius: 8px;
+        background: var(--accent);
         color: white;
         font-weight: 500;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        font-size: 0.9rem;
+        gap: 6px;
+        font-size: 13px;
         white-space: nowrap;
     }
 
     .search-btn:hover:not(:disabled) {
-        transform: translateY(-2px);
+        opacity: 0.9;
         box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
     }
 
@@ -757,182 +764,490 @@
     <div class="app">
         <!-- 未登录 -->
         <div v-if="!token">
-            <!-- 导航栏 -->
             <nav class="guest-navbar">
                 <div class="brand-logo">
                     <span class="brand-icon"><img src="/assets/logo.png" alt="AeroImageHost"></span>
                     <span class="brand-text">AeroImageHost</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 1rem;">
-                    <button class="guest-login-btn" @click="showAuthModal = true">
-                        <i class="fas fa-sign-in-alt"></i> 登录 / 注册
-                    </button>
+                <div style="display: flex; align-items: center; gap: 0.8rem;">
                     <button class="theme-toggle" @click="toggleTheme" :title="isDark ? '切换亮色模式' : '切换暗色模式'">
                         <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'"></i>
                     </button>
+                    <button class="nav-btn-about" @click="showAboutModal = true">关于 AeroImageHost</button>
+                    <button class="nav-btn-login" @click="showAuthModal = true">登录</button>
                 </div>
             </nav>
 
             <!-- Hero -->
-            <!-- Hero -->
-            <section class="landing-hero">
-                <div class="landing-hero-bg">
-                    <div class="landing-glow landing-glow-1"></div>
-                    <div class="landing-glow landing-glow-2"></div>
-                    <div class="landing-glow landing-glow-3"></div>
-                </div>
-                <div class="landing-hero-content">
-                    <div class="landing-badge"><i class="fas fa-rocket"></i> 高性能 C++17 驱动</div>
-                    <h1 class="landing-title">企业级图床，<span class="gradient-text">毫秒级响应</span></h1>
-                    <p class="landing-subtitle">
-                        基于 Drogon C++ 框架与 MinIO 分布式存储构建，支持大文件断点续传、图片智能缩略、多格式在线预览。<br>私有化部署，数据完全自主可控。
-                    </p>
-                    <div class="landing-ctas">
-                        <button class="landing-btn landing-btn-primary landing-btn-lg" @click="showAuthModal = true; activeTab = 'register'"><i class="fas fa-user-plus"></i> 免费注册</button>
-                        <button class="landing-btn landing-btn-ghost landing-btn-lg" @click="showAuthModal = true; activeTab = 'login'"><i class="fas fa-sign-in-alt"></i> 立即登录</button>
+            <section class="lp-hero">
+                <div class="lp-hero-glow lp-hero-glow-1"></div>
+                <div class="lp-hero-glow lp-hero-glow-2"></div>
+                <div class="lp-hero-glow lp-hero-glow-3"></div>
+                <div class="lp-hero-float lp-hero-float-1"><img src="https://picsum.photos/seed/h1/120/120" alt=""></div>
+                <div class="lp-hero-float lp-hero-float-2"><img src="https://picsum.photos/seed/h2/100/100" alt=""></div>
+                <div class="lp-hero-float lp-hero-float-3"><img src="https://picsum.photos/seed/h3/90/90" alt=""></div>
+                <div class="lp-hero-float lp-hero-float-4"><img src="https://picsum.photos/seed/h4/80/80" alt=""></div>
+                <div class="lp-hero-inner">
+                    <div class="lp-hero-badge"><i class="fas fa-rocket"></i> 高性能 · 私有化部署</div>
+                    <h1>不只是图床<br>是你的<span class="hl">文件管理中枢</span></h1>
+                    <p>上传、管理、分享你的所有文件。支持图片智能缩略、文档在线预览、大文件断点续传。私有化部署，数据完全在你手中。</p>
+                    <div class="lp-hero-btns">
+                        <button class="lp-btn lp-btn-primary" @click="showAuthModal = true; activeTab = 'register'"><i class="fas fa-user-plus"></i> 免费注册</button>
+                        <button class="lp-btn lp-btn-ghost" @click="showAuthModal = true; activeTab = 'login'"><i class="fas fa-sign-in-alt"></i> 立即登录</button>
                     </div>
                 </div>
             </section>
 
-            <!-- 统计 -->
-            <div class="landing-stats">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(99,102,241,0.12); color: #6366f1;"><i class="fas fa-users"></i></div>
-                    <div class="stat-number">{{ displayStats.total_users }}<span class="stat-suffix">+</span></div>
-                    <div class="stat-label">注册用户</div>
+            <!-- Stats -->
+            <div class="lp-stats">
+                <div class="lp-stat">
+                    <div class="lp-stat-num">{{ displayStats.total_users }}<span style="font-size:1.2rem;font-weight:600;color:var(--text-secondary);">+</span></div>
+                    <div class="lp-stat-label">注册用户</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(139,92,246,0.12); color: #8b5cf6;"><i class="fas fa-file-alt"></i></div>
-                    <div class="stat-number">{{ displayStats.total_files }}<span class="stat-suffix">+</span></div>
-                    <div class="stat-label">总上传文件</div>
+                <div class="lp-stat">
+                    <div class="lp-stat-num">{{ displayStats.total_files }}<span style="font-size:1.2rem;font-weight:600;color:var(--text-secondary);">+</span></div>
+                    <div class="lp-stat-label">文件已上传</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(34,197,94,0.12); color: #22c55e;"><i class="fas fa-images"></i></div>
-                    <div class="stat-number">{{ displayStats.total_images }}<span class="stat-suffix">+</span></div>
-                    <div class="stat-label">总上传图片</div>
+                <div class="lp-stat">
+                    <div class="lp-stat-num">{{ displayStats.total_images }}<span style="font-size:1.2rem;font-weight:600;color:var(--text-secondary);">+</span></div>
+                    <div class="lp-stat-label">图片托管</div>
                 </div>
             </div>
 
-            <!-- 核心能力 Bento Grid -->
-            <section class="landing-section">
-                <div class="landing-section-header">
-                    <h2 class="landing-section-title">为什么选择 <span class="gradient-text">AeroImageHost</span></h2>
-                    <p class="landing-section-desc">不只是图床，更是全格式文件托管平台</p>
-                </div>
-                <div class="bento-grid">
-                    <div class="bento-card bento-lg" style="grid-column: span 2;">
-                        <div class="bento-card-glow" style="background: radial-gradient(circle at 80% 20%, rgba(99,102,241,0.15), transparent 60%);"></div>
-                        <div class="bento-icon" style="background: rgba(99,102,241,0.12); color: #6366f1;"><i class="fas fa-bolt"></i></div>
-                        <h3 class="bento-title">极致性能架构</h3>
-                        <p class="bento-desc">C++17 + Drogon 异步框架，MySQL/Redis 双连接池，多层缓存策略。接口响应 &lt; 10ms，内存占用 80~120MB，无 GC 停顿。</p>
-                        <div class="bento-tags"><span class="bento-tag">Drogon 异步IO</span><span class="bento-tag">连接池复用</span><span class="bento-tag">LRU 缓存</span></div>
+            <!-- Value Props -->
+            <div class="lp-solid">
+                <div class="lp-values lp-reveal">
+                    <div class="lp-val">
+                        <div class="lp-val-icon" style="background: rgba(37,99,235,0.08); color: #2563eb;"><i class="fas fa-bolt"></i></div>
+                        <h3>极速上传</h3>
+                        <p>拖拽、粘贴、点击，三种方式随心传。大文件自动分片，断网续传不丢失</p>
                     </div>
-                    <div class="bento-card bento-lg">
-                        <div class="bento-card-glow" style="background: radial-gradient(circle at 20% 80%, rgba(34,197,94,0.15), transparent 60%);"></div>
-                        <div class="bento-icon" style="background: rgba(34,197,94,0.12); color: #22c55e;"><i class="fas fa-server"></i></div>
-                        <h3 class="bento-title">MinIO 分布式存储</h3>
-                        <p class="bento-desc">S3 兼容对象存储，支持水平扩展与多副本高可用，数据安全有保障。</p>
+                    <div class="lp-val">
+                        <div class="lp-val-icon" style="background: rgba(16,185,129,0.08); color: #10b981;"><i class="fas fa-folder-open"></i></div>
+                        <h3>文件管理</h3>
+                        <p>搜索、排序、批量操作。所有文件一目了然，随时掌控</p>
                     </div>
-                    <div class="bento-card bento-lg">
-                        <div class="bento-card-glow" style="background: radial-gradient(circle at 80% 80%, rgba(249,115,22,0.15), transparent 60%);"></div>
-                        <div class="bento-icon" style="background: rgba(249,115,22,0.12); color: #f97316;"><i class="fas fa-cloud-upload-alt"></i></div>
-                        <h3 class="bento-title">大文件断点续传</h3>
-                        <p class="bento-desc">自动分片上传，断网重连自动继续，真实进度追踪。单文件最大 100MB。</p>
+                    <div class="lp-val">
+                        <div class="lp-val-icon" style="background: rgba(124,58,237,0.08); color: #7c3aed;"><i class="fas fa-share-alt"></i></div>
+                        <h3>一键分享</h3>
+                        <p>永久链接，一键复制。支持域名白名单，分享安全可控</p>
                     </div>
-                    <div class="bento-card bento-lg" style="grid-column: span 2;">
-                        <div class="bento-card-glow" style="background: radial-gradient(circle at 20% 20%, rgba(168,85,247,0.15), transparent 60%);"></div>
-                        <div class="bento-icon" style="background: rgba(168,85,247,0.12); color: #a855f7;"><i class="fas fa-images"></i></div>
-                        <h3 class="bento-title">智能图片处理</h3>
-                        <p class="bento-desc">基于 libvips 的按需缩略图生成，Redis 互斥锁防并发，缩略图缓存到 MinIO。支持 JPEG/PNG/WebP/GIF。</p>
-                        <div class="bento-tags"><span class="bento-tag">libvips 引擎</span><span class="bento-tag">按需生成</span><span class="bento-tag">防抖缓存</span></div>
-                    </div>
-                    <div class="bento-card">
-                        <div class="bento-icon-sm" style="background: rgba(236,72,153,0.12); color: #ec4899;"><i class="fas fa-eye"></i></div>
-                        <h3 class="bento-title-sm">多格式预览</h3>
-                        <p class="bento-desc-sm">PDF 全屏、视频播放、音频试听，无需下载即可预览。</p>
-                    </div>
-                    <div class="bento-card">
-                        <div class="bento-icon-sm" style="background: rgba(6,182,212,0.12); color: #06b6d4;"><i class="fas fa-share-alt"></i></div>
-                        <h3 class="bento-title-sm">永久外链</h3>
-                        <p class="bento-desc-sm">一键生成永久链接，支持域名白名单，嵌入任何网站。</p>
-                    </div>
-                    <div class="bento-card">
-                        <div class="bento-icon-sm" style="background: rgba(239,68,68,0.12); color: #ef4444;"><i class="fas fa-shield-alt"></i></div>
-                        <h3 class="bento-title-sm">安全管控</h3>
-                        <p class="bento-desc-sm">私有/公开权限切换，登录频率限制，IP 级访问控制。</p>
+                    <div class="lp-val">
+                        <div class="lp-val-icon" style="background: rgba(245,158,11,0.08); color: #f59e0b;"><i class="fas fa-eye"></i></div>
+                        <h3>在线预览</h3>
+                        <p>图片缩略图、PDF 全屏、视频播放、音频试听，无需下载即可查看</p>
                     </div>
                 </div>
-            </section>
+            </div>
 
-            <!-- 技术栈 -->
-            <section class="landing-section">
-                <div class="landing-section-header">
-                    <h2 class="landing-section-title">技术栈</h2>
-                    <p class="landing-section-desc">每一层都为生产环境而设计</p>
-                </div>
-                <div class="tech-stack-grid">
-                    <div class="tech-item"><div class="tech-icon" style="color: #6366f1;"><i class="fas fa-code"></i></div><div class="tech-name">C++17 / Drogon</div><div class="tech-role">异步 HTTP 后端</div></div>
-                    <div class="tech-item"><div class="tech-icon" style="color: #22c55e;"><i class="fas fa-server"></i></div><div class="tech-name">MinIO</div><div class="tech-role">S3 对象存储</div></div>
-                    <div class="tech-item"><div class="tech-icon" style="color: #3b82f6;"><i class="fas fa-database"></i></div><div class="tech-name">MySQL 8</div><div class="tech-role">元数据存储</div></div>
-                    <div class="tech-item"><div class="tech-icon" style="color: #ef4444;"><i class="fas fa-bolt"></i></div><div class="tech-name">Redis</div><div class="tech-role">缓存 / 会话 / 限流</div></div>
-                    <div class="tech-item"><div class="tech-icon" style="color: #a855f7;"><i class="fas fa-image"></i></div><div class="tech-name">libvips</div><div class="tech-role">图片缩略处理</div></div>
-                    <div class="tech-item"><div class="tech-icon" style="color: #06b6d4;"><i class="fab fa-docker"></i></div><div class="tech-name">Docker</div><div class="tech-role">一键部署</div></div>
-                </div>
-            </section>
-
-            <!-- 使用流程 -->
-            <section class="landing-section">
-                <div class="landing-section-header"><h2 class="landing-section-title">三步开始使用</h2></div>
-                <div class="landing-steps">
-                    <div class="landing-step"><div class="landing-step-number">1</div><div class="landing-step-icon"><i class="fas fa-user-plus"></i></div><h4 class="landing-step-title">注册账号</h4><p class="landing-step-desc">支持账号注册 / 邮箱验证码注册</p></div>
-                    <div class="landing-step-arrow"><i class="fas fa-chevron-right"></i></div>
-                    <div class="landing-step"><div class="landing-step-number">2</div><div class="landing-step-icon"><i class="fas fa-cloud-upload-alt"></i></div><h4 class="landing-step-title">上传文件</h4><p class="landing-step-desc">拖拽 / 粘贴 / 点击，大文件自动分片</p></div>
-                    <div class="landing-step-arrow"><i class="fas fa-chevron-right"></i></div>
-                    <div class="landing-step"><div class="landing-step-number">3</div><div class="landing-step-icon"><i class="fas fa-link"></i></div><h4 class="landing-step-title">分享链接</h4><p class="landing-step-desc">永久链接，在线预览，一键分享</p></div>
-                </div>
-            </section>
-
-            <!-- CTA -->
-            <section class="landing-section">
-                <div class="landing-cta">
-                    <div class="landing-cta-content">
-                        <h2 class="landing-cta-title">开始你的高速图床体验</h2>
-                        <p class="landing-cta-desc">注册即可免费使用全部功能，数据完全自主可控</p>
-                        <button class="landing-btn landing-btn-primary landing-btn-lg" @click="showAuthModal = true; activeTab = 'register'"><i class="fas fa-rocket"></i> 立即注册</button>
+            <!-- Dashboard Preview -->
+            <div class="lp-solid-alt">
+                <div class="lp-dash-wrap lp-reveal">
+                    <div class="lp-section-hd">
+                        <h2>登录后是什么样的？</h2>
+                        <p>简洁高效的文件管理面板，所有操作一目了然</p>
+                    </div>
+                    <div class="lp-dash">
+                        <div class="lp-dash-bar">
+                            <div class="lp-dash-dot" style="background: #ef4444;"></div>
+                            <div class="lp-dash-dot" style="background: #f59e0b;"></div>
+                            <div class="lp-dash-dot" style="background: #22c55e;"></div>
+                            <div class="lp-dash-url">aeroserver.ccwu.cc</div>
+                        </div>
+                        <div class="lp-dash-body">
+                            <div class="lp-dash-welcome">
+                                <div>
+                                    <div style="font-size: 16px; font-weight: 700; margin-bottom: 3px;">欢迎使用 AeroImageHost</div>
+                                    <div style="font-size: 13px; opacity: 0.85;">12 个文件 · 5 个公开 · 7 个私有</div>
+                                </div>
+                                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;"><i class="fas fa-cloud-arrow-up"></i></div>
+                            </div>
+                            <div class="lp-dash-upload">
+                                <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(37,99,235,0.1); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px;"><i class="fas fa-cloud-arrow-up" style="color: #2563eb; font-size: 1rem;"></i></div>
+                                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px;">拖拽文件到此处上传</div>
+                                <div style="font-size: 11px; color: var(--text-tertiary);">支持图片、文档、视频、音频、压缩包</div>
+                            </div>
+                            <div class="lp-dash-grid">
+                                <div class="lp-dash-card" style="border-top: 3px solid #2563eb;"><div class="lp-dash-thumb"><img src="https://picsum.photos/seed/d1/160/100" alt=""><img src="https://picsum.photos/seed/d7/160/100" alt=""></div><div class="lp-dash-card-info"><div class="lp-dash-card-name">screenshot.png</div><div class="lp-dash-card-meta">2.4 MB</div></div></div>
+                                <div class="lp-dash-card" style="border-top: 3px solid #2563eb;"><div class="lp-dash-thumb"><img src="https://picsum.photos/seed/d2/160/100" alt=""><img src="https://picsum.photos/seed/d8/160/100" alt=""></div><div class="lp-dash-card-info"><div class="lp-dash-card-name">design-v2.jpg</div><div class="lp-dash-card-meta">1.8 MB</div></div></div>
+                                <div class="lp-dash-card" style="border-top: 3px solid #ef4444;"><div class="lp-dash-thumb"><img src="https://picsum.photos/seed/d3/160/100" alt=""><img src="https://picsum.photos/seed/d9/160/100" alt=""></div><div class="lp-dash-card-info"><div class="lp-dash-card-name">report.pdf</div><div class="lp-dash-card-meta">540 KB</div></div></div>
+                                <div class="lp-dash-card" style="border-top: 3px solid #8b5cf6;"><div class="lp-dash-thumb"><img src="https://picsum.photos/seed/d4/160/100" alt=""><img src="https://picsum.photos/seed/d10/160/100" alt=""></div><div class="lp-dash-card-info"><div class="lp-dash-card-name">demo.mp4</div><div class="lp-dash-card-meta">12 MB</div></div></div>
+                                <div class="lp-dash-card" style="border-top: 3px solid #ec4899;"><div class="lp-dash-thumb"><img src="https://picsum.photos/seed/d5/160/100" alt=""><img src="https://picsum.photos/seed/d11/160/100" alt=""></div><div class="lp-dash-card-info"><div class="lp-dash-card-name">podcast.mp3</div><div class="lp-dash-card-meta">8.5 MB</div></div></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </section>
+            </div>
+
+            <!-- Feature: Upload -->
+            <div class="lp-solid">
+                <section class="lp-feat lp-reveal">
+                    <div>
+                        <div class="lp-feat-label">上传</div>
+                        <h2 class="lp-feat-title">怎么传都行<br>大文件也不怕</h2>
+                        <p class="lp-feat-desc">支持拖拽、Ctrl+V 粘贴、点击选择。大文件自动分片，断网续传。单文件最大 100MB，可配置至 10GB。</p>
+                        <div class="lp-feat-tags">
+                            <span class="lp-tag">拖拽上传</span>
+                            <span class="lp-tag">粘贴上传</span>
+                            <span class="lp-tag">断点续传</span>
+                            <span class="lp-tag">100MB+</span>
+                        </div>
+                    </div>
+                    <div class="lp-mockup">
+                        <div class="lp-upload-mock">
+                            <div class="lp-upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                            <div class="lp-upload-text">拖拽文件到此处上传</div>
+                            <div class="lp-upload-bar"><div class="lp-upload-bar-fill"></div></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Feature: Management -->
+            <div class="lp-solid-alt">
+                <section class="lp-feat reverse lp-reveal">
+                    <div>
+                        <div class="lp-feat-label">管理</div>
+                        <h2 class="lp-feat-title">所有文件<br>一目了然</h2>
+                        <p class="lp-feat-desc">搜索、批量操作、权限切换。每个文件自动生成永久链接，一键复制分享。</p>
+                        <div class="lp-feat-tags">
+                            <span class="lp-tag">搜索</span>
+                            <span class="lp-tag">批量操作</span>
+                            <span class="lp-tag">权限控制</span>
+                            <span class="lp-tag">永久链接</span>
+                        </div>
+                    </div>
+                    <div class="lp-mockup">
+                        <div class="lp-filelist-mock">
+                            <div class="lp-filelist-item">
+                                <div class="lp-filelist-icon" style="background: rgba(37,99,235,0.08); color: #2563eb;"><i class="fas fa-image"></i></div>
+                                <div class="lp-filelist-info"><div class="lp-filelist-name">product-photo.jpg</div><div class="lp-filelist-meta">2.4 MB</div></div>
+                                <div class="lp-filelist-action"><i class="fas fa-link"></i> 复制</div>
+                            </div>
+                            <div class="lp-filelist-item">
+                                <div class="lp-filelist-icon" style="background: rgba(239,68,68,0.08); color: #ef4444;"><i class="fas fa-file-pdf"></i></div>
+                                <div class="lp-filelist-info"><div class="lp-filelist-name">annual-report.pdf</div><div class="lp-filelist-meta">1.2 MB</div></div>
+                                <div class="lp-filelist-action"><i class="fas fa-link"></i> 复制</div>
+                            </div>
+                            <div class="lp-filelist-item">
+                                <div class="lp-filelist-icon" style="background: rgba(16,185,129,0.08); color: #10b981;"><i class="fas fa-file-archive"></i></div>
+                                <div class="lp-filelist-info"><div class="lp-filelist-name">project-backup.zip</div><div class="lp-filelist-meta">45 MB</div></div>
+                                <div class="lp-filelist-action"><i class="fas fa-link"></i> 复制</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Feature: Preview -->
+            <div class="lp-solid">
+                <section class="lp-feat lp-reveal">
+                    <div>
+                        <div class="lp-feat-label">预览</div>
+                        <h2 class="lp-feat-title">不用下载<br>直接看</h2>
+                        <p class="lp-feat-desc">图片智能缩略图、PDF 全屏、视频播放、音频试听。支持 26 种格式。</p>
+                        <div class="lp-feat-tags">
+                            <span class="lp-tag">智能缩略图</span>
+                            <span class="lp-tag">PDF 全屏</span>
+                            <span class="lp-tag">视频播放</span>
+                            <span class="lp-tag">26 种格式</span>
+                        </div>
+                    </div>
+                    <div class="lp-mockup">
+                        <div class="lp-grid-mock">
+                            <div class="lp-grid-item"><img src="https://picsum.photos/seed/aero1/200/200" alt=""><img src="https://picsum.photos/seed/aero7/200/200" alt=""><img src="https://picsum.photos/seed/aero13/200/200" alt=""></div>
+                            <div class="lp-grid-item"><img src="https://picsum.photos/seed/aero2/200/200" alt=""><img src="https://picsum.photos/seed/aero8/200/200" alt=""><img src="https://picsum.photos/seed/aero14/200/200" alt=""></div>
+                            <div class="lp-grid-item"><img src="https://picsum.photos/seed/aero3/200/200" alt=""><img src="https://picsum.photos/seed/aero9/200/200" alt=""><img src="https://picsum.photos/seed/aero15/200/200" alt=""></div>
+                            <div class="lp-grid-item"><img src="https://picsum.photos/seed/aero4/200/200" alt=""><img src="https://picsum.photos/seed/aero10/200/200" alt=""><img src="https://picsum.photos/seed/aero16/200/200" alt=""></div>
+                            <div class="lp-grid-item"><img src="https://picsum.photos/seed/aero5/200/200" alt=""><img src="https://picsum.photos/seed/aero11/200/200" alt=""><img src="https://picsum.photos/seed/aero17/200/200" alt=""></div>
+                            <div class="lp-grid-item"><img src="https://picsum.photos/seed/aero6/200/200" alt=""><img src="https://picsum.photos/seed/aero12/200/200" alt=""><img src="https://picsum.photos/seed/aero18/200/200" alt=""></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Feature: Sharing -->
+            <div class="lp-solid-alt">
+                <section class="lp-feat reverse lp-reveal">
+                    <div>
+                        <div class="lp-feat-label">分享</div>
+                        <h2 class="lp-feat-title">永久链接<br>一键分享</h2>
+                        <p class="lp-feat-desc">每个文件自动生成永久链接，永不过期。支持域名白名单防盗链。</p>
+                        <div class="lp-feat-tags">
+                            <span class="lp-tag">永久链接</span>
+                            <span class="lp-tag">域名白名单</span>
+                            <span class="lp-tag">无需登录</span>
+                        </div>
+                    </div>
+                    <div class="lp-mockup">
+                        <div class="lp-link-mock">
+                            <div class="lp-link-icon"><i class="fas fa-image"></i></div>
+                            <div class="lp-link-url">https://aero.io/i/t01a36eda9bb9.jpg</div>
+                            <div class="lp-link-copy">复制</div>
+                        </div>
+                        <div class="lp-link-mock">
+                            <div class="lp-link-icon"><i class="fas fa-file-pdf"></i></div>
+                            <div class="lp-link-url">https://aero.io/i/report_2025.pdf</div>
+                            <div class="lp-link-copy">复制</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Use Cases -->
+            <div class="lp-solid">
+                <div class="lp-usecases lp-reveal">
+                    <div class="lp-section-hd">
+                        <h2>谁在用？用来干什么？</h2>
+                        <p>从个人博客到团队协作，AeroImageHost 都能胜任</p>
+                    </div>
+                    <div class="lp-usecases-grid">
+                        <div class="lp-usecase">
+                            <div class="lp-usecase-icon" style="background: rgba(37,99,235,0.08); color: #2563eb;"><i class="fas fa-pen-nib"></i></div>
+                            <div>
+                                <h3>博客作者 / 自媒体</h3>
+                                <p>文章配图一键上传，生成永久外链嵌入 Markdown，图片永不失效。</p>
+                            </div>
+                        </div>
+                        <div class="lp-usecase">
+                            <div class="lp-usecase-icon" style="background: rgba(16,185,129,0.08); color: #10b981;"><i class="fas fa-code"></i></div>
+                            <div>
+                                <h3>开发者 / 技术团队</h3>
+                                <p>文档截图、日志、构建产物托管。私有部署保证代码安全。</p>
+                            </div>
+                        </div>
+                        <div class="lp-usecase">
+                            <div class="lp-usecase-icon" style="background: rgba(124,58,237,0.08); color: #7c3aed;"><i class="fas fa-palette"></i></div>
+                            <div>
+                                <h3>设计师 / 创意团队</h3>
+                                <p>设计稿、素材库、灵感收集。缩略图网格浏览，分享给客户审阅。</p>
+                            </div>
+                        </div>
+                        <div class="lp-usecase">
+                            <div class="lp-usecase-icon" style="background: rgba(245,158,11,0.08); color: #f59e0b;"><i class="fas fa-shopping-bag"></i></div>
+                            <div>
+                                <h3>电商 / 产品展示</h3>
+                                <p>商品图片批量上传，永久链接嵌入店铺页面，浏览次数实时掌握。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security -->
+            <div class="lp-solid-alt">
+                <div class="lp-security lp-reveal">
+                    <div class="lp-section-hd">
+                        <h2>安全不是口号</h2>
+                        <p>从密码存储到访问控制，每一层都为生产环境设计</p>
+                    </div>
+                    <div class="lp-security-grid">
+                        <div class="lp-sec-item">
+                            <div class="lp-sec-icon" style="background: rgba(37,99,235,0.08); color: #2563eb;"><i class="fas fa-lock"></i></div>
+                            <h4>默认私有</h4>
+                            <p>所有文件上传后默认私有，只有您自己可以访问。</p>
+                        </div>
+                        <div class="lp-sec-item">
+                            <div class="lp-sec-icon" style="background: rgba(16,185,129,0.08); color: #10b981;"><i class="fas fa-shield-alt"></i></div>
+                            <h4>暴力破解防护</h4>
+                            <p>账号级和 IP 级双重限流，连续失败自动锁定。</p>
+                        </div>
+                        <div class="lp-sec-item">
+                            <div class="lp-sec-icon" style="background: rgba(124,58,237,0.08); color: #7c3aed;"><i class="fas fa-key"></i></div>
+                            <h4>军工级加密</h4>
+                            <p>PBKDF2-HMAC-SHA256，10 万次迭代 + 随机盐值。</p>
+                        </div>
+                        <div class="lp-sec-item">
+                            <div class="lp-sec-icon" style="background: rgba(245,158,11,0.08); color: #f59e0b;"><i class="fas fa-server"></i></div>
+                            <h4>私有化部署</h4>
+                            <p>Docker 一键部署到你自己的服务器，数据完全在你手中。</p>
+                        </div>
+                        <div class="lp-sec-item">
+                            <div class="lp-sec-icon" style="background: rgba(236,72,153,0.08); color: #ec4899;"><i class="fas fa-envelope"></i></div>
+                            <h4>邮箱验证注册</h4>
+                            <p>6 位验证码 10 分钟有效，防止恶意注册。</p>
+                        </div>
+                        <div class="lp-sec-item">
+                            <div class="lp-sec-icon" style="background: rgba(6,182,212,0.08); color: #06b6d4;"><i class="fas fa-globe"></i></div>
+                            <h4>域名白名单</h4>
+                            <p>设置允许引用的域名列表，防止他人盗链。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Steps -->
+            <div class="lp-solid">
+                <section class="lp-steps-section lp-reveal">
+                    <div class="lp-section-hd">
+                        <h2>三步开始使用</h2>
+                        <p>从注册到分享，不超过一分钟</p>
+                    </div>
+                    <div class="lp-steps">
+                        <div class="lp-step">
+                            <div class="lp-step-num">1</div>
+                            <div class="lp-step-title">注册账号</div>
+                            <div class="lp-step-desc">支持账号密码或邮箱验证码注册</div>
+                        </div>
+                        <div class="lp-step">
+                            <div class="lp-step-num">2</div>
+                            <div class="lp-step-title">上传文件</div>
+                            <div class="lp-step-desc">拖拽、粘贴或点击，大文件自动分片</div>
+                        </div>
+                        <div class="lp-step">
+                            <div class="lp-step-num">3</div>
+                            <div class="lp-step-title">复制链接分享</div>
+                            <div class="lp-step-desc">一键复制永久链接，分享到任何地方</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
 
             <!-- FAQ -->
-            <section class="landing-section">
-                <h2 class="landing-section-title">常见问题</h2>
-                <div class="landing-faq">
-                    <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 支持哪些文件格式？</div>
-                        <div class="landing-faq-answer">支持图片（JPG/PNG/GIF/WebP）、文档（PDF/DOC/DOCX/PPT/XLS）、视频（MP4/WebM/MOV）、音频（MP3/WAV/FLAC）以及压缩包（ZIP/RAR/7Z）等。PDF/视频/音频支持在线预览。</div>
-                    </div>
-                    <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 大文件上传中途断网怎么办？</div>
-                        <div class="landing-faq-answer">支持断点续传！大文件自动分片上传，页面刷新或断网后重新上传同一文件，会自动跳过已完成的分片，从断点处继续。</div>
-                    </div>
-                    <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 上传进度是真实的吗？</div>
-                        <div class="landing-faq-answer">是的！进度条基于 XMLHttpRequest 的 upload.onprogress 实时回调，反映真实的网络传输进度，不是模拟数据。</div>
-                    </div>
-                    <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 单个文件大小限制是多少？</div>
-                        <div class="landing-faq-answer">单个文件最大支持 100MB。大文件自动使用分片上传，确保稳定可靠。</div>
-                    </div>
-                    <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 如何保护我的隐私？</div>
-                        <div class="landing-faq-answer">默认私有模式，只有您自己可以查看。Token 鉴权 + Redis 会话管理，可随时切换为公开分享。</div>
-                    </div>
-                    <div class="landing-faq-item">
-                        <div class="landing-faq-question"><i class="fas fa-chevron-right"></i> 技术栈是什么？</div>
-                        <div class="landing-faq-answer">C++17 后端（Drogon 异步框架）、MinIO 分布式对象存储、MySQL 8 数据库、Redis 缓存与会话管理、libvips 图像处理，Docker 一键部署。</div>
+            <div class="lp-solid-alt">
+                <div class="lp-reveal">
+                    <div class="lp-section-hd"><h2>常见问题</h2></div>
+                    <div class="lp-faq">
+                        <div class="lp-faq-item" onclick="this.classList.toggle('open')">
+                            <div class="lp-faq-q"><span>支持哪些文件格式？</span><i class="fas fa-chevron-right"></i></div>
+                            <div class="lp-faq-a">支持 26 种格式：图片（JPG/PNG/GIF/WebP）、文档（PDF/DOC/DOCX/PPT/XLS）、视频（MP4/WebM/MOV）、音频（MP3/WAV/FLAC）以及压缩包（ZIP/RAR/7Z）等。</div>
+                        </div>
+                        <div class="lp-faq-item" onclick="this.classList.toggle('open')">
+                            <div class="lp-faq-q"><span>单个文件大小限制是多少？</span><i class="fas fa-chevron-right"></i></div>
+                            <div class="lp-faq-a">默认 100MB，可配置至 10GB。大文件自动分片上传，每片 20MB，确保传输稳定。</div>
+                        </div>
+                        <div class="lp-faq-item" onclick="this.classList.toggle('open')">
+                            <div class="lp-faq-q"><span>上传中途断网了怎么办？</span><i class="fas fa-chevron-right"></i></div>
+                            <div class="lp-faq-a">支持断点续传。重新上传同一文件会自动跳过已完成的分片，从断点继续，无需重新开始。</div>
+                        </div>
+                        <div class="lp-faq-item" onclick="this.classList.toggle('open')">
+                            <div class="lp-faq-q"><span>我的文件安全吗？谁能看到？</span><i class="fas fa-chevron-right"></i></div>
+                            <div class="lp-faq-a">默认私有，只有您自己可以查看。Token 鉴权 + Redis 会话管理。可随时切换为公开分享。私有化部署意味着数据完全在你自己的服务器上。</div>
+                        </div>
+                        <div class="lp-faq-item" onclick="this.classList.toggle('open')">
+                            <div class="lp-faq-q"><span>分享链接会过期吗？</span><i class="fas fa-chevron-right"></i></div>
+                            <div class="lp-faq-a">不会。分享链接永久有效，只要服务器正常运行就一直可用。您可以随时撤销分享权限。</div>
+                        </div>
+                        <div class="lp-faq-item" onclick="this.classList.toggle('open')">
+                            <div class="lp-faq-q"><span>免费吗？有什么限制？</span><i class="fas fa-chevron-right"></i></div>
+                            <div class="lp-faq-a">注册即可免费使用全部功能，无隐藏收费、无容量限制。私有化部署方案让您完全掌控成本。</div>
+                        </div>
+                        <div class="lp-faq-item" onclick="this.classList.toggle('open')">
+                            <div class="lp-faq-q"><span>如何私有化部署？</span><i class="fas fa-chevron-right"></i></div>
+                            <div class="lp-faq-a">只需 Docker 一键部署。克隆项目、配置数据库和 MinIO、执行 docker compose up 即可。详细文档可在 GitHub 获取。</div>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- CTA -->
+            <section class="lp-cta lp-reveal">
+                <div class="lp-cta-card">
+                    <h2>开始管理你的文件</h2>
+                    <p>注册即可免费使用全部功能，数据完全自主可控</p>
+                    <button class="lp-btn lp-btn-primary" @click="showAuthModal = true; activeTab = 'register'" style="font-size: 1rem; padding: 0.85rem 2.2rem;"><i class="fas fa-rocket"></i> 免费注册</button>
+                </div>
             </section>
+
+            <!-- 关于弹窗 -->
+            <div v-if="showAboutModal" class="lp-about-overlay" @click.self="showAboutModal = false">
+                <div class="lp-about-modal">
+                    <div class="lp-about-header">
+                        <h2>关于 AeroImageHost</h2>
+                        <button class="lp-about-close" @click="showAboutModal = false"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="lp-about-body">
+                        <!-- 作者信息 -->
+                        <div class="lp-about-profile">
+                            <img src="https://imagehost.aeroserver.ccwu.cc/api/i/abd15fee-9458-49af-b1bd-ebb0b48f2ad1" alt="avatar" class="lp-about-avatar-img">
+                            <div>
+                                <div class="lp-about-name">ywx914705</div>
+                                <div class="lp-about-role">独立开发者 · 全栈工程师</div>
+                            </div>
+                        </div>
+
+                        <!-- 产品介绍 -->
+                        <h3>AeroImageHost 是什么？</h3>
+                        <p>AeroImageHost 是一个<strong>高性能的文件托管与图床平台</strong>，支持图片、文档、视频、音频等 26 种文件格式的上传、管理和在线预览。它不仅仅是一个图床，更是一个完整的文件管理中枢。</p>
+                        <div class="lp-author-features" style="margin-bottom: 20px;">
+                            <div class="lp-author-feat"><i class="fas fa-check-circle"></i> 支持 26 种文件格式，图片/文档/视频/音频全覆盖</div>
+                            <div class="lp-author-feat"><i class="fas fa-check-circle"></i> 大文件自动分片上传，断网续传不丢失</div>
+                            <div class="lp-author-feat"><i class="fas fa-check-circle"></i> 智能缩略图、PDF 全屏、视频在线播放</div>
+                            <div class="lp-author-feat"><i class="fas fa-check-circle"></i> 永久分享链接，支持域名白名单防盗链</div>
+                            <div class="lp-author-feat"><i class="fas fa-check-circle"></i> 私有化部署，数据完全自主可控</div>
+                        </div>
+
+                        <!-- 技术亮点 -->
+                        <h3>技术亮点</h3>
+                        <div class="lp-about-tech">
+                            <div class="lp-about-tech-item">
+                                <i class="fas fa-bolt" style="color: #2563eb;"></i>
+                                <div>
+                                    <strong>高性能</strong>
+                                    <p>C++ 后端，接口响应 < 10ms，内存占用 80~120MB</p>
+                                </div>
+                            </div>
+                            <div class="lp-about-tech-item">
+                                <i class="fas fa-database" style="color: #10b981;"></i>
+                                <div>
+                                    <strong>多层缓存</strong>
+                                    <p>Redis 缓存 + MinIO 存储，缩略图按需生成并永久缓存</p>
+                                </div>
+                            </div>
+                            <div class="lp-about-tech-item">
+                                <i class="fas fa-shield-alt" style="color: #7c3aed;"></i>
+                                <div>
+                                    <strong>安全可靠</strong>
+                                    <p>PBKDF2 加密、Token 鉴权、暴力破解防护、请求追踪</p>
+                                </div>
+                            </div>
+                            <div class="lp-about-tech-item">
+                                <i class="fas fa-cogs" style="color: #f59e0b;"></i>
+                                <div>
+                                    <strong>运维友好</strong>
+                                    <p>Docker 一键部署、内置监控面板、自动清理、优雅停机</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 为什么做 -->
+                        <h3>为什么做这个项目？</h3>
+                        <p>市面上的图床服务要么收费昂贵，要么随时可能关停导致图片失效。AeroImageHost 的目标是提供一个<strong>完全自主可控</strong>的文件托管方案——数据在你自己的服务器上，永远不过期，永远可用。</p>
+
+                        <!-- 产品数据 -->
+                        <h3>产品数据</h3>
+                        <div class="lp-about-data">
+                            <div class="lp-about-data-item">
+                                <div class="lp-about-data-num">26+</div>
+                                <div class="lp-about-data-label">支持格式</div>
+                            </div>
+                            <div class="lp-about-data-item">
+                                <div class="lp-about-data-num">10GB</div>
+                                <div class="lp-about-data-label">最大文件</div>
+                            </div>
+                            <div class="lp-about-data-item">
+                                <div class="lp-about-data-num">&lt;10ms</div>
+                                <div class="lp-about-data-label">接口响应</div>
+                            </div>
+                            <div class="lp-about-data-item">
+                                <div class="lp-about-data-num">80MB</div>
+                                <div class="lp-about-data-label">内存占用</div>
+                            </div>
+                        </div>
+
+                        <!-- 联系方式 -->
+                        <h3>联系作者</h3>
+                        <div class="lp-about-contact">
+                            <a href="https://github.com/ywx914705/AeroImageHost" target="_blank" class="lp-btn lp-btn-ghost" style="flex: 1; justify-content: center;">
+                                <i class="fab fa-github"></i> GitHub
+                            </a>
+                            <a href="mailto:914718474@qq.com" class="lp-btn lp-btn-ghost" style="flex: 1; justify-content: center;">
+                                <i class="fas fa-envelope"></i> 邮箱联系
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- 已登录 -->
@@ -962,40 +1277,48 @@
             </div>
 
             <div class="main">
+                <!-- 欢迎横幅 -->
+                <div class="dash-welcome">
+                    <div class="dash-welcome-text">
+                        <h2>欢迎使用 AeroImageHost</h2>
+                        <p>你已有 {{ total || 0 }} 个文件</p>
+                    </div>
+                    <div class="dash-welcome-icon"><i class="fas fa-cloud-arrow-up"></i></div>
+                </div>
+
                 <!-- 上传区域 -->
-                <div class="glass-card" style="margin-bottom: 2.2rem; overflow: hidden;">
+                <div class="glass-card" style="margin-bottom: 20px; overflow: hidden;">
                     <div class="upload-zone"
                          @click="triggerFileInput"
                          @dragover.prevent="dragOver = true"
                          @dragleave="dragOver = false"
                          @drop.prevent="handleDrop"
                          :class="{ 'drag-over': dragOver }">
-                        <div style="font-size: 3.8rem; margin-bottom: 0.8rem; color: var(--accent);"><i class="fas fa-cloud-upload-alt"></i></div>
-                        <div style="font-size: 1.3rem; font-weight: 600; color: var(--text-primary);">拖拽文件至此 或 点击上传</div>
-                        <div style="color: var(--text-secondary);">图片 · 文档 · 压缩包 · 最大 100MB</div>
-                        <div style="margin-top: 0.8rem; font-size: 0.85rem; color: var(--accent);"><i class="fas fa-lock"></i> 新上传文件默认私有，可手动切换为公开</div>
-                        <div class="paste-hint"><kbd>Ctrl</kbd> + <kbd>V</kbd> 粘贴上传</div>
+                        <div style="width: 56px; height: 56px; border-radius: 14px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+                            <i class="fas fa-cloud-arrow-up" style="font-size: 1.4rem; color: var(--accent);"></i>
+                        </div>
+                        <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">拖拽文件到此处上传</div>
+                        <div style="font-size: 0.85rem; color: var(--text-tertiary);">或 <span style="color: var(--accent); font-weight: 500; cursor: pointer;">点击选择文件</span> · 支持图片、文档、视频、音频、压缩包</div>
+                        <div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-tertiary);"><kbd style="padding: 1px 5px; border: 1px solid var(--border-subtle); border-radius: 3px; font-size: 11px; background: var(--bg-card);">Ctrl+V</kbd> 粘贴上传 · 默认私有 · 最大 100MB</div>
                     </div>
                     <input type="file" ref="fileInput" style="display: none" @change="handleFileChange" multiple>
                 </div>
 
                 <!-- 搜索栏 -->
-                <div class="glass-card" style="margin-bottom: 2.2rem; padding: 1.2rem 1.8rem;">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <div class="search-container" style="flex: 1; margin-bottom: 0;">
-                            <i class="fas fa-search"></i>
-                            <input type="text" class="search-input" v-model="searchKeyword" @keyup.enter="handleSearch" placeholder="搜索文件名..." style="padding-right: 3rem;">
-                        </div>
-                        <button class="search-btn" @click="handleSearch" :disabled="fileListLoading">
-                            <i class="fas fa-search"></i>
-                            <span v-if="!fileListLoading">搜索</span>
-                            <span v-else><i class="fas fa-spinner fa-spin"></i></span>
-                        </button>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <div class="search-container" style="flex: 1; margin-bottom: 0;">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="search-input" v-model="searchKeyword" @keyup.enter="handleSearch" placeholder="搜索文件名...">
+                    </div>
+                    <button class="search-btn" @click="handleSearch" :disabled="fileListLoading">
+                        <i class="fas fa-search"></i>
+                        <span v-if="!fileListLoading">搜索</span>
+                        <span v-else><i class="fas fa-spinner fa-spin"></i></span>
+                    </button>
                         <button class="search-btn" @click="clearSearch" v-if="searchKeyword.trim()" style="background: var(--bg-secondary);">
                             <i class="fas fa-times"></i>
                             <span>清除</span>
                         </button>
-                    </div>
                 </div>
 
                 <!-- 上传队列 -->
@@ -1073,11 +1396,17 @@
                     </div>
 
                     <div v-if="files.length === 0" class="empty-state">
-                        <i class="fas fa-cloud-upload-alt" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                        <p style="font-size: 1.1rem; font-weight: 500;">还没有文件，快来上传第一个吧 ✨</p>
+                        <div style="width: 72px; height: 72px; border-radius: 18px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                            <i class="fas fa-folder-open" style="font-size: 1.8rem; color: var(--accent);"></i>
+                        </div>
+                        <p style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">还没有文件</p>
+                        <p style="font-size: 0.85rem; color: var(--text-tertiary); margin-bottom: 16px;">拖拽文件到上方区域或点击上传</p>
+                        <button class="lp-btn lp-btn-primary" @click="triggerFileInput" style="height: 38px; font-size: 13px; padding: 0 18px;">
+                            <i class="fas fa-plus"></i> 上传文件
+                        </button>
                     </div>
                     <div v-else class="file-grid">
-                        <div v-for="file in files" :key="file.file_id" class="file-card" @click="openFileDetail(file)">
+                        <div v-for="file in files" :key="file.file_id" class="file-card" :style="{ borderTopColor: getFileColor(file) }" @click="openFileDetail(file)">
                             <div class="file-checkbox" @click.stop>
                                 <el-checkbox v-model="file.selected" @change="handleFileSelect(file)"></el-checkbox>
                             </div>
@@ -1134,7 +1463,7 @@
         <div v-if="detailFile" class="file-detail-overlay" @click="closeFileDetail">
             <div class="file-detail-card" @click.stop>
                 <!-- 大文件预览区域（PDF/视频/音频/代码） -->
-                <div v-if="isPdfFile(detailFile) || isVideoFile(detailFile) || isAudioFile(detailFile) || isTextFile(detailFile)" class="file-detail-large-preview">
+                <div v-if="isPdfFile(detailFile) || isVideoFile(detailFile) || isAudioFile(detailFile)" class="file-detail-large-preview">
                     <!-- PDF 预览 -->
                     <div v-if="isPdfFile(detailFile)" style="position: relative; width: 100%; height: 100%;">
                         <embed :src="detailFile._presignUrl || getFileUrl(detailFile.file_id)" type="application/pdf" style="width: 100%; height: 100%; border: none;">
@@ -1163,7 +1492,7 @@
                         <img :src="getImageSrc(detailFile)" :alt="detailFile.filename" loading="lazy" decoding="async" />
                     </div>
                     <!-- 其他文件图标 -->
-                    <div class="file-detail-preview" v-else-if="!isPdfFile(detailFile) && !isVideoFile(detailFile) && !isAudioFile(detailFile) && !isTextFile(detailFile)">
+                    <div class="file-detail-preview" v-else-if="!isPdfFile(detailFile) && !isVideoFile(detailFile) && !isAudioFile(detailFile)">
                         <i :class="getFileIconClass(detailFile)" :style="{ color: getFileColor(detailFile) }"></i>
                     </div>
                     <div class="file-detail-title">
@@ -1702,6 +2031,7 @@
                     const detailFile = ref(null); // 文件详情弹窗状态
                     const fullscreenPdf = ref(null); // PDF 全屏预览状态
                     const showAuthModal = ref(false); // 登录/注册弹窗
+                    const showAboutModal = ref(false); // 关于弹窗
                     const stats = reactive({ total_users: 0, total_files: 0, total_images: 0 }); // 站点统计
                     const displayStats = reactive({ total_users: 0, total_files: 0, total_images: 0 }); // 动画显示值
                     let statsAnimating = false;
@@ -1837,16 +2167,16 @@
                     const getFileColor = (file) => {
                         const ext = getFileExtension(file.filename);
                         const colorMap = {
+                            '.jpg': '#2563eb', '.jpeg': '#2563eb', '.png': '#2563eb',
+                            '.gif': '#2563eb', '.webp': '#2563eb', '.svg': '#2563eb',
                             '.pdf': '#ef4444',
-                            '.doc': '#3b82f6', '.docx': '#3b82f6',
-                            '.xls': '#22c55e', '.xlsx': '#22c55e',
+                            '.doc': '#0ea5e9', '.docx': '#0ea5e9',
+                            '.xls': '#10b981', '.xlsx': '#10b981',
                             '.ppt': '#f97316', '.pptx': '#f97316',
-                            '.txt': '#6b7280',
-                            '.zip': '#8b5cf6', '.rar': '#8b5cf6', '.7z': '#8b5cf6',
-                            '.jpg': '#eab308', '.jpeg': '#eab308', '.png': '#eab308',
-                            '.gif': '#eab308', '.webp': '#eab308',
-                            '.mp4': '#06b6d4', '.mov': '#06b6d4', '.avi': '#06b6d4',
-                            '.mp3': '#ec4899', '.wav': '#ec4899', '.flac': '#ec4899',
+                            '.mp4': '#8b5cf6', '.mov': '#7c3aed', '.avi': '#6d28d9', '.mkv': '#a855f7',
+                            '.mp3': '#ec4899', '.wav': '#f472b6', '.flac': '#db2777',
+                            '.zip': '#78716c', '.rar': '#57534e', '.7z': '#44403c',
+                            '.txt': '#94a3b8',
                         };
                         return colorMap[ext] || '#64748b';
                     };
@@ -2051,6 +2381,17 @@
 
                             ElMessage?.success?.('登录成功');
                             await loadStats();
+
+                        // Landing page scroll reveal
+                        const revealObserver = new IntersectionObserver((entries) => {
+                            entries.forEach(entry => {
+                                if (entry.isIntersecting) {
+                                    entry.target.classList.add('visible');
+                                    revealObserver.unobserve(entry.target);
+                                }
+                            });
+                        }, { threshold: 0.15 });
+                        document.querySelectorAll('.lp-reveal').forEach(el => revealObserver.observe(el));
                             await loadFiles(true); // 强制刷新
                         } catch (err) {
                             const errData = err.response?.data;
@@ -2235,6 +2576,7 @@
                         localStorage.clear();
                         files.value = [];
                         ElMessage?.success?.('已退出登录');
+                        setTimeout(() => window.location.reload(), 500);
                     };
 
                     const handleLoginModal = async () => {
@@ -2245,6 +2587,9 @@
                             showAuthModal.value = false;
                             loginForm.account = '';
                             loginForm.password = '';
+                            page.value = 1;
+                            await loadStats();
+                            await loadFiles(true);
                         }
                         return success;
                     };
@@ -2964,8 +3309,8 @@
                                 window.open('/monitor/dashboard.html', '_blank', 'noopener,noreferrer');
                                 break;
                             case 'stats':
-                                const stats = {
-                                    totalFiles: files.value.length,
+                                const fileStats = {
+                                    totalFiles: total.value || 0,
                                     totalSize: files.value.reduce((s, f) => s + (f.size || 0), 0),
                                     todayUploads: files.value.filter(f =>
                                         dayjs(f.upload_time * 1000).isSame(dayjs(), 'day')
@@ -2973,7 +3318,7 @@
                                 };
                                 ElNotification?.success?.({
                                     title: '使用统计',
-                                    message: `文件总数: ${stats.totalFiles}\n总大小: ${formatSize(stats.totalSize)}\n今日上传: ${stats.todayUploads}`,
+                                    message: `文件总数: ${fileStats.totalFiles}\n当前页大小: ${formatSize(fileStats.totalSize)}\n今日上传: ${fileStats.todayUploads}`,
                                 });
                                 break;
                             case 'shortcuts':
@@ -3004,6 +3349,17 @@
 
                         // 无论是否登录都加载公开统计
                         loadStats();
+
+                        // Landing page scroll reveal
+                        const revealObserver = new IntersectionObserver((entries) => {
+                            entries.forEach(entry => {
+                                if (entry.isIntersecting) {
+                                    entry.target.classList.add('visible');
+                                    revealObserver.unobserve(entry.target);
+                                }
+                            });
+                        }, { threshold: 0.15 });
+                        document.querySelectorAll('.lp-reveal').forEach(el => revealObserver.observe(el));
 
                         const storedToken = localStorage.getItem('token');
                         const storedUserId = localStorage.getItem('user_id');
@@ -3040,7 +3396,7 @@
                         isDark, toggleTheme,
 
                         // 认证
-                        token, username, activeTab, showAuthModal,
+                        token, username, activeTab, showAuthModal, showAboutModal,
                         loginLoading, registerLoading,
                         loginForm, registerForm,
                         loginRules, registerRules,

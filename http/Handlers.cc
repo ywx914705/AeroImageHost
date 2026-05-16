@@ -288,6 +288,13 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
                              mime.find("video") != std::string::npos ||
                              mime.find("audio") != std::string::npos);
         obj.AddMember("needs_preview", needsPreview, resp.GetAllocator());
+        bool isImg = (mime.find("image/") != std::string::npos);
+        if (isImg) {
+            std::string presign = MinIOClient::instance().presignGetUrl(f.file_id, 3600);
+            Value presignVal;
+            presignVal.SetString(presign.c_str(), presign.size(), resp.GetAllocator());
+            obj.AddMember("presign_url", presignVal, resp.GetAllocator());
+        }
         filesArr.PushBack(obj, resp.GetAllocator());
     }
     resp.AddMember("files", filesArr, resp.GetAllocator());

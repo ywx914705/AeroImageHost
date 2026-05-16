@@ -32,10 +32,19 @@ config/config-docker.json
 .DS_Store
 Thumbs.db
 
-# Temporary files
+# Temporary / backup files
 *.tmp
 *.bak
+*.bak.*
 *.cache
+*.pre-redesign
+
+# Frontend backups
+www/index.html.*
+www/assets/*.bak
+
+# Duplicate assets
+www/public/
 
 # Node (if any)
 node_modules/
@@ -43,3 +52,6 @@ package-lock.json
 
 # Docker
 .docker/
+
+# Tests (unit tests not needed in production)
+tests/
