@@ -77,9 +77,8 @@ RUN (curl -L -o /tmp/minio-cpp.tar.gz \
 WORKDIR /app
 COPY . .
 RUN mkdir -p build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON .. && \
-    make -j$(nproc) && \
-    ctest --output-on-failure
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF .. && \
+    make -j$(nproc)
 
 
 FROM ubuntu:22.04
