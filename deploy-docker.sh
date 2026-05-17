@@ -15,26 +15,27 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# 检查 Docker Compose 是否可用（V2 或 V1）
-COMPOSE_CMD=""
-if docker compose version &> /dev/null; then
-    COMPOSE_CMD="docker compose"
-elif command -v docker-compose &> /dev/null; then
-    COMPOSE_CMD="docker-compose"
-else
-    echo "[错误] Docker Compose 未安装"
-    echo "请先安装: sudo apt-get install -y docker-compose-plugin"
-    exit 1
-fi
-echo "[OK] Docker Compose: $COMPOSE_CMD"
-
-# 检测 Docker 权限
+# 检测 Docker 权限和 Compose 命令
 DOCKER_CMD="docker"
+COMPOSE_CMD=""
+
 if docker ps &> /dev/null; then
     echo "[OK] Docker 权限正常"
+    # V2
+    if docker compose version &> /dev/null; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
+    fi
 elif sudo -n docker ps &> /dev/null 2>&1; then
     DOCKER_CMD="sudo docker"
     echo "[OK] 使用 sudo 执行 docker"
+    # V2 with sudo
+    if sudo docker compose version &> /dev/null 2>&1; then
+        COMPOSE_CMD="sudo docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="sudo docker-compose"
+    fi
 else
     echo "[提示] 当前用户无 Docker 权限，尝试自动添加..."
     if sudo usermod -aG docker "$USER" 2>/dev/null; then
