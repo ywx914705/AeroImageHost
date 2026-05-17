@@ -41,7 +41,8 @@ RUN printf 'include(CMakeFindDependencyMacro)\nadd_library(nlohmann_json::nlohma
 RUN mkdir -p /usr/lib/cmake/pugixml
 RUN printf 'add_library(pugixml::pugixml SHARED IMPORTED)\nset_target_properties(pugixml::pugixml PROPERTIES\n  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.so"\n  INTERFACE_INCLUDE_DIRECTORIES "/usr/include"\n)\nadd_library(pugixml::pugixml-static STATIC IMPORTED)\nset_target_properties(pugixml::pugixml-static PROPERTIES\n  IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libpugixml.a"\n  INTERFACE_INCLUDE_DIRECTORIES "/usr/include"\n)\n' > /usr/lib/cmake/pugixml/pugixmlConfig.cmake
 
-RUN git clone --depth 1 --branch v1.9.4 https://github.com/drogonframework/drogon.git /tmp/drogon && \
+RUN (git clone --depth 1 --branch v1.9.4 https://github.com/drogonframework/drogon.git /tmp/drogon || \
+     git clone --depth 1 --branch v1.9.4 https://ghproxy.com/https://github.com/drogonframework/drogon.git /tmp/drogon) && \
     cd /tmp/drogon && \
     git submodule update --init --recursive && \
     mkdir build && cd build && \
