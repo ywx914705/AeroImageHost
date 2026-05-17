@@ -31,7 +31,6 @@ elif sudo -n docker ps &> /dev/null 2>&1; then
     echo "[OK] 使用 sudo 执行 docker"
 else
     echo "[提示] 当前用户无 Docker 权限，尝试自动添加..."
-    # 尝试自动添加到 docker 组
     if sudo usermod -aG docker "$USER" 2>/dev/null; then
         echo "[OK] 已将用户 $USER 添加到 docker 组"
         echo "[提示] 请执行以下命令后重新运行此脚本:"
@@ -44,6 +43,28 @@ else
         echo "然后执行: newgrp docker"
         echo "最后重新运行此脚本"
         exit 1
+    fi
+fi
+
+# 配置国内镜像加速（解决 Docker Hub 超时问题）
+if ! $DOCKER_CMD info 2>/dev/null | grep -q "Registry Mirrors"; then
+    echo ""
+    echo "[提示] 检测到未配置 Docker 镜像加速，正在配置..."
+    sudo mkdir -p /etc/docker
+    sudo tee /etc/docker/daemon.json > /dev/null << 'EOF'
+{
+  "registry-mirrors": [
+    "https://docker.1ms.run",
+    "https://docker.xuanyuan.me"
+  ]
+}
+EOF
+    sudo systemctl daemon-reload
+    sudo systemctl restart docker
+    echo "[OK] 镜像加速已配置"
+    # 重新检测 docker 命令
+    if ! docker ps &> /dev/null; then
+        DOCKER_CMD="sudo docker"
     fi
 fi
 
