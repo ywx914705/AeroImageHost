@@ -112,9 +112,21 @@ for i in {1..120}; do
 done
 
 # 获取公网 IP
-IP=$(curl -s --connect-timeout 5 https://api.ipify.org 2>/dev/null || \
-     curl -s --connect-timeout 5 https://ifconfig.me 2>/dev/null || \
-     hostname -I | awk '{print $1}')
+IP=$(curl -s --connect-timeout 5 https://api.ipify.org 2>/dev/null)
+if [ -z "$IP" ]; then
+    IP=$(curl -s --connect-timeout 5 https://ifconfig.me 2>/dev/null)
+fi
+if [ -z "$IP" ]; then
+    IP=$(curl -s --connect-timeout 5 http://ip.sb 2>/dev/null)
+fi
+if [ -z "$IP" ]; then
+    # 尝试通过 MinIO 获取公网 IP
+    IP=$(curl -s --connect-timeout 5 http://localhost:9000/minio/health/live 2>/dev/null | grep -oP '"ip":"[^"]*"' | cut -d'"' -f4)
+fi
+if [ -z "$IP" ]; then
+    IP=$(hostname -I | awk '{print $1}')
+    echo "[提示] 无法获取公网 IP，使用内网 IP: $IP"
+fi
 URL="http://${IP}:8082"
 
 echo ""
