@@ -27,7 +27,7 @@
     "host": "db",
     "port": 3306,
     "user": "aero_user",
-    "password": "CHANGE_ME_mysql_password",
+    "password": "aero123456",
     "db": "imagehost",
     "pool_size": 32
   },
@@ -36,14 +36,14 @@
     "host": "redis",
     "port": 6379,
     "pool_size": 16,
-    "password": "CHANGE_ME_redis_password"
+    "password": "redis123456"
   },
 
   "minio": {
     "endpoint": "http://minio:9000",
     "presign_endpoint": "",
-    "access_key": "CHANGE_ME_minio_access_key",
-    "secret_key": "CHANGE_ME_minio_secret_key",
+    "access_key": "minioadmin",
+    "secret_key": "minio123456",
     "bucket": "images",
     "public_url": "http://localhost:8082/api/i/"
   },
