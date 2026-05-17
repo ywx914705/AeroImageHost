@@ -111,7 +111,7 @@ bash deploy-local.sh
 
 脚本会自动完成：安装依赖 → 编译 Drogon/miniocpp → 编译项目 → 创建配置。
 
-详细部署步骤请参考 [部署文档](docs/DEPLOYMENT.md)。
+详细部署步骤和常见问题请参考 [部署文档](docs/DEPLOYMENT.md)。
 
 ## 技术栈
 

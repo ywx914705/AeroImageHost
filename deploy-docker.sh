@@ -15,12 +15,18 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# 检查 Docker Compose 是否可用
-if ! docker compose version &> /dev/null; then
+# 检查 Docker Compose 是否可用（V2 或 V1）
+COMPOSE_CMD=""
+if docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+elif command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+else
     echo "[错误] Docker Compose 未安装"
     echo "请先安装: sudo apt-get install -y docker-compose-plugin"
     exit 1
 fi
+echo "[OK] Docker Compose: $COMPOSE_CMD"
 
 # 检测 Docker 权限
 DOCKER_CMD="docker"
@@ -81,12 +87,12 @@ fi
 echo ""
 echo "[2/3] 构建并启动服务..."
 echo "  首次构建约 10-20 分钟，请耐心等待"
-sudo docker compose up -d --build
+$COMPOSE_CMD up -d --build
 
 echo ""
 echo "[3/3] 等待服务就绪..."
 for i in {1..120}; do
-    if sudo docker compose ps 2>/dev/null | grep -q "healthy"; then
+    if $COMPOSE_CMD ps 2>/dev/null | grep -q "healthy"; then
         echo "  服务已就绪！"
         break
     fi
@@ -119,7 +125,7 @@ elif command -v open &> /dev/null; then
 fi
 
 echo "  常用命令："
-echo "  sudo docker compose ps              # 查看状态"
-echo "  sudo docker compose logs -f app     # 查看日志"
-echo "  sudo docker compose restart app     # 重启应用"
-echo "  sudo docker compose down            # 停止服务"
+echo "  $COMPOSE_CMD ps              # 查看状态"
+echo "  $COMPOSE_CMD logs -f app     # 查看日志"
+echo "  $COMPOSE_CMD restart app     # 重启应用"
+echo "  $COMPOSE_CMD down            # 停止服务"
