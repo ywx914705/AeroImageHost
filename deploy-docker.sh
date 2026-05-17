@@ -96,7 +96,9 @@ echo "[3/4] 配置前端文件..."
 $DOCKER_CMD cp www/index.html aeroimagehost-nginx:/usr/share/nginx/html/index.html 2>/dev/null || true
 $DOCKER_CMD cp www/assets aeroimagehost-nginx:/usr/share/nginx/html/assets 2>/dev/null || true
 $DOCKER_CMD cp www/monitor aeroimagehost-nginx:/usr/share/nginx/html/monitor 2>/dev/null || true
-echo "  前端文件已配置"
+# 重启 nginx 使配置生效
+$DOCKER_CMD restart aeroimagehost-nginx 2>/dev/null || true
+echo "  前端文件已配置，nginx 已重启"
 
 echo ""
 echo "[4/4] 等待服务就绪..."
