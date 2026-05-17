@@ -22,20 +22,32 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-# 检查 Docker 权限
+# 检测 Docker 权限
 DOCKER_CMD="docker"
-if ! docker ps &> /dev/null; then
-    if sudo docker ps &> /dev/null; then
-        DOCKER_CMD="sudo docker"
-        echo "[提示] 需要使用 sudo 执行 docker 命令"
+if docker ps &> /dev/null; then
+    echo "[OK] Docker 权限正常"
+elif sudo -n docker ps &> /dev/null 2>&1; then
+    DOCKER_CMD="sudo docker"
+    echo "[OK] 使用 sudo 执行 docker"
+else
+    echo "[提示] 当前用户无 Docker 权限，尝试自动添加..."
+    # 尝试自动添加到 docker 组
+    if sudo usermod -aG docker "$USER" 2>/dev/null; then
+        echo "[OK] 已将用户 $USER 添加到 docker 组"
+        echo "[提示] 请执行以下命令后重新运行此脚本:"
+        echo "  newgrp docker"
+        echo "  或者重新登录后再运行"
+        exit 0
     else
-        echo "[错误] 无法访问 Docker，请将用户添加到 docker 组:"
-        echo "  sudo usermod -aG docker \$USER"
-        echo "  然后重新登录"
+        echo "[错误] 无法自动添加权限"
+        echo "请手动执行: sudo usermod -aG docker \$USER"
+        echo "然后执行: newgrp docker"
+        echo "最后重新运行此脚本"
         exit 1
     fi
 fi
 
+echo ""
 echo "[1/3] 配置文件..."
 if [ ! -f .env ]; then
     cp .env.example .env
