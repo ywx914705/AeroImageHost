@@ -86,12 +86,20 @@ else
 fi
 
 echo ""
-echo "[2/3] 构建并启动服务..."
+echo "[2/4] 构建并启动服务..."
 echo "  首次构建约 10-20 分钟，请耐心等待"
 $COMPOSE_CMD up -d --build
 
 echo ""
-echo "[3/3] 等待服务就绪..."
+echo "[3/4] 配置前端文件..."
+# 将 www 目录复制到 nginx 容器
+$DOCKER_CMD cp www/index.html aeroimagehost-nginx:/usr/share/nginx/html/index.html 2>/dev/null || true
+$DOCKER_CMD cp www/assets aeroimagehost-nginx:/usr/share/nginx/html/assets 2>/dev/null || true
+$DOCKER_CMD cp www/monitor aeroimagehost-nginx:/usr/share/nginx/html/monitor 2>/dev/null || true
+echo "  前端文件已配置"
+
+echo ""
+echo "[4/4] 等待服务就绪..."
 for i in {1..120}; do
     if $COMPOSE_CMD ps 2>/dev/null | grep -q "healthy"; then
         echo "  服务已就绪！"
