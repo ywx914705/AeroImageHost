@@ -81,12 +81,12 @@ fi
 echo ""
 echo "[2/3] 构建并启动服务..."
 echo "  首次构建约 10-20 分钟，请耐心等待"
-$DOCKER_CMD compose up -d --build
+sudo docker compose up -d --build
 
 echo ""
 echo "[3/3] 等待服务就绪..."
 for i in {1..120}; do
-    if $DOCKER_CMD compose ps 2>/dev/null | grep -q "healthy"; then
+    if sudo docker compose ps 2>/dev/null | grep -q "healthy"; then
         echo "  服务已就绪！"
         break
     fi
@@ -96,7 +96,10 @@ for i in {1..120}; do
     fi
 done
 
-IP=$(hostname -I | awk '{print $1}')
+# 获取公网 IP
+IP=$(curl -s --connect-timeout 5 https://api.ipify.org 2>/dev/null || \
+     curl -s --connect-timeout 5 https://ifconfig.me 2>/dev/null || \
+     hostname -I | awk '{print $1}')
 URL="http://${IP}:8082"
 
 echo ""
@@ -116,7 +119,7 @@ elif command -v open &> /dev/null; then
 fi
 
 echo "  常用命令："
-echo "  $DOCKER_CMD compose ps              # 查看状态"
-echo "  $DOCKER_CMD compose logs -f app     # 查看日志"
-echo "  $DOCKER_CMD compose restart app     # 重启应用"
-echo "  $DOCKER_CMD compose down            # 停止服务"
+echo "  sudo docker compose ps              # 查看状态"
+echo "  sudo docker compose logs -f app     # 查看日志"
+echo "  sudo docker compose restart app     # 重启应用"
+echo "  sudo docker compose down            # 停止服务"
