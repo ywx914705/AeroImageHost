@@ -1,10 +1,11 @@
 # AeroImageHost
 
 <div align="center">
-  <img src="www/assets/logo.png" alt="AeroImageHost" width="120" style="border-radius: 16px;">
+  <img src="www/assets/logo.png" alt="AeroImageHost" width="140" style="border-radius: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
   <br><br>
-  <p><strong>高性能文件托管与图床平台</strong></p>
-  <p>C++17 + Drogon · MinIO 分布式存储 · Docker 一键部署</p>
+  <h2>高性能文件托管与图床平台</h2>
+  <p>C++17 + Drogon · MinIO 分布式存储 · Redis 缓存 · Docker 一键部署</p>
+  <p>支持 26 种文件格式 · 大文件断点续传 · 智能缩略图 · 在线预览</p>
   <br>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -60,6 +61,31 @@ AeroImageHost 是一个用 **C++17** 编写的高性能现代化图床系统，�
 | 一键分享 | 永久链接，支持私有/公开切换，域名白名单防盗链 |
 | 安全可靠 | PBKDF2 加密、Token 鉴权、暴力破解防护 |
 | 私有化部署 | Docker 一键部署，数据完全自主可控 |
+
+## 系统要求
+
+### Docker 部署
+
+| 项目 | 最低配置 | 推荐配置 |
+|------|----------|----------|
+| CPU | 2 核 | 4 核+ |
+| 内存 | 2 GB | 4 GB+ |
+| 磁盘 | 10 GB | 50 GB+（SSD 推荐） |
+| 系统 | Ubuntu 20.04+ / CentOS 8+ | Ubuntu 22.04 LTS |
+| Docker | 20.10+ | 最新稳定版 |
+| Docker Compose | V2 插件 | 最新稳定版 |
+
+> **实测环境**：4 核 4GB 内存 / 3Mbps 带宽的云服务器可稳定运行。
+
+### 本地编译
+
+| 项目 | 要求 |
+|------|------|
+| 编译器 | GCC 7+ / Clang 6+ |
+| CMake | 3.10+ |
+| 系统 | Linux (Ubuntu 20.04+) / macOS |
+| 内存 | 2 GB+ |
+| 磁盘 | 5 GB+（含编译依赖） |
 
 ## 快速部署
 

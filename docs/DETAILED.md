@@ -106,7 +106,7 @@ Authorization: Bearer {your_token}
 
 ## 部署指南
 
-### Docker 一键部署
+### Docker 一键部署（推荐）
 
 ```bash
 git clone https://github.com/ywx914705/AeroImageHost.git
@@ -122,7 +122,7 @@ cd AeroImageHost
 bash deploy-local.sh
 ```
 
-详细步骤见 [部署文档](DEPLOYMENT.md)。
+> 详细步骤、环境要求、常见问题请参考 [部署文档](DEPLOYMENT.md)。
 
 ### Nginx 反向代理
 

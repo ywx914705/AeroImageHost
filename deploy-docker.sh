@@ -33,23 +33,18 @@ else
     echo "[提示] 当前用户无 Docker 权限，尝试自动添加..."
     if sudo usermod -aG docker "$USER" 2>/dev/null; then
         echo "[OK] 已将用户 $USER 添加到 docker 组"
-        echo "[提示] 请执行以下命令后重新运行此脚本:"
-        echo "  newgrp docker"
-        echo "  或者重新登录后再运行"
+        echo "[提示] 请执行: newgrp docker  然后重新运行此脚本"
         exit 0
     else
-        echo "[错误] 无法自动添加权限"
-        echo "请手动执行: sudo usermod -aG docker \$USER"
-        echo "然后执行: newgrp docker"
-        echo "最后重新运行此脚本"
+        echo "[错误] 请手动执行: sudo usermod -aG docker \$USER && newgrp docker"
         exit 1
     fi
 fi
 
-# 配置国内镜像加速（解决 Docker Hub 超时问题）
+# 配置国内镜像加速
 if ! $DOCKER_CMD info 2>/dev/null | grep -q "Registry Mirrors"; then
     echo ""
-    echo "[提示] 检测到未配置 Docker 镜像加速，正在配置..."
+    echo "[提示] 配置 Docker 镜像加速..."
     sudo mkdir -p /etc/docker
     sudo tee /etc/docker/daemon.json > /dev/null << 'EOF'
 {
@@ -62,7 +57,6 @@ EOF
     sudo systemctl daemon-reload
     sudo systemctl restart docker
     echo "[OK] 镜像加速已配置"
-    # 重新检测 docker 命令
     if ! docker ps &> /dev/null; then
         DOCKER_CMD="sudo docker"
     fi
@@ -85,29 +79,42 @@ else
 fi
 
 echo ""
-echo "[2/3] 启动服务（首次约 5-15 分钟）..."
+echo "[2/3] 构建并启动服务..."
+echo "  首次构建约 10-20 分钟，请耐心等待"
 $DOCKER_CMD compose up -d --build
 
 echo ""
 echo "[3/3] 等待服务就绪..."
-for i in {1..60}; do
+for i in {1..120}; do
     if $DOCKER_CMD compose ps 2>/dev/null | grep -q "healthy"; then
         echo "  服务已就绪！"
         break
     fi
     sleep 5
-    echo "  等待中... ($i/60)"
+    if [ $((i % 12)) -eq 0 ]; then
+        echo "  等待中... ($((i/2))分钟)"
+    fi
 done
 
 IP=$(hostname -I | awk '{print $1}')
+URL="http://${IP}:8082"
+
 echo ""
 echo "=========================================="
 echo "  部署完成！"
 echo "=========================================="
 echo ""
-echo "  Web 界面: http://${IP}:8082"
+echo "  Web 界面: ${URL}"
 echo "  MinIO 控制台: http://${IP}:9090"
 echo ""
+
+# 尝试自动打开浏览器
+if command -v xdg-open &> /dev/null; then
+    xdg-open "$URL" 2>/dev/null &
+elif command -v open &> /dev/null; then
+    open "$URL" 2>/dev/null &
+fi
+
 echo "  常用命令："
 echo "  $DOCKER_CMD compose ps              # 查看状态"
 echo "  $DOCKER_CMD compose logs -f app     # 查看日志"

@@ -2,7 +2,10 @@ FROM ubuntu:22.04 AS build
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
+# 配置阿里云镜像加速
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list && \
+    sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list && \
+    sed -i 's|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -86,7 +89,9 @@ LABEL version="1.0.0"
 
 ENV TZ=Asia/Shanghai
 
-RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list && \
+    sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list && \
+    sed -i 's|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y \
     libssl3 \
