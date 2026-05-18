@@ -136,8 +136,38 @@ echo "=========================================="
 echo "  部署完成！"
 echo "=========================================="
 echo ""
-echo "  Web 界面: ${URL}"
+echo "  请使用公网 IP 访问以下地址："
+echo ""
+echo "  图床主界面:  ${URL}"
+echo "  监控面板:    ${URL}/monitor/dashboard.html"
 echo "  MinIO 控制台: http://${IP}:9090"
+echo "    (用户名: minioadmin, 密码: minio123456)"
+echo ""
+echo "  ──────────────────────────────────────"
+echo "  首次使用说明："
+echo "  ──────────────────────────────────────"
+echo ""
+echo "  1. 打开 ${URL} 进行登录或注册"
+echo "  2. 注册时需要填写邮箱（仅支持 QQ 邮箱）"
+echo "     如需启用邮箱验证，请编辑 config/config-docker.json"
+echo "     修改 smtp 部分填写你的 QQ 邮箱信息："
+echo '     "smtp": {'
+echo '       "server": "smtp.qq.com",'
+echo '       "port": 465,'
+echo '       "username": "你的QQ邮箱@qq.com",'
+echo '       "password": "你的SMTP授权码",'
+echo '       "from": "你的QQ邮箱@qq.com"'
+echo '     }'
+echo "  3. 修改后重启应用: $DOCKER_CMD restart aeroimagehost-app"
+echo ""
+echo "  ──────────────────────────────────────"
+echo "  常用命令："
+echo "  ──────────────────────────────────────"
+echo ""
+echo "  $DOCKER_CMD compose ps              # 查看服务状态"
+echo "  $DOCKER_CMD compose logs -f app     # 查看应用日志"
+echo "  $DOCKER_CMD compose restart app     # 重启应用"
+echo "  $DOCKER_CMD compose down            # 停止服务"
 echo ""
 
 # 尝试自动打开浏览器
