@@ -14,15 +14,36 @@ if [[ "$OSTYPE" != "linux-gnu"* ]]; then
     exit 1
 fi
 
+# 检测包管理器
+PKG_MGR=""
+if command -v apt-get &> /dev/null; then
+    PKG_MGR="apt-get"
+elif command -v yum &> /dev/null; then
+    PKG_MGR="yum"
+elif command -v dnf &> /dev/null; then
+    PKG_MGR="dnf"
+else
+    echo "[错误] 未检测到包管理器（apt-get/yum/dnf）"
+    exit 1
+fi
+echo "[OK] 包管理器: $PKG_MGR"
+
 echo "[1/6] 检查并安装依赖..."
-sudo apt-get update -qq
-sudo apt-get install -y -qq build-essential cmake pkg-config git \
-    libssl-dev libcurl4-openssl-dev libmysqlclient-dev libvips-dev \
-    libhiredis-dev libcurlpp-dev libpugixml-dev libinih-dev \
-    libjsoncpp-dev uuid-dev libbrotli-dev 2>/dev/null
+if [ "$PKG_MGR" = "apt-get" ]; then
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq build-essential cmake pkg-config git \
+        libssl-dev libcurl4-openssl-dev libmysqlclient-dev libvips-dev \
+        libhiredis-dev libcurlpp-dev libpugixml-dev libinih-dev \
+        libjsoncpp-dev uuid-dev libbrotli-dev 2>/dev/null
+elif [ "$PKG_MGR" = "yum" ] || [ "$PKG_MGR" = "dnf" ]; then
+    sudo $PKG_MGR install -y gcc gcc-c++ cmake pkg-config git \
+        openssl-devel libcurl-devel mysql-devel vips-devel \
+        hiredis-devel curlpp-devel pugixml-devel inih-devel \
+        jsoncpp-devel uuid-devel brotli-devel 2>/dev/null
+fi
 
 echo "[2/6] 检查 Drogon 框架..."
-if ! pkg-config --exists drogon 2>/dev/null && ! ldconfig -p | grep -q libdrogon; then
+if ! pkg-config --exists drogon 2>/dev/null && ! ldconfig -p 2>/dev/null | grep -q libdrogon; then
     echo "  Drogon 未安装，正在编译安装..."
     cd /tmp
     git clone --depth 1 --branch v1.9.4 https://github.com/drogonframework/drogon.git
@@ -41,7 +62,7 @@ else
 fi
 
 echo "[3/6] 检查 miniocpp..."
-if ! ldconfig -p | grep -q libminiocpp; then
+if ! ldconfig -p 2>/dev/null | grep -q libminiocpp; then
     echo "  miniocpp 未安装，正在编译安装..."
     cd /tmp
     curl -L -o minio-cpp.tar.gz https://github.com/minio/minio-cpp/archive/refs/heads/master.tar.gz --retry 3 --max-time 120
