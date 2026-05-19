@@ -73,4 +73,6 @@ public:
     std::vector<std::string> getAllFileIds();
     // 获取文件统计信息（总数、图片数、总大小）
     void getFileStats(int& total_files, int& total_images, long long& total_size);
+    // 获取用户已使用的存储空间（字节）
+    long long getUserStorageUsage(int user_id);
 };

@@ -1,7 +1,6 @@
 {
   "http_port": 8082,
   "max_file_size": 104857600,
-  "user_quota_bytes": 1073741824,
   "stats_cache_ttl_seconds": 60,
 
   "security": {

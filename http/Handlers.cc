@@ -190,6 +190,13 @@ HandlerResult handleUpload(int user_id, const std::string& filename, const std::
         return HandlerResult::error(errorResponse("File too large"), 413);
     }
 
+    // 检查用户存储配额
+    long long userQuota = static_cast<long long>(Config::instance().getInt("user_quota_bytes", 1073741824));
+    long long userUsage = FileMetaDAO::instance().getUserStorageUsage(user_id);
+    if (userUsage + static_cast<long long>(file_data.size()) > userQuota) {
+        return HandlerResult::error(errorResponse("Storage quota exceeded"), 413);
+    }
+
     std::string ext = getFileExtension(filename);
     if (!isAllowedExtension(ext, ALLOWED_EXTENSIONS)) {
         return HandlerResult::error(errorResponse("File type not allowed"), 415);

@@ -747,3 +747,32 @@ void FileMetaDAO::getFileStats(int& total_files, int& total_images, long long& t
 
     releaseConn(conn);
 }
+
+/* 获取用户已使用的存储空间 */
+long long FileMetaDAO::getUserStorageUsage(int user_id) {
+    long long total_size = 0;
+    MYSQL* conn = getConn();
+    if (!conn) return 0;
+
+    const char* sql = "SELECT COALESCE(SUM(size), 0) FROM files WHERE user_id = ?";
+    MYSQL_STMT* stmt = mysql_stmt_init(conn);
+    if (stmt && mysql_stmt_prepare(stmt, sql, strlen(sql)) == 0) {
+        MYSQL_BIND param;
+        memset(&param, 0, sizeof(param));
+        param.buffer_type = MYSQL_TYPE_LONG;
+        param.buffer = &user_id;
+        mysql_stmt_bind_param(stmt, &param);
+        
+        if (mysql_stmt_execute(stmt) == 0) {
+            MYSQL_BIND result;
+            memset(&result, 0, sizeof(result));
+            result.buffer_type = MYSQL_TYPE_LONGLONG;
+            result.buffer = &total_size;
+            mysql_stmt_bind_result(stmt, &result);
+            mysql_stmt_store_result(stmt);
+            mysql_stmt_fetch(stmt);
+        }
+        mysql_stmt_close(stmt);
+    }
+    return total_size;
+}
