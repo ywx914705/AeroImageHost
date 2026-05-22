@@ -8,6 +8,7 @@ build/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
@@ -38,6 +39,7 @@ Thumbs.db
 *.bak.*
 *.cache
 *.pre-redesign
+*.orig
 
 # Frontend backups
 www/index.html.*
@@ -55,3 +57,10 @@ package-lock.json
 
 # Tests (unit tests not needed in production)
 tests/
+
+# Uploads (runtime data)
+uploads/
+
+# Benchmark runtime artifacts
+benchmark/bench_c
+benchmark/BENCHMARK.md

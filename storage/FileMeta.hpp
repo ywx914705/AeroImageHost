@@ -52,6 +52,7 @@ public:
     int countByUser(int user_id);
     // 统计用户的文件总数（支持文件名模糊搜索）
     int countByUserWithSearch(int user_id, const std::string& keyword);
+    std::pair<std::vector<FileMeta>, int> listAndCountByUserWithSearch(int user_id, const std::string& keyword, int offset, int limit);
     // 根据 file_id 删除文件元数据（DELETE）
     bool del(const std::string& file_id);
     // 切换文件的公开/私有状态
@@ -75,4 +76,13 @@ public:
     void getFileStats(int& total_files, int& total_images, long long& total_size);
     // 获取用户已使用的存储空间（字节）
     long long getUserStorageUsage(int user_id);
+    // 水印相关方法
+    // 设置水印配置
+    bool setWatermark(const std::string& file_id, const std::string& text, 
+                      const std::string& position, int opacity);
+    // 清除水印配置
+    bool clearWatermark(const std::string& file_id);
+    // 获取水印配置
+    bool getWatermark(const std::string& file_id, std::string& text, 
+                      std::string& position, int& opacity);
 };

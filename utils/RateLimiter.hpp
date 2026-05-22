@@ -19,7 +19,7 @@ class RateLimiter {
 public:
     // 检查是否允许操作：计数器未超过阈值返回 true，超过返回 false
     static bool isAllowed(const std::string& key, int maxAttempts, int windowSeconds);
-    // 记录一次失败尝试：递增计数器并刷新过期时间
+    static bool checkAndRecord(const std::string& key, int maxAttempts, int windowSeconds);
     static void recordFailure(const std::string& key, int windowSeconds);
     // 重置计数器（登录成功后调用，清除 Redis 中的记录）
     static void reset(const std::string& key);

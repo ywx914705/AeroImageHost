@@ -18,7 +18,7 @@
 [![libvips](https://img.shields.io/badge/libvips-8.0+-f5a3b8.svg?logo=vips)](https://github.com/libvips/libvips)
 
 [![GitHub stars](https://img.shields.io/github/stars/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/network/members)
+[![GitHub forks](https://img.shields.io/github/stars/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/network/members)
 
 </div>
 
@@ -27,10 +27,10 @@
 AeroImageHost 是一个用 **C++17** 编写的高性能现代化图床系统，采用组件化单体架构设计，集成了 MySQL、MinIO、Redis 等技术栈。系统提供完整的用户认证、文件管理、图片处理和分布式存储功能，支持 Docker 一键部署，适用于个人、团队和企业级文件托管需求。
 
 - **26 种文件格式**：图片、文档、视频、音频、压缩包全覆盖
-- **极速性能**：C++17 + 连接池 + 异步处理，内存占用仅 80~120MB
+- **极速性能**：缓存读取 39K+ QPS，认证列表 32K+ QPS，P50 < 6ms
 - **智能上传**：拖拽、粘贴、断点续传，大文件自动分片
 - **在线预览**：图片缩略图、PDF 全屏、视频播放、音频试听
-- **安全可靠**：PBKDF2 加密、Token 鉴权、暴力破解防护
+- **安全可靠**：PBKDF2 加密、Token 鉴权、暴力破解防护、Nginx 三级限流
 - **私有化部署**：Docker 一键部署，数据完全自主可控
 
 ## 界面预览
@@ -60,8 +60,23 @@ AeroImageHost 是一个用 **C++17** 编写的高性能现代化图床系统，�
 | 在线预览 | 图片缩略图、PDF 全屏、视频播放、音频试听 |
 | 一键分享 | 永久链接，支持私有/公开切换，域名白名单防盗链 |
 | 一键 Markdown | 粘贴图片自动生成 Markdown 链接，写作更高效 |
-| 安全可靠 | PBKDF2 加密、Token 鉴权、暴力破解防护 |
+| 安全可靠 | PBKDF2 加密、Token 鉴权、暴力破解防护、Nginx 三级限流 |
 | 私有化部署 | Docker 一键部署，数据完全自主可控 |
+
+## ⚡ 性能基准
+
+> 详细压测报告见 [benchmark/BENCHMARK.md](benchmark/BENCHMARK.md)
+
+| 接口 | 说明 | QPS | P50 | P95 | P99 |
+|------|------|-----|-----|-----|-----|
+| `GET /api/metrics` | 认证 + 原子计数器 | **43,479** | 3.2ms | 13.8ms | 21.4ms |
+| `GET /api/stats` | Redis 缓存聚合 | **39,423** | 4.7ms | 9.1ms | 14.3ms |
+| `GET /api/files` | 认证 + Redis HGETALL | **32,901** | 5.7ms | 10.3ms | 15.2ms |
+| `GET /api/health` | MySQL + Redis + MinIO 深度检查 | **3,897** | 49.6ms | 84.7ms | 121.2ms |
+| `POST /api/auth/login` | PBKDF2 (10万次迭代) | **67** | 218.6ms | 716.0ms | 922.7ms |
+| `POST /api/upload` | MinIO 对象写入 | **101** | 13.1ms | 160.1ms | 160.1ms |
+
+测试条件：16 工作线程 / 200 并发连接 / HTTP Keep-Alive / 10 秒持续压测
 
 ## 系统要求
 
@@ -98,7 +113,7 @@ cd AeroImageHost
 bash deploy-docker.sh
 ```
 
-脚本会自动完成：配置环境变量 → 配置应用 → 构建镜像 → 启动服务。
+脚本会自动完成：配置环境变量 → 配置应用 → 构建镜像 → 启动服务 → 配置前端 → 等待就绪。
 
 启动后访问 `http://你的服务器IP:8082`。
 
@@ -110,7 +125,7 @@ cd AeroImageHost
 bash deploy-local.sh
 ```
 
-脚本会自动完成：安装依赖 → 编译 Drogon/miniocpp → 编译项目 → 创建配置。
+脚本会自动完成：安装依赖 → 编译 Drogon/miniocpp → 初始化数据库 → 编译项目 → 创建配置。
 
 详细部署步骤和常见问题请参考 [部署文档](docs/DEPLOYMENT.md)。
 
@@ -134,6 +149,8 @@ AeroImageHost/
 ├── Dockerfile               # Docker 镜像构建
 ├── docker-compose.yml       # Docker 服务编排
 ├── nginx.conf               # Nginx 反向代理配置
+├── deploy-docker.sh         # Docker 一键部署脚本
+├── deploy-local.sh          # 本地编译部署脚本
 ├── main.cc                  # 主程序入口
 ├── http/                    # HTTP 控制器和业务逻辑
 ├── storage/                 # 数据访问层（MySQL、MinIO）
@@ -144,12 +161,14 @@ AeroImageHost/
 ├── monitor/                 # 监控指标采集
 ├── config/                  # 配置模块
 ├── schema/                  # SQL 初始化脚本
+├── benchmark/               # 性能基准测试
 ├── www/                     # 前端 SPA
 └── docs/                    # 详细文档
 ```
 
 ## 相关链接
 
+- [性能基准](benchmark/BENCHMARK.md) — 压测环境、方法与详细结果
 - [详细文档](docs/DETAILED.md) — 架构设计、API 文档、配置说明
 - [部署指南](docs/DEPLOYMENT.md) — Docker 和本地编译部署
 - [GitHub Issues](https://github.com/ywx914705/AeroImageHost/issues) — 问题反馈

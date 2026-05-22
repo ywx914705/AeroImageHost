@@ -524,6 +524,23 @@
     }
     .status-badge.public { background: rgba(34,197,94,0.1); color: #22c55e; }
     .status-badge.private { background: rgba(107,114,128,0.1); color: #6b7280; }
+    .wm-pos-btn {
+        padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-subtle);
+        background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer;
+        font-size: 0.72rem; font-weight: 500; transition: all 0.15s ease; white-space: nowrap;
+    }
+    .wm-pos-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+    .wm-pos-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+        background: var(--accent); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        cursor: pointer; position: relative; z-index: 2;
+    }
+    input[type="range"]::-moz-range-thumb {
+        width: 16px; height: 16px; border-radius: 50%;
+        background: var(--accent); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        cursor: pointer;
+    }
 
     @media (max-width: 768px) {
         .main { padding: 0 1rem; }
@@ -1508,6 +1525,68 @@
                         <button class="copy-sm-btn" @click="copyMarkdown(detailFile)">复制</button>
                     </div>
                 </div>
+                <!-- 水印配置 -->
+                <div v-if="isImageFile(detailFile)" class="file-detail-links" style="border-top: 1px solid var(--border-subtle); padding-top: 1rem; margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                        <i class="fas fa-tint"></i> 水印设置
+                    </label>
+                    <div v-if="watermarkLoading" style="display: flex; align-items: center; justify-content: center; padding: 1.2rem; color: var(--text-tertiary); font-size: 0.82rem; gap: 8px;">
+                        <i class="fas fa-circle-notch fa-spin"></i> 加载中...
+                    </div>
+                    <template v-else>
+                        <div v-if="watermarkConfig.has_watermark" style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15); border-radius: 10px;">
+                                <i class="fas fa-check-circle" style="color: #10b981; font-size: 1.1rem;"></i>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-size: 0.82rem; font-weight: 500; color: var(--text-primary);">水印已启用</div>
+                                    <div style="font-size: 0.72rem; color: var(--text-tertiary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ watermarkConfig.text }} · {{ { 'bottom-right':'右下','bottom-left':'左下','bottom-center':'下中','top-left':'左上','top-right':'右上','top-center':'上中','middle-left':'左中','middle-right':'右中','center':'居中' }[watermarkConfig.position] || watermarkConfig.position }} · {{ watermarkConfig.opacity }}%</div>
+                                </div>
+                                <button class="copy-sm-btn" style="background: rgba(239,68,68,0.08); color: #ef4444; border-color: rgba(239,68,68,0.2); font-size: 0.72rem;" :disabled="watermarkSubmitting" @click="removeWatermark">
+                                    <i class="fas fa-trash-alt" style="margin-right: 3px;"></i>移除
+                                </button>
+                            </div>
+                            <button class="copy-sm-btn" style="width: 100%; padding: 7px 0; justify-content: center; font-size: 0.78rem; display: flex; align-items: center; gap: 5px;" @click="editWatermark">
+                                <i class="fas fa-pen"></i> 修改水印
+                            </button>
+                        </div>
+                        <div v-else style="display: flex; flex-direction: column; gap: 10px;">
+                            <div style="position: relative;">
+                                <input v-model="watermarkText" placeholder="输入水印文字" maxlength="30"
+                                    style="width: 100%; padding: 8px 12px; padding-right: 42px; border: 1px solid var(--border-subtle); border-radius: 8px; font-size: 0.82rem; background: var(--bg-secondary); color: var(--text-primary); transition: border-color 0.2s; outline: none; box-sizing: border-box;"
+                                    onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border-subtle)'" />
+                                <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.68rem; color: var(--text-tertiary);">{{ watermarkText.length }}/30</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                <button v-for="pos in watermarkPositions" :key="pos.value"
+                                    :class="['wm-pos-btn', watermarkPosition === pos.value ? 'active' : '']"
+                                    @click="watermarkPosition = pos.value">
+                                    {{ pos.label }}
+                                </button>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">不透明度</label>
+                                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--accent); min-width: 40px; text-align: right;">{{ watermarkOpacity }}%</span>
+                                </div>
+                                <div style="position: relative; height: 24px; display: flex; align-items: center;">
+                                    <div style="position: absolute; left: 0; right: 0; height: 6px; border-radius: 3px; background: var(--border-subtle);"></div>
+                                    <div :style="{ position: 'absolute', left: 0, width: ((watermarkOpacity - 10) / 90 * 100) + '%', height: '6px', borderRadius: '3px', background: 'var(--accent)', transition: 'width 0.1s' }"></div>
+                                    <input type="range" v-model.number="watermarkOpacity" min="10" max="100" step="5"
+                                        style="position: absolute; left: 0; width: 100%; height: 24px; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; margin: 0; z-index: 1;"
+                                        oninput="this.style.setProperty('--val', this.value)" />
+                                </div>
+                            </div>
+                            <button style="padding: 9px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 500; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; opacity: 1;"
+                                :style="{ opacity: (!watermarkText.trim() || watermarkSubmitting) ? 0.5 : 1, cursor: (!watermarkText.trim() || watermarkSubmitting) ? 'not-allowed' : 'pointer' }"
+                                :disabled="!watermarkText.trim() || watermarkSubmitting"
+                                @click="addWatermark">
+                                <i :class="watermarkSubmitting ? 'fas fa-circle-notch fa-spin' : 'fas fa-plus-circle'"></i>
+                                {{ watermarkSubmitting ? '处理中...' : '添加水印' }}
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
                 <div class="file-detail-actions">
                     <button @click="copyLink(detailFile.file_id, true); closeFileDetail()">
                         <i class="fas fa-link"></i> 复制链接
@@ -2190,7 +2269,9 @@
                         if (isTextFile(file)) {
                             loadTextPreview(file);
                         }
-                        // PDF/视频/音频：按需获取 presign_url，直连 MinIO 预览，减轻服务器压力
+                        if (isImageFile(file)) {
+                            loadWatermarkConfig(file.file_id);
+                        }
                         if (isPdfFile(file) || isVideoFile(file) || isAudioFile(file)) {
                             api.get(`/file/${file.file_id}/presign`).then(res => {
                                 if (detailFile.value && detailFile.value.file_id === file.file_id) {
@@ -2198,6 +2279,69 @@
                                 }
                             }).catch(() => {});
                         }
+                    };
+                    // 水印相关
+                    const watermarkText = ref("");
+                    const watermarkPosition = ref("bottom-right");
+                    const watermarkOpacity = ref(80);
+                    const watermarkLoading = ref(false);
+                    const watermarkSubmitting = ref(false);
+                    const watermarkConfig = reactive({ has_watermark: false, text: "", position: "", opacity: 80 });
+                    const watermarkPositions = [
+                        { value: 'top-left', label: '左上' }, { value: 'top-center', label: '上中' }, { value: 'top-right', label: '右上' },
+                        { value: 'middle-left', label: '左中' }, { value: 'center', label: '居中' }, { value: 'middle-right', label: '右中' },
+                        { value: 'bottom-left', label: '左下' }, { value: 'bottom-center', label: '下中' }, { value: 'bottom-right', label: '右下' },
+                    ];
+                    const loadWatermarkConfig = async (fileId) => {
+                        watermarkLoading.value = true;
+                        try {
+                            const res = await axios.get(`/api/file/${fileId}/wm/config`, {
+                                headers: { Authorization: `Bearer ${token.value}` }
+                            });
+                            Object.assign(watermarkConfig, res.data);
+                            if (watermarkConfig.has_watermark) {
+                                watermarkText.value = watermarkConfig.text;
+                                watermarkPosition.value = watermarkConfig.position;
+                                watermarkOpacity.value = watermarkConfig.opacity;
+                            } else {
+                                watermarkText.value = "";
+                                watermarkPosition.value = "bottom-right";
+                                watermarkOpacity.value = 80;
+                            }
+                        } catch (e) { console.error(e); } finally { watermarkLoading.value = false; }
+                    };
+                    const editWatermark = () => {
+                        watermarkConfig.has_watermark = false;
+                    };
+                    const addWatermark = async () => {
+                        if (!watermarkText.value.trim() || !detailFile.value) return;
+                        watermarkSubmitting.value = true;
+                        try {
+                            await axios.post(`/api/file/${detailFile.value.file_id}/wm/add`, {
+                                text: watermarkText.value.trim(),
+                                position: watermarkPosition.value,
+                                opacity: watermarkOpacity.value
+                            }, { headers: { Authorization: `Bearer ${token.value}` } });
+                            await loadWatermarkConfig(detailFile.value.file_id);
+                            ElMessage.success("水印已添加");
+                        } catch (e) {
+                            ElMessage.error(e?.response?.data?.error || "添加水印失败");
+                        } finally { watermarkSubmitting.value = false; }
+                    };
+                    const removeWatermark = async () => {
+                        if (!detailFile.value) return;
+                        watermarkSubmitting.value = true;
+                        try {
+                            await axios.post(`/api/file/${detailFile.value.file_id}/wm/remove`, {},
+                                { headers: { Authorization: `Bearer ${token.value}` } });
+                            watermarkConfig.has_watermark = false;
+                            watermarkText.value = "";
+                            watermarkPosition.value = "bottom-right";
+                            watermarkOpacity.value = 80;
+                            ElMessage.success("水印已移除");
+                        } catch (e) {
+                            ElMessage.error(e?.response?.data?.error || "移除水印失败");
+                        } finally { watermarkSubmitting.value = false; }
                     };
                     const closeFileDetail = () => {
                         detailFile.value = null;
@@ -3405,6 +3549,7 @@
                         openFileDetail, closeFileDetail, previewFromDetail,
                         fullscreenPdf, openFullscreenPdf, closeFullscreenPdf,
                         getShareUrl, copyText, textPreviewContent,
+                        watermarkText, watermarkPosition, watermarkOpacity, watermarkLoading, watermarkSubmitting, watermarkConfig, watermarkPositions, loadWatermarkConfig, addWatermark, removeWatermark, editWatermark,
                         togglePublicAndRefresh, handleDeleteFromDetail,
 
                         // 操作方法

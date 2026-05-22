@@ -4,13 +4,13 @@
 #include "ConnectionPool.hpp"
 #include "RedisClient.hpp"
 #include "MinIOClient.hpp"
-#include "FileMeta.hpp"
 #include "AeroQueue.hpp"
 #include "Handlers.hpp"
-#include "Auth.hpp"
-#include "ImageProcessor.hpp"
-#include "Utils.hpp"
+#include "FileMeta.hpp"
 #include "MetricsCollector.hpp"
+#include "WatermarkProcessor.hpp"
+#include "FileAccessHandler.hpp"
+#include "BackgroundService.hpp"
 #include <iostream>
 #include <csignal>
 #include <cstdlib>
@@ -29,127 +29,6 @@ void signalHandler(int) {
     running = false;
     shutdownCv.notify_all();
     drogon::app().quit();
-}
-
-static void fileAccessHandler(const drogon::HttpRequestPtr &req,
-                              std::function<void(const drogon::HttpResponsePtr &)> &&callback,
-                              const std::string &file_id) {
-    std::string auth = req->getHeader("Authorization");
-    if (auth.empty()) auth = req->getHeader("authorization");
-    auto user = Auth::verify(auth);
-    int user_id = user ? user->user_id : 0;
-
-    FileMeta meta = FileMetaDAO::instance().get(file_id);
-    if (meta.file_id.empty()) {
-        auto resp = drogon::HttpResponse::newHttpResponse();
-        resp->setStatusCode(drogon::k404NotFound);
-        resp->setBody(errorResponse("File not found"));
-        callback(resp);
-        return;
-    }
-
-    if (!meta.is_public && meta.user_id != user_id) {
-        auto resp = drogon::HttpResponse::newHttpResponse();
-        resp->setStatusCode(drogon::k403Forbidden);
-        resp->setBody(errorResponse("Access denied"));
-        callback(resp);
-        return;
-    }
-
-    bool isImageFile = isImage(meta.mime_type);
-    if (isImageFile) {
-        std::string etag = "W/\"" + file_id + "\"";
-        auto ifNoneMatch = req->getHeader("If-None-Match");
-        if (!ifNoneMatch.empty() && ifNoneMatch == etag) {
-            auto resp = drogon::HttpResponse::newHttpResponse();
-            resp->setStatusCode(drogon::k304NotModified);
-            resp->addHeader("Cache-Control", "public, max-age=3600");
-            resp->addHeader("ETag", etag);
-            callback(resp);
-            return;
-        }
-    }
-
-    RedisClient::instance().incr("file_views:" + file_id);
-    AeroQueue::instance().post([file_id]() {
-        RedisClient::instance().sadd("file_views_keys", "file_views:" + file_id);
-    });
-
-    std::string sizeParam = req->getParameter("size");
-    bool isThumbRequest = false;
-    if (!sizeParam.empty()) {
-        int thumbSize = 0;
-        try { thumbSize = std::stoi(sizeParam); } catch (...) {}
-        if (thumbSize > 0 && thumbSize <= 2000) {
-            isThumbRequest = true;
-            std::string thumbKey = "thumbs/" + file_id + "_" + std::to_string(thumbSize);
-            if (MinIOClient::instance().objectExists(thumbKey)) {
-                std::string thumbUrl = MinIOClient::instance().presignGetUrl(thumbKey, 3600);
-                if (!thumbUrl.empty()) {
-                    auto resp = drogon::HttpResponse::newHttpResponse();
-                    resp->setStatusCode(drogon::k302Found);
-                    resp->addHeader("Location", thumbUrl);
-                    resp->addHeader("Cache-Control", "public, max-age=86400");
-                    callback(resp);
-                    return;
-                }
-            }
-            // 互斥锁：多客户端同时请求同一缩略图时，仅一个后台任务拉原图并生成，避免惊群打满 MinIO/CPU
-            std::string lockKey = "thumbgen:" + file_id + ":" + std::to_string(thumbSize);
-            constexpr int kThumbGenLockSec = 300;
-            if (RedisClient::instance().setNxEx(lockKey, "1", kThumbGenLockSec)) {
-                AeroQueue::instance().post([file_id, thumbSize, lockKey]() {
-                    try {
-                        std::vector<char> srcData;
-                        if (!MinIOClient::instance().getObject(file_id, srcData) || srcData.empty()) {
-                            RedisClient::instance().del(lockKey);
-                            return;
-                        }
-                        std::vector<char> thumbData;
-                        if (!ImageProcessor::generateThumbnail(srcData, thumbData, thumbSize, thumbSize)) {
-                            RedisClient::instance().del(lockKey);
-                            return;
-                        }
-                        std::vector<unsigned char> uploadData(thumbData.begin(), thumbData.end());
-                        std::string genThumbKey = "thumbs/" + file_id + "_" + std::to_string(thumbSize);
-                        if (!MinIOClient::instance().putObject(genThumbKey, uploadData, "image/jpeg")) {
-                            RedisClient::instance().del(lockKey);
-                        }
-                    } catch (const std::exception& e) {
-                        RedisClient::instance().del(lockKey);
-                        AERO_LOG_ERROR("[Thumbnail] Generation failed for " + file_id + ": " + std::string(e.what()));
-                    }
-                });
-            }
-        }
-    }
-
-    std::string safeFilename = sanitizeFilename(meta.filename);
-    std::string encodedFilename = urlEncode(safeFilename);
-    std::string disposition;
-    if (isAttachmentType(meta.mime_type) || !isImageFile) {
-        disposition = "attachment; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
-    } else {
-        disposition = "inline; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
-    }
-
-    std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600, disposition);
-    if (presignUrl.empty()) {
-        auto resp = drogon::HttpResponse::newHttpResponse();
-        resp->setStatusCode(drogon::k500InternalServerError);
-        resp->setBody(errorResponse("Failed to generate download URL"));
-        callback(resp);
-        return;
-    }
-
-    auto resp = drogon::HttpResponse::newHttpResponse();
-    resp->setStatusCode(drogon::k302Found);
-    resp->addHeader("Location", presignUrl);
-    if (isImageFile && !isThumbRequest) {
-        resp->addHeader("ETag", "W/\"" + file_id + "\"");
-        resp->addHeader("Cache-Control", "public, max-age=3600");
-    }
-    callback(resp);
 }
 
 int main(int argc, char* argv[]) {
@@ -206,8 +85,15 @@ int main(int argc, char* argv[]) {
     }
     AsyncLog::instance().write(LogLevel::INFO, "MinIO client initialized");
 
-    AeroQueue::instance().start(4);
+    int queueThreads = Config::instance().getInt("queue_threads", std::max(4, (int)std::thread::hardware_concurrency()));
+    AeroQueue::instance().start(queueThreads);
     AsyncLog::instance().write(LogLevel::INFO, "AeroQueue started");
+
+    if (!WatermarkProcessor::initialize()) {
+        AsyncLog::instance().write(LogLevel::WARN, "WatermarkProcessor init failed, watermark feature disabled");
+    } else {
+        AsyncLog::instance().write(LogLevel::INFO, "WatermarkProcessor initialized");
+    }
 
     try {
         cleanupOrphanChunks();
@@ -215,59 +101,8 @@ int main(int argc, char* argv[]) {
         AsyncLog::instance().write(LogLevel::WARN, "[Cleanup] Startup cleanup failed: " + std::string(e.what()));
     }
 
-    std::vector<std::thread> backgroundThreads;
-
-    backgroundThreads.emplace_back([]() {
-        while (running) {
-            std::unique_lock<std::mutex> lock(shutdownMutex);
-            shutdownCv.wait_for(lock, std::chrono::seconds(3600), []() { return !running.load(); });
-            if (!running) break;
-            try {
-                cleanupOrphanChunks();
-            } catch (const std::exception& e) {
-                AsyncLog::instance().write(LogLevel::ERROR, "[Cleanup] Scheduled cleanup failed: " + std::string(e.what()));
-            }
-        }
-    });
-
-    backgroundThreads.emplace_back([]() {
-        while (running) {
-            std::unique_lock<std::mutex> lock(shutdownMutex);
-            shutdownCv.wait_for(lock, std::chrono::seconds(300), []() { return !running.load(); });
-            if (!running) break;
-            try {
-                auto& redis = RedisClient::instance();
-                std::vector<std::pair<std::string, long long>> updates;
-                auto keys = redis.smembers("file_views_keys");
-                for (const auto& key : keys) {
-                    std::string val = redis.get(key);
-                    if (val.empty()) continue;
-                    long long count = std::stoll(val);
-                    std::string file_id = key.substr(11);
-                    updates.emplace_back(file_id, count);
-                }
-                if (!updates.empty()) {
-                    FileMetaDAO::instance().batchUpdateViewCount(updates);
-                    for (const auto& key : keys) {
-                        redis.del(key);
-                    }
-                    redis.del("file_views_keys");
-                    AsyncLog::instance().write(LogLevel::INFO, "[ViewSync] Synced " + std::to_string(updates.size()) + " view counts");
-                }
-            } catch (const std::exception& e) {
-                AsyncLog::instance().write(LogLevel::ERROR, "[ViewSync] Failed: " + std::string(e.what()));
-            }
-        }
-    });
-
-    backgroundThreads.emplace_back([]() {
-        while (running) {
-            std::unique_lock<std::mutex> lock(shutdownMutex);
-            shutdownCv.wait_for(lock, std::chrono::seconds(1), []() { return !running.load(); });
-            if (!running) break;
-            MetricsCollector::instance().tick();
-        }
-    });
+    BackgroundService bgService;
+    bgService.start(running);
 
     {
         AsyncLog::instance().write(LogLevel::INFO, "[Warmup] Starting connection pool warmup...");
@@ -309,7 +144,7 @@ int main(int argc, char* argv[]) {
         "/api/upload/multipart/complete", "/api/upload/multipart/cleanup",
         "/api/files",
         "/api/health", "/api/stats", "/api/metrics",
-        "/api/files/batch-delete", "/api/monitor"
+        "/api/files/batch-delete", "/api/monitor", "/api/shutdown", "/api/cleanup"
     };
     for (const auto& path : apiPaths) {
         drogon::app().registerHandler(path, corsHandler, {drogon::Options});
@@ -390,10 +225,7 @@ int main(int argc, char* argv[]) {
 
     AsyncLog::instance().write(LogLevel::INFO, "Shutting down...");
 
-    for (auto& t : backgroundThreads) {
-        if (t.joinable()) t.join();
-    }
-
+    bgService.stop();
     AeroQueue::instance().stop();
     ConnectionPool::getInstance().close();
     AsyncLog::instance().write(LogLevel::INFO, "Service safely exited");

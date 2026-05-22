@@ -70,7 +70,7 @@ EOF
 fi
 
 echo ""
-echo "[1/3] 配置文件..."
+echo "[1/4] 配置文件..."
 if [ ! -f .env ]; then
     cp .env.example .env
     echo "  已创建 .env（使用默认密码）"
@@ -176,9 +176,3 @@ if command -v xdg-open &> /dev/null; then
 elif command -v open &> /dev/null; then
     open "$URL" 2>/dev/null &
 fi
-
-echo "  常用命令："
-echo "  $COMPOSE_CMD ps              # 查看状态"
-echo "  $COMPOSE_CMD logs -f app     # 查看日志"
-echo "  $COMPOSE_CMD restart app     # 重启应用"
-echo "  $COMPOSE_CMD down            # 停止服务"

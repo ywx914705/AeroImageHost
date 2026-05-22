@@ -35,6 +35,7 @@ bool ConnectionPool::init(const std::string& host, const std::string& user,
     db_ = db;
     port_ = port;
     poolSize_ = poolSize;
+    maxPoolSize_ = poolSize * 2;
     stopped_ = false;
 
     std::lock_guard<std::mutex> lock(mutex_);
@@ -126,12 +127,13 @@ MYSQL* ConnectionPool::getConnection() {
         if (connections_.empty()) {
             // 等待连接归还，同时检查连接池是否已关闭
             if (!cv_.wait_for(lock, std::chrono::seconds(2), [this]() { return !connections_.empty() || stopped_; })) {
-                // 等待超时，尝试新建一个连接（池中可能全部被占用）
-                lock.unlock();
-                MYSQL* newConn = createConnection();
-                lock.lock();
-                if (newConn) {
-                    conn = ensureValidConnection(newConn, std::chrono::steady_clock::now());
+                if (connections_.size() < static_cast<size_t>(maxPoolSize_)) {
+                    lock.unlock();
+                    MYSQL* newConn = createConnection();
+                    lock.lock();
+                    if (newConn) {
+                        conn = ensureValidConnection(newConn, std::chrono::steady_clock::now());
+                    }
                 }
                 break;
             }
@@ -157,8 +159,11 @@ void ConnectionPool::releaseConnection(MYSQL* conn) {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
+    if (static_cast<int>(connections_.size()) >= poolSize_) {
+        mysql_close(conn);
+        return;
+    }
     auto now = std::chrono::steady_clock::now();
-    // 归还时直接放入队列，不验证（验证延迟到 getConnection 时按需执行）
     connections_.push({conn, now});
     cv_.notify_one();
 }

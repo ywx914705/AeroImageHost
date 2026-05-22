@@ -36,7 +36,9 @@ MetricsCollector::EndpointMetrics* MetricsCollector::getOrCreateEndpoint(const s
 /* 记录一次请求完成 */
 void MetricsCollector::recordRequest(const std::string& endpoint, double durationMs, int statusCode) {
     auto* m = getOrCreateEndpoint(endpoint);
-    m->totalRequests.fetch_add(1, std::memory_order_relaxed);
+
+    // 先 fetch_add 获取旧值用于采样，再更新其他计数
+    int64_t oldCount = m->totalRequests.fetch_add(1, std::memory_order_relaxed);
     m->totalDurationUs.fetch_add(static_cast<int64_t>(durationMs * 1000), std::memory_order_relaxed);
     m->currentWindowRequests.fetch_add(1, std::memory_order_relaxed);
     globalCurrentWindowRequests_.fetch_add(1, std::memory_order_relaxed);
@@ -48,7 +50,7 @@ void MetricsCollector::recordRequest(const std::string& endpoint, double duratio
     }
 
     // 采样延迟（非每请求都采样，1/10 概率采样减少内存开销）
-    if (m->totalRequests.load() % 10 == 0) {
+    if (oldCount % 10 == 0) {
         globalLatency_.add(durationMs);
     }
 }

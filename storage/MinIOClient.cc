@@ -318,6 +318,44 @@ bool MinIOClient::getObject(const std::string& key, std::vector<char>& data) {
     }, "getObject:" + key);
 }
 
+bool MinIOClient::getObjectRange(const std::string& key, size_t offset, size_t length, std::vector<char>& data) {
+    if (!client_) {
+        LOG_ERROR("MinIO client not initialized");
+        return false;
+    }
+    if (length == 0) {
+        return true;
+    }
+
+    return retryOp([&]() -> bool {
+        try {
+            minio::s3::GetObjectArgs args;
+            args.bucket = bucket_;
+            args.object = key;
+            args.offset = &offset;
+            args.length = &length;
+            data.clear();
+            args.datafunc = [&data](minio::http::DataFunctionArgs chunk) -> bool {
+                data.insert(data.end(), chunk.datachunk.data(),
+                            chunk.datachunk.data() + chunk.datachunk.size());
+                return true;
+            };
+            minio::s3::GetObjectResponse resp = client_->GetObject(args);
+            if (resp) {
+                LOG_INFO("MinIO GetObjectRange success: " + key + " offset=" + std::to_string(offset) +
+                         " length=" + std::to_string(length) + " (" + std::to_string(data.size()) + " bytes)");
+                return true;
+            } else {
+                LOG_ERROR("MinIO GetObjectRange failed: " + resp.Error().String());
+                return false;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("MinIO GetObjectRange exception: " + std::string(e.what()));
+            return false;
+        }
+    }, "getObjectRange:" + key);
+}
+
 bool MinIOClient::composeObjects(const std::string& destKey, const std::string& contentType,
                                  const std::vector<std::string>& sourceKeys) {
     if (!client_) {

@@ -76,6 +76,10 @@ void UploadController::multipartInit(const HttpRequestPtr& req, std::function<vo
 }
 
 void UploadController::multipartChunk(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+    int user_id;
+    auto auth = requireAuth(req, user_id);
+    if (auth.status_code != 200) { respond(auth, std::move(callback)); return; }
+
     Json::Value json;
     auto check = requireJson(req, json);
     if (check.status_code != 200) { respond(check, std::move(callback)); return; }
@@ -100,7 +104,7 @@ void UploadController::multipartChunk(const HttpRequestPtr& req, std::function<v
         }
     }
 
-    respond(handleMultipartUploadChunk(upload_id, part_number, data), std::move(callback));
+    respond(handleMultipartUploadChunk(user_id, upload_id, part_number, data), std::move(callback));
 }
 
 void UploadController::multipartComplete(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {

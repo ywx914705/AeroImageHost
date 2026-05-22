@@ -15,6 +15,7 @@
 #include <mysql/mysql.h>
 #include <cstring>
 #include <ctime>
+#include <thread>
 
 // FileMeta 序列化为 Redis Hash 字段映射
 static std::unordered_map<std::string, std::string> metaToHash(const FileMeta& m) {
@@ -138,27 +139,46 @@ FileMeta FileMetaDAO::get(const std::string& file_id) {
         return hashToMeta(cached);
     }
 
-    // hgetall 返回空可能是 key 不存在，也可能是类型错误（旧版 String 缓存残留）
-    // 尝试删除旧类型 key，下次 MySQL 查询后会以 Hash 格式重新缓存
     std::string typeCheck = RedisClient::instance().type(cacheKey);
     if (typeCheck != "none" && typeCheck != "hash") {
         RedisClient::instance().del(cacheKey);
     }
 
+    std::string lockKey = "lock:meta:" + file_id;
+    bool hasLock = RedisClient::instance().setNxEx(lockKey, "1", 3);
+
+    if (!hasLock) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        auto retryCached = RedisClient::instance().hgetall(cacheKey);
+        if (!retryCached.empty()) {
+            if (retryCached.count("__null__")) {
+                FileMeta empty;
+                empty.file_id = "";
+                return empty;
+            }
+            return hashToMeta(retryCached);
+        }
+    }
+
     FileMeta meta;
     meta.file_id = "";
     MYSQL* conn = getConn();
-    if (!conn) return meta;
+    if (!conn) {
+        if (hasLock) RedisClient::instance().del(lockKey);
+        return meta;
+    }
 
     const char* sql = "SELECT file_id, user_id, filename, size, mime_type, width, height, upload_time, is_public, allow_domains FROM files WHERE file_id = ?";
     MYSQL_STMT* stmt = mysql_stmt_init(conn);
     if (!stmt) {
         releaseConn(conn);
+        if (hasLock) RedisClient::instance().del(lockKey);
         return meta;
     }
     if (mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
         mysql_stmt_close(stmt);
         releaseConn(conn);
+        if (hasLock) RedisClient::instance().del(lockKey);
         return meta;
     }
 
@@ -172,6 +192,7 @@ FileMeta FileMetaDAO::get(const std::string& file_id) {
     if (mysql_stmt_execute(stmt) != 0) {
         mysql_stmt_close(stmt);
         releaseConn(conn);
+        if (hasLock) RedisClient::instance().del(lockKey);
         return meta;
     }
 
@@ -206,7 +227,6 @@ FileMeta FileMetaDAO::get(const std::string& file_id) {
     result[9].buffer = allow_buf;
     result[9].buffer_length = sizeof(allow_buf);
 
-    // 设置 is_null 标志（必须在 mysql_stmt_bind_result 之前）
     bool file_id_null = false, filename_null = false, mime_null = false, allow_null = false;
     result[0].is_null = &file_id_null;
     result[2].is_null = &filename_null;
@@ -232,12 +252,15 @@ FileMeta FileMetaDAO::get(const std::string& file_id) {
     mysql_stmt_close(stmt);
     releaseConn(conn);
 
-    // 写入 Redis Hash 缓存（存在的记录缓存字段映射，不存在的缓存空值防穿透）
     if (!meta.file_id.empty()) {
         RedisClient::instance().hsetex(cacheKey, metaToHash(meta), META_CACHE_TTL);
     } else {
         std::unordered_map<std::string, std::string> nullMap = {{"__null__", "1"}};
         RedisClient::instance().hsetex(cacheKey, nullMap, 30);
+    }
+
+    if (hasLock) {
+        RedisClient::instance().del(lockKey);
     }
 
     return meta;
@@ -578,6 +601,134 @@ int FileMetaDAO::countByUserWithSearch(int user_id, const std::string& keyword) 
     return count;
 }
 
+std::pair<std::vector<FileMeta>, int> FileMetaDAO::listAndCountByUserWithSearch(int user_id, const std::string& keyword, int offset, int limit) {
+    std::vector<FileMeta> result;
+    int total = 0;
+    MYSQL* conn = getConn();
+    if (!conn) return {result, total};
+
+    std::string sql;
+    if (keyword.empty()) {
+        sql = "SELECT SQL_CALC_FOUND_ROWS file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files WHERE user_id = ? ORDER BY upload_time DESC LIMIT ?, ?";
+    } else {
+        sql = "SELECT SQL_CALC_FOUND_ROWS file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files WHERE user_id = ? AND filename LIKE ? ORDER BY upload_time DESC LIMIT ?, ?";
+    }
+
+    MYSQL_STMT* stmt = mysql_stmt_init(conn);
+    if (!stmt) {
+        releaseConn(conn);
+        return {result, total};
+    }
+    if (mysql_stmt_prepare(stmt, sql.c_str(), sql.length()) != 0) {
+        mysql_stmt_close(stmt);
+        releaseConn(conn);
+        return {result, total};
+    }
+
+    MYSQL_BIND param[4];
+    memset(param, 0, sizeof(param));
+    param[0].buffer_type = MYSQL_TYPE_LONG;
+    param[0].buffer = &user_id;
+
+    if (!keyword.empty()) {
+        std::string searchPattern = "%" + keyword + "%";
+        param[1].buffer_type = MYSQL_TYPE_STRING;
+        param[1].buffer = (char*)searchPattern.c_str();
+        param[1].buffer_length = searchPattern.length();
+        param[2].buffer_type = MYSQL_TYPE_LONG;
+        param[2].buffer = &offset;
+        param[3].buffer_type = MYSQL_TYPE_LONG;
+        param[3].buffer = &limit;
+    } else {
+        param[1].buffer_type = MYSQL_TYPE_LONG;
+        param[1].buffer = &offset;
+        param[2].buffer_type = MYSQL_TYPE_LONG;
+        param[2].buffer = &limit;
+    }
+    mysql_stmt_bind_param(stmt, param);
+
+    if (mysql_stmt_execute(stmt) != 0) {
+        mysql_stmt_close(stmt);
+        releaseConn(conn);
+        return {result, total};
+    }
+
+    MYSQL_BIND resultBind[8];
+    memset(resultBind, 0, sizeof(resultBind));
+    char file_id_buf[64] = {0}, filename_buf[512] = {0}, mime_buf[256] = {0};
+    long long size = 0;
+    int width = 0, height = 0, is_public_int = 0;
+    long long upload_time = 0;
+
+    resultBind[0].buffer_type = MYSQL_TYPE_STRING;
+    resultBind[0].buffer = file_id_buf;
+    resultBind[0].buffer_length = sizeof(file_id_buf);
+    resultBind[1].buffer_type = MYSQL_TYPE_STRING;
+    resultBind[1].buffer = filename_buf;
+    resultBind[1].buffer_length = sizeof(filename_buf);
+    resultBind[2].buffer_type = MYSQL_TYPE_LONGLONG;
+    resultBind[2].buffer = &size;
+    resultBind[3].buffer_type = MYSQL_TYPE_STRING;
+    resultBind[3].buffer = mime_buf;
+    resultBind[3].buffer_length = sizeof(mime_buf);
+    resultBind[4].buffer_type = MYSQL_TYPE_LONG;
+    resultBind[4].buffer = &width;
+    resultBind[5].buffer_type = MYSQL_TYPE_LONG;
+    resultBind[5].buffer = &height;
+    resultBind[6].buffer_type = MYSQL_TYPE_LONGLONG;
+    resultBind[6].buffer = &upload_time;
+    resultBind[7].buffer_type = MYSQL_TYPE_LONG;
+    resultBind[7].buffer = &is_public_int;
+
+    unsigned long actual_len[8];
+    bool is_null[8] = {false};
+    bool bind_error[8] = {false};
+    for (int i = 0; i < 8; i++) {
+        resultBind[i].length = &actual_len[i];
+        resultBind[i].is_null = &is_null[i];
+        resultBind[i].error = &bind_error[i];
+    }
+
+    mysql_stmt_bind_result(stmt, resultBind);
+    mysql_stmt_store_result(stmt);
+
+    while (mysql_stmt_fetch(stmt) == 0) {
+        FileMeta meta;
+        meta.file_id = file_id_buf;
+        meta.filename = urlDecode(filename_buf);
+        meta.size = size;
+        meta.mime_type = mime_buf;
+        meta.width = width;
+        meta.height = height;
+        meta.upload_time = upload_time;
+        meta.is_public = is_public_int;
+        meta.view_count = 0;
+        result.push_back(meta);
+    }
+
+    mysql_stmt_close(stmt);
+
+    MYSQL_RES* foundRes = mysql_store_result(conn);
+    if (foundRes) {
+        mysql_free_result(foundRes);
+    }
+    MYSQL_ROW foundRow = nullptr;
+    MYSQL_RES* fr2 = nullptr;
+    if (mysql_query(conn, "SELECT FOUND_ROWS()") == 0) {
+        fr2 = mysql_store_result(conn);
+        if (fr2) {
+            foundRow = mysql_fetch_row(fr2);
+            if (foundRow && foundRow[0]) {
+                total = std::stoi(foundRow[0]);
+            }
+            mysql_free_result(fr2);
+        }
+    }
+
+    releaseConn(conn);
+    return {result, total};
+}
+
 std::vector<std::string> FileMetaDAO::getValidFileIds(const std::vector<std::string>& file_ids, int user_id) {
     std::vector<std::string> valid_ids;
     MYSQL* conn = getConn();
@@ -756,23 +907,166 @@ long long FileMetaDAO::getUserStorageUsage(int user_id) {
 
     const char* sql = "SELECT COALESCE(SUM(size), 0) FROM files WHERE user_id = ?";
     MYSQL_STMT* stmt = mysql_stmt_init(conn);
-    if (stmt && mysql_stmt_prepare(stmt, sql, strlen(sql)) == 0) {
-        MYSQL_BIND param;
-        memset(&param, 0, sizeof(param));
-        param.buffer_type = MYSQL_TYPE_LONG;
-        param.buffer = &user_id;
-        mysql_stmt_bind_param(stmt, &param);
-        
-        if (mysql_stmt_execute(stmt) == 0) {
-            MYSQL_BIND result;
-            memset(&result, 0, sizeof(result));
-            result.buffer_type = MYSQL_TYPE_LONGLONG;
-            result.buffer = &total_size;
-            mysql_stmt_bind_result(stmt, &result);
-            mysql_stmt_store_result(stmt);
-            mysql_stmt_fetch(stmt);
-        }
-        mysql_stmt_close(stmt);
+    if (!stmt || mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+        if (stmt) mysql_stmt_close(stmt);
+        releaseConn(conn);
+        return 0;
     }
+
+    MYSQL_BIND param;
+    memset(&param, 0, sizeof(param));
+    param.buffer_type = MYSQL_TYPE_LONG;
+    param.buffer = &user_id;
+    mysql_stmt_bind_param(stmt, &param);
+
+    if (mysql_stmt_execute(stmt) == 0) {
+        MYSQL_BIND result;
+        memset(&result, 0, sizeof(result));
+        result.buffer_type = MYSQL_TYPE_LONGLONG;
+        result.buffer = &total_size;
+        mysql_stmt_bind_result(stmt, &result);
+        mysql_stmt_store_result(stmt);
+        mysql_stmt_fetch(stmt);
+    }
+    mysql_stmt_close(stmt);
+    releaseConn(conn);
     return total_size;
+}
+
+/* 设置水印配置 */
+bool FileMetaDAO::setWatermark(const std::string& file_id, const std::string& text,
+                               const std::string& position, int opacity) {
+    MYSQL* conn = getConn();
+    if (!conn) return false;
+
+    const char* sql = "UPDATE files SET watermark_text=?, watermark_position=?, watermark_opacity=? WHERE file_id=?";
+    MYSQL_STMT* stmt = mysql_stmt_init(conn);
+    if (!stmt || mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+        if (stmt) mysql_stmt_close(stmt);
+        releaseConn(conn);
+        return false;
+    }
+
+    MYSQL_BIND params[4];
+    memset(params, 0, sizeof(params));
+
+    std::string text_val = text;
+    std::string pos_val = position;
+    int op_val = opacity;
+    std::string fid = file_id;
+
+    params[0].buffer_type = MYSQL_TYPE_STRING;
+    params[0].buffer = &text_val[0];
+    params[0].buffer_length = text_val.size();
+    params[1].buffer_type = MYSQL_TYPE_STRING;
+    params[1].buffer = &pos_val[0];
+    params[1].buffer_length = pos_val.size();
+    params[2].buffer_type = MYSQL_TYPE_LONG;
+    params[2].buffer = &op_val;
+    params[3].buffer_type = MYSQL_TYPE_STRING;
+    params[3].buffer = &fid[0];
+    params[3].buffer_length = fid.size();
+
+    mysql_stmt_bind_param(stmt, params);
+    bool ok = (mysql_stmt_execute(stmt) == 0);
+    mysql_stmt_close(stmt);
+    releaseConn(conn);
+    return ok;
+}
+
+/* 清除水印配置 */
+bool FileMetaDAO::clearWatermark(const std::string& file_id) {
+    MYSQL* conn = getConn();
+    if (!conn) return false;
+
+    const char* sql = "UPDATE files SET watermark_text=NULL, watermark_position=\"bottom-right\", watermark_opacity=50 WHERE file_id=?";
+    MYSQL_STMT* stmt = mysql_stmt_init(conn);
+    if (!stmt || mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+        if (stmt) mysql_stmt_close(stmt);
+        releaseConn(conn);
+        return false;
+    }
+
+    MYSQL_BIND param;
+    memset(&param, 0, sizeof(param));
+    std::string fid = file_id;
+    param.buffer_type = MYSQL_TYPE_STRING;
+    param.buffer = &fid[0];
+    param.buffer_length = fid.size();
+
+    mysql_stmt_bind_param(stmt, &param);
+    bool ok = (mysql_stmt_execute(stmt) == 0);
+    mysql_stmt_close(stmt);
+    releaseConn(conn);
+    return ok;
+}
+
+/* 获取水印配置 */
+bool FileMetaDAO::getWatermark(const std::string& file_id, std::string& text, 
+                               std::string& position, int& opacity) {
+    MYSQL* conn = getConn();
+    if (!conn) return false;
+    
+    const char* sql = "SELECT watermark_text, watermark_position, watermark_opacity, watermark_text IS NOT NULL AS has_wm FROM files WHERE file_id=?";
+    MYSQL_STMT* stmt = mysql_stmt_init(conn);
+    if (!stmt || mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+        if (stmt) mysql_stmt_close(stmt);
+        releaseConn(conn);
+        return false;
+    }
+    
+    MYSQL_BIND param;
+    memset(&param, 0, sizeof(param));
+    std::string fid = file_id;
+    param.buffer_type = MYSQL_TYPE_STRING;
+    param.buffer = &fid[0];
+    param.buffer_length = fid.size();
+    mysql_stmt_bind_param(stmt, &param);
+    
+    MYSQL_BIND result[4];
+    memset(result, 0, sizeof(result));
+    char text_buf[256] = {0};
+    char pos_buf[32] = {0};
+    int op_val = 0;
+    int has_wm_val = 0;
+    bool text_null = true;
+    bool pos_null = true;
+    bool op_null = true;
+    bool has_wm_null = true;
+    unsigned long text_len = 0;
+    unsigned long pos_len = 0;
+    
+    result[0].buffer_type = MYSQL_TYPE_STRING;
+    result[0].buffer = text_buf;
+    result[0].buffer_length = sizeof(text_buf);
+    result[0].is_null = &text_null;
+    result[0].length = &text_len;
+    result[1].buffer_type = MYSQL_TYPE_STRING;
+    result[1].buffer = pos_buf;
+    result[1].buffer_length = sizeof(pos_buf);
+    result[1].is_null = &pos_null;
+    result[1].length = &pos_len;
+    result[2].buffer_type = MYSQL_TYPE_LONG;
+    result[2].buffer = &op_val;
+    result[2].is_null = &op_null;
+    result[3].buffer_type = MYSQL_TYPE_LONG;
+    result[3].buffer = &has_wm_val;
+    result[3].is_null = &has_wm_null;
+    
+    mysql_stmt_bind_result(stmt, result);
+    
+    bool found = false;
+    if (mysql_stmt_execute(stmt) == 0 && mysql_stmt_fetch(stmt) == 0) {
+        AERO_LOG_INFO("[getWatermark] has_wm_val=" + std::to_string(has_wm_val) + " text_null=" + std::to_string(text_null) + " text_buf_len=" + std::to_string(strlen(text_buf)));
+        if (has_wm_val && !text_null && text_buf[0] != '\0') {
+            text = text_buf;
+            position = pos_null ? "" : pos_buf;
+            opacity = op_null ? 50 : op_val;
+            found = true;
+        }
+    }
+
+    mysql_stmt_close(stmt);
+    releaseConn(conn);
+    return found;
 }

@@ -57,6 +57,7 @@ bool RedisClient::init(const std::string& host, int port, int poolSize, const st
     port_ = port;
     poolSize_ = poolSize;
     password_ = password;
+    stopped_.store(false);
 
     auto now = std::chrono::steady_clock::now();
     for (int i = 0; i < poolSize_; ++i) {
@@ -75,25 +76,36 @@ bool RedisClient::init(const std::string& host, int port, int poolSize, const st
             redisFree(ctx);
             return false;
         }
-        pool_.push({ctx, now});
+        size_t idx = static_cast<size_t>(i % SHARD_COUNT);
+        {
+            std::lock_guard<std::mutex> lock(shards_[idx].mutex);
+            shards_[idx].pool.push({ctx, now});
+        }
     }
-    LOG_INFO("[Redis] 连接池初始化完成，创建 " + std::to_string(poolSize_) + " 个连接");
+    LOG_INFO("[Redis] 连接池初始化完成，创建 " + std::to_string(poolSize_) + " 个连接，分片到 " + std::to_string(SHARD_COUNT) + " 个分片");
     return true;
 }
 
 // 从连接池获取一个可用连接（带超时等待 + 懒验证 + 自动重建）
 redisContext* RedisClient::getContext() {
-    std::unique_lock<std::mutex> lock(mutex_);
+    size_t idx = getShard();
+    auto& shard = shards_[idx];
+    std::unique_lock<std::mutex> lock(shard.mutex);
 
-    if (!cv_.wait_for(lock, std::chrono::seconds(3), [this]() { return !pool_.empty(); })) {
+    if (!shard.cv.wait_for(lock, std::chrono::seconds(3), [this, &shard]() {
+        return stopped_.load() || !shard.pool.empty();
+    })) {
         LOG_ERROR("[Redis] 获取连接超时（3秒）");
         return nullptr;
     }
 
-    auto [ctx, lastCheck] = pool_.front();
-    pool_.pop();
+    if (stopped_.load()) {
+        return nullptr;
+    }
 
-    // 懒验证：距上次验证超过 30 秒才 PING，减少网络往返
+    auto [ctx, lastCheck] = shard.pool.front();
+    shard.pool.pop();
+
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastCheck).count();
     if (elapsed >= 30) {
@@ -126,17 +138,42 @@ redisContext* RedisClient::getContext() {
 // 归还连接到连接池，记录本次验证时间
 void RedisClient::releaseContext(redisContext* ctx) {
     if (!ctx) return;
-    std::lock_guard<std::mutex> lock(mutex_);
-    pool_.push({ctx, std::chrono::steady_clock::now()});
-    cv_.notify_one();
+    size_t idx = getShard();
+    auto& shard = shards_[idx];
+    {
+        std::lock_guard<std::mutex> lock(shard.mutex);
+        shard.pool.push({ctx, std::chrono::steady_clock::now()});
+    }
+    shard.cv.notify_one();
 }
 
 RedisClient::Stats RedisClient::getStats() {
-    std::lock_guard<std::mutex> lock(mutex_);
     Stats s;
-    s.idle = static_cast<int>(pool_.size());
+    for (int i = 0; i < SHARD_COUNT; ++i) {
+        std::lock_guard<std::mutex> lock(shards_[i].mutex);
+        s.idle += static_cast<int>(shards_[i].pool.size());
+    }
     s.active = poolSize_ - s.idle;
     return s;
+}
+
+void RedisClient::close() {
+    stopped_.store(true);
+    for (int i = 0; i < SHARD_COUNT; ++i) {
+        {
+            std::lock_guard<std::mutex> lock(shards_[i].mutex);
+            while (!shards_[i].pool.empty()) {
+                auto [ctx, _] = shards_[i].pool.front();
+                shards_[i].pool.pop();
+                if (ctx) redisFree(ctx);
+            }
+        }
+        shards_[i].cv.notify_all();
+    }
+}
+
+size_t RedisClient::getShard() const {
+    return std::hash<std::thread::id>{}(std::this_thread::get_id()) % SHARD_COUNT;
 }
 
 std::string RedisClient::ping() {

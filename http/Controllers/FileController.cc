@@ -33,7 +33,6 @@ void FileController::deleteFile(const HttpRequestPtr& req, std::function<void(co
     int user_id;
     auto auth = requireAuth(req, user_id);
     if (auth.status_code != 200) { respond(auth, std::move(callback)); return; }
-
     respond(handleDeleteFile(user_id, fileId), std::move(callback));
 }
 
@@ -41,11 +40,9 @@ void FileController::batchDelete(const HttpRequestPtr& req, std::function<void(c
     int user_id;
     auto auth = requireAuth(req, user_id);
     if (auth.status_code != 200) { respond(auth, std::move(callback)); return; }
-
     Json::Value json;
     auto check = requireJson(req, json);
     if (check.status_code != 200) { respond(check, std::move(callback)); return; }
-
     std::vector<std::string> file_ids;
     const auto& arr = json.get("file_ids", Json::Value(Json::arrayValue));
     if (arr.isArray()) {
@@ -53,7 +50,6 @@ void FileController::batchDelete(const HttpRequestPtr& req, std::function<void(c
             if (item.isString()) file_ids.push_back(item.asString());
         }
     }
-
     respond(handleBatchDeleteFiles(user_id, file_ids), std::move(callback));
 }
 
@@ -61,12 +57,6 @@ void FileController::setPublic(const HttpRequestPtr& req, std::function<void(con
     int user_id;
     auto auth = requireAuth(req, user_id);
     if (auth.status_code != 200) { respond(auth, std::move(callback)); return; }
-
-    auto json = req->getJsonObject();
-    if (json && json->isMember("is_public")) {
-        respond(handleSetPublic(user_id, fileId, json->get("is_public", false).asBool()), std::move(callback));
-        return;
-    }
     respond(handleSetPublic(user_id, fileId), std::move(callback));
 }
 
@@ -74,10 +64,44 @@ void FileController::getPresign(const HttpRequestPtr& req, std::function<void(co
     int user_id;
     auto auth = requireAuth(req, user_id);
     if (auth.status_code != 200) { respond(auth, std::move(callback)); return; }
-
     respond(handleGetPresignUrl(user_id, fileId), std::move(callback));
 }
 
 void FileController::share(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback, const std::string& fileId) {
     respond(handleShare(fileId), std::move(callback));
+}
+
+void FileController::addWatermark(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback, const std::string& fileId) {
+    int user_id;
+    auto auth = requireAuth(req, user_id);
+    if (auth.status_code != 200) { respond(auth, std::move(callback)); return; }
+    Json::Value json;
+    auto check = requireJson(req, json);
+    if (check.status_code != 200) { respond(check, std::move(callback)); return; }
+    std::string text = json.get("text", "").asString();
+    std::string position = json.get("position", "bottom-right").asString();
+    int opacity = json.get("opacity", 80).asInt();
+    if (text.empty()) {
+        respond(HandlerResult::error(errorResponse("Watermark text is required"), 400), std::move(callback));
+        return;
+    }
+    if (opacity < 10 || opacity > 100) {
+        respond(HandlerResult::error(errorResponse("Opacity must be between 10 and 100"), 400), std::move(callback));
+        return;
+    }
+    respond(handleAddWatermark(user_id, fileId, text, position, opacity), std::move(callback));
+}
+
+void FileController::removeWatermark(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback, const std::string& fileId) {
+    int user_id;
+    auto auth = requireAuth(req, user_id);
+    if (auth.status_code != 200) { respond(auth, std::move(callback)); return; }
+    respond(handleRemoveWatermark(user_id, fileId), std::move(callback));
+}
+
+void FileController::getWatermark(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback, const std::string& fileId) {
+    int user_id;
+    auto auth = requireAuth(req, user_id);
+    if (auth.status_code != 200) { respond(auth, std::move(callback)); return; }
+    respond(handleGetWatermarkConfig(user_id, fileId), std::move(callback));
 }

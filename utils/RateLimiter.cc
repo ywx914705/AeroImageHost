@@ -74,11 +74,40 @@ int RateLimiter::getRemainingAttempts(const std::string& key, int maxAttempts, i
     return remaining > 0 ? remaining : 0;
 }
 
+bool RateLimiter::checkAndRecord(const std::string& key, int maxAttempts, int windowSeconds) {
+    std::string redisKey = "ratelimit:" + key;
+    RedisClient& redis = RedisClient::instance();
+    redisContext* ctx = redis.getContext();
+    if (!ctx) return false;
+
+    static const char* lua =
+        "local current = redis.call('GET', KEYS[1]) "
+        "if current and tonumber(current) >= tonumber(ARGV[1]) then return 0 end "
+        "local v = redis.call('INCR', KEYS[1]) "
+        "if v == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end "
+        "if v > tonumber(ARGV[1]) then return 0 end "
+        "return v";
+
+    redisReply* reply = (redisReply*)redisCommand(ctx,
+        "EVAL %s 1 %b %d %d",
+        lua, redisKey.data(), redisKey.size(), maxAttempts, windowSeconds);
+
+    bool allowed = false;
+    if (reply && reply->type == REDIS_REPLY_INTEGER) {
+        allowed = (reply->integer > 0);
+    }
+    if (reply) freeReplyObject(reply);
+    redis.releaseContext(ctx);
+    return allowed;
+}
+
 bool RateLimiter::allowConsume(const std::string& key, int maxPerWindow, int windowSeconds) {
     std::string redisKey = "ratelimit:consume:" + key;
     long long v = RedisClient::instance().incrWithExpire(redisKey, windowSeconds);
     if (v < 0) {
-        return true;
+        // Redis 失败时拒绝请求，避免 Redis 宕机时无限放行
+        LOG_ERROR("[RateLimiter] Redis incrWithExpire failed for key: " + key);
+        return false;
     }
     return v <= static_cast<long long>(maxPerWindow);
 }

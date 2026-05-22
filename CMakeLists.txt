@@ -64,10 +64,17 @@ file(GLOB_RECURSE SOURCES
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(CAIRO REQUIRED cairo)
+include_directories(${CAIRO_INCLUDE_DIRS})
+link_directories(${CAIRO_LIBRARY_DIRS})
+
 target_link_libraries(${PROJECT_NAME}
     Drogon::Drogon
     crypt
     ${VIPS_LIBRARIES}
+    ${CAIRO_LIBRARIES}
+    fontconfig
     OpenSSL::SSL
     Threads::Threads
     ${MYSQL_LIBRARY}
@@ -87,10 +94,28 @@ target_link_libraries(${PROJECT_NAME}
 option(BUILD_TESTING "Build and register unit tests" ON)
 include(CTest)
 if(BUILD_TESTING)
-    add_executable(forwarded_for_parse_tests
-        tests/forwarded_for_parse_test.cc
-        utils/ForwardedForParse.cc)
-    target_include_directories(forwarded_for_parse_tests PRIVATE
-        ${CMAKE_SOURCE_DIR}/utils)
-    add_test(NAME forwarded_for_parse_tests COMMAND forwarded_for_parse_tests)
+    add_executable(test_metrics_collector
+        tests/test_metrics_collector.cc
+        monitor/MetricsCollector.cc
+        src/ConnectionPool.cc
+        src/RedisClient.cc
+        src/Log.cc
+        utils/Utils.cc)
+    target_include_directories(test_metrics_collector PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/monitor
+        ${MYSQL_INCLUDE_DIR}
+        ${VIPS_INCLUDE_DIRS}
+        ${CURL_INCLUDE_DIRS})
+    target_link_libraries(test_metrics_collector
+        Drogon::Drogon
+        ${MYSQL_LIBRARY}
+        hiredis
+        pthread
+        ssl
+        crypto
+        curl
+        z)
+    add_test(NAME test_metrics_collector COMMAND test_metrics_collector)
 endif()

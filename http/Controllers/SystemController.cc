@@ -8,6 +8,9 @@
 #include "MinIOClient.hpp"
 #include <json/json.h>
 #include <mysql/mysql.h>
+#include <drogon/drogon.h>
+#include <csignal>
+#include <unistd.h>
 
 namespace {
 
@@ -94,4 +97,31 @@ void SystemController::cleanup(const HttpRequestPtr& req,
     auto resp = HttpResponse::newHttpJsonResponse(result);
     resp->setStatusCode(k200OK);
     callback(resp);
+}
+
+void SystemController::shutdown(const HttpRequestPtr& req,
+                                 std::function<void(const HttpResponsePtr&)>&& callback) {
+    int user_id;
+    auto auth = requireAuth(req, user_id);
+    if (auth.status_code != 200) {
+        respond(auth, std::move(callback));
+        return;
+    }
+
+    int adminUserId = Config::instance().getInt("security.admin_user_id", 1);
+    if (user_id != adminUserId) {
+        respond(HandlerResult::error(errorResponse("Admin access required"), 403), std::move(callback));
+        return;
+    }
+
+    Json::Value result;
+    result["status"] = "success";
+    result["message"] = "Server shutting down";
+    auto resp = HttpResponse::newHttpJsonResponse(result);
+    resp->setStatusCode(k200OK);
+    callback(resp);
+
+    drogon::app().getLoop()->runAfter(0.5, []() {
+        drogon::app().quit();
+    });
 }

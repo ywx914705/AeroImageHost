@@ -53,6 +53,8 @@ public:
 
     // 下载对象到内存（用于缩略图生成等场景）
     bool getObject(const std::string& key, std::vector<char>& data);
+    // 范围下载对象到内存（仅下载指定字节范围）
+    bool getObjectRange(const std::string& key, size_t offset, size_t length, std::vector<char>& data);
 
     // 拼接多个对象为一个（用于分片上传合并，零下载合并）
     bool composeObjects(const std::string& destKey, const std::string& contentType,

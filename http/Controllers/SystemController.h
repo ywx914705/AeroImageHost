@@ -21,12 +21,14 @@ public:
     ADD_METHOD_TO(SystemController::stats, "/api/stats", Get);
     ADD_METHOD_TO(SystemController::metrics, "/api/metrics", Get);
     ADD_METHOD_TO(SystemController::cleanup, "/api/cleanup", Post);
+    ADD_METHOD_TO(SystemController::shutdown, "/api/shutdown", Post);
     METHOD_LIST_END
 
     void health(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback);
     void stats(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback);
     void metrics(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback);
     void cleanup(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback);
+    void shutdown(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback);
 };
 
 #endif // SYSTEM_CONTROLLER_H

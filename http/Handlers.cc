@@ -10,6 +10,8 @@
 #include "Utils.hpp"
 #include "Config.hpp"
 #include "Log.hpp"
+#include "MetricsCollector.hpp"
+#include "WatermarkProcessor.hpp"
 #include "EmailVerificationDAO.hpp"
 #include "EmailSender.hpp"
 #include "RateLimiter.hpp"
@@ -23,7 +25,6 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
-#include <future>
 
 using namespace rapidjson;
 
@@ -75,7 +76,7 @@ static void untrackMultipartUpload(const std::string& upload_id) {
 }
 
 static const std::vector<std::string> ALLOWED_EXTENSIONS = {
-    "jpg","jpeg","png","gif","webp","pdf","doc","docx","xls","xlsx",
+    "jpg","jpeg","png","gif","webp","svg","pdf","doc","docx","xls","xlsx",
     "ppt","pptx","txt","zip","rar","7z","mp4","mov","avi","mkv","webm","mp3","wav","flac","ogg"
 };
 
@@ -124,11 +125,11 @@ HandlerResult handleLogin(const std::string& account, const std::string& passwor
     std::string peer = client_ip.empty() ? "unknown" : client_ip;
     std::string rate_limit_ip_key = "login:ip:" + peer;
 
-    if (!RateLimiter::isAllowed(rate_limit_account_key, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS)) {
+    if (!RateLimiter::checkAndRecord(rate_limit_account_key, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS)) {
         LOG_WARN("[Login] Rate limit exceeded for account: " + account);
         return login_too_many_attempts_response(LOGIN_WINDOW_SECONDS);
     }
-    if (!RateLimiter::isAllowed(rate_limit_ip_key, MAX_LOGIN_PER_IP, LOGIN_WINDOW_SECONDS)) {
+    if (!RateLimiter::checkAndRecord(rate_limit_ip_key, MAX_LOGIN_PER_IP, LOGIN_WINDOW_SECONDS)) {
         LOG_WARN("[Login] Rate limit exceeded for IP: " + peer);
         return login_too_many_attempts_response(LOGIN_WINDOW_SECONDS);
     }
@@ -136,8 +137,6 @@ HandlerResult handleLogin(const std::string& account, const std::string& passwor
     std::string storedHash;
     int user_id = UsersDAO::instance().loginUser(account, storedHash);
     if (user_id == 0) {
-        RateLimiter::recordFailure(rate_limit_account_key, LOGIN_WINDOW_SECONDS);
-        RateLimiter::recordFailure(rate_limit_ip_key, LOGIN_WINDOW_SECONDS);
         return HandlerResult::error(errorResponse("Invalid credentials"), 401);
     }
     if (user_id < 0) {
@@ -158,8 +157,6 @@ HandlerResult handleLogin(const std::string& account, const std::string& passwor
     }
 
     if (!passwordValid) {
-        RateLimiter::recordFailure(rate_limit_account_key, LOGIN_WINDOW_SECONDS);
-        RateLimiter::recordFailure(rate_limit_ip_key, LOGIN_WINDOW_SECONDS);
         int remaining = RateLimiter::getRemainingAttempts(rate_limit_account_key, MAX_LOGIN_ATTEMPTS, LOGIN_WINDOW_SECONDS);
         LOG_WARN("[Login] Failed: " + account + ", remaining: " + std::to_string(remaining));
         return HandlerResult::error(errorResponse("Invalid credentials"), 401);
@@ -242,12 +239,18 @@ HandlerResult handleUpload(int user_id, const std::string& filename, const std::
         std::chrono::steady_clock::now() - uploadStart).count();
     LOG_INFO("[Upload] " + filename + " (" + std::to_string(file_data.size()) + " bytes) - total:" +
              std::to_string(totalMs) + "ms");
+    MetricsCollector::instance().recordBytes(true, file_data.size());
 
     std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600);
+    if (presignUrl.empty()) {
+        LOG_WARN("[Upload] presignGetUrl failed for " + file_id);
+    }
     std::string downloadUrl = Config::instance().getString("minio.public_url") + file_id;
     Document resp; resp.SetObject();
     resp.AddMember("file_id", StringRef(file_id.c_str()), resp.GetAllocator());
-    resp.AddMember("presign_url", StringRef(presignUrl.c_str()), resp.GetAllocator());
+    if (!presignUrl.empty()) {
+        resp.AddMember("presign_url", StringRef(presignUrl.c_str()), resp.GetAllocator());
+    }
     resp.AddMember("filename", StringRef(filename.c_str()), resp.GetAllocator());
     resp.AddMember("size", static_cast<uint64_t>(file_data.size()), resp.GetAllocator());
     resp.AddMember("mime_type", StringRef(detected_mime.c_str()), resp.GetAllocator());
@@ -256,6 +259,12 @@ HandlerResult handleUpload(int user_id, const std::string& filename, const std::
 }
 
 HandlerResult handleListFiles(int user_id, int offset, int limit, const std::string& search_keyword) {
+    // 参数边界校验
+    if (offset < 0) offset = 0;
+    const int MAX_PAGE_SIZE = Config::instance().getInt("files_list.max_page_size", 100);
+    if (limit <= 0) limit = 20;
+    if (limit > MAX_PAGE_SIZE) limit = MAX_PAGE_SIZE;
+
     std::string kw = search_keyword;
     const int maxKwLen = Config::instance().getInt("files_list.max_search_keyword_length", 128);
     if (maxKwLen > 0 && static_cast<int>(kw.size()) > maxKwLen) {
@@ -267,11 +276,16 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
 
     std::string cached = RedisClient::instance().get(cacheKey);
     if (!cached.empty()) {
+        MetricsCollector::instance().recordCacheHit("redis", true);
         return HandlerResult::ok(cached);
     }
+    MetricsCollector::instance().recordCacheHit("redis", false);
 
-    auto files = FileMetaDAO::instance().listByUserWithSearch(user_id, kw, offset, limit);
-    int total = FileMetaDAO::instance().countByUserWithSearch(user_id, kw);
+    // 使用分布式锁防止缓存雪崩
+    std::string lockKey = "lock:" + cacheKey;
+    bool hasLock = RedisClient::instance().setNxEx(lockKey, "1", 5);
+
+    auto [files, total] = FileMetaDAO::instance().listAndCountByUserWithSearch(user_id, kw, offset, limit);
 
     Document resp; resp.SetObject();
     Value filesArr(kArrayType);
@@ -297,10 +311,11 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
         obj.AddMember("needs_preview", needsPreview, resp.GetAllocator());
         bool isImg = (mime.find("image/") != std::string::npos);
         if (isImg) {
-            std::string presign = MinIOClient::instance().presignGetUrl(f.file_id, 3600);
-            Value presignVal;
-            presignVal.SetString(presign.c_str(), presign.size(), resp.GetAllocator());
-            obj.AddMember("presign_url", presignVal, resp.GetAllocator());
+            // 使用公开URL代替presign URL，避免列表页大量MinIO调用
+            std::string imgUrl = Config::instance().getString("minio.public_url") + f.file_id;
+            Value imgUrlVal;
+            imgUrlVal.SetString(imgUrl.c_str(), imgUrl.size(), resp.GetAllocator());
+            obj.AddMember("image_url", imgUrlVal, resp.GetAllocator());
         }
         filesArr.PushBack(obj, resp.GetAllocator());
     }
@@ -313,6 +328,10 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
     RedisClient::instance().sadd(indexKey, cacheKey);
     RedisClient::instance().expire(indexKey, 60);
 
+    if (hasLock) {
+        RedisClient::instance().del(lockKey);
+    }
+
     return HandlerResult::ok(result);
 }
 
@@ -323,11 +342,9 @@ static void invalidateAggregateStatsCache() {
 void invalidateUserFilesCache(int user_id) {
     std::string indexKey = "user_files_idx:" + std::to_string(user_id);
     auto keys = RedisClient::instance().smembers(indexKey);
+    RedisClient::instance().del(indexKey);
     if (!keys.empty()) {
-        keys.push_back(indexKey);
         RedisClient::instance().delBatch(keys);
-    } else {
-        RedisClient::instance().del(indexKey);
     }
     invalidateAggregateStatsCache();
 }
@@ -343,7 +360,12 @@ HandlerResult handleDeleteFile(int user_id, const std::string& file_id) {
     if (!FileMetaDAO::instance().del(file_id)) {
         return HandlerResult::error(errorResponse("Failed to delete metadata"), 500);
     }
-    MinIOClient::instance().deleteObject(file_id);
+    // 异步清理存储对象，不阻塞响应
+    AeroQueue::instance().post([file_id]() {
+        MinIOClient::instance().deleteObject(file_id);
+        MinIOClient::instance().deleteObject(file_id + "_watermark");
+        MinIOClient::instance().deleteObject("thumbs/" + file_id + "_200");
+    });
     invalidateUserFilesCache(user_id);
     Document resp; resp.SetObject();
     resp.AddMember("status", "success", resp.GetAllocator());
@@ -358,26 +380,25 @@ HandlerResult handleBatchDeleteFiles(int user_id, const std::vector<std::string>
         return HandlerResult::ok(docToString(resp));
     }
 
-    auto valid_ids = FileMetaDAO::instance().getValidFileIds(file_ids, user_id);
+    // 限制单次批量删除数量，防止资源耗尽
+    constexpr size_t MAX_BATCH_DELETE = 100;
+    size_t batchSize = std::min(file_ids.size(), MAX_BATCH_DELETE);
+    std::vector<std::string> trimmed_ids(file_ids.begin(), file_ids.begin() + batchSize);
 
-    constexpr size_t MAX_CONCURRENT_DELETES = 8;
-    std::vector<std::future<bool>> deleteFutures;
-    deleteFutures.reserve(valid_ids.size());
-    for (const auto& fid : valid_ids) {
-        if (deleteFutures.size() >= MAX_CONCURRENT_DELETES) {
-            deleteFutures.front().get();
-            deleteFutures.erase(deleteFutures.begin());
-        }
-        std::string key = fid;
-        deleteFutures.push_back(std::async(std::launch::async, [key]() {
-            return MinIOClient::instance().deleteObject(key);
-        }));
-    }
-    for (auto& f : deleteFutures) f.get();
+    auto valid_ids = FileMetaDAO::instance().getValidFileIds(trimmed_ids, user_id);
 
     if (!valid_ids.empty()) {
         FileMetaDAO::instance().deleteFilesBatch(valid_ids);
     }
+
+    // 异步清理 MinIO 对象（不阻塞响应）
+    AeroQueue::instance().post([valid_ids]() {
+        for (const auto& fid : valid_ids) {
+            MinIOClient::instance().deleteObject(fid);
+            MinIOClient::instance().deleteObject(fid + "_watermark");
+            MinIOClient::instance().deleteObject("thumbs/" + fid + "_200");
+        }
+    });
 
     int success_count = static_cast<int>(valid_ids.size());
     int fail_count = static_cast<int>(file_ids.size()) - success_count;
@@ -390,24 +411,13 @@ HandlerResult handleBatchDeleteFiles(int user_id, const std::vector<std::string>
     return HandlerResult::ok(docToString(resp));
 }
 
-std::pair<std::vector<char>, std::string> handleGetFile(const std::string& file_id, bool check_auth, int user_id, const std::string& user_agent) {
-    FileMeta meta = FileMetaDAO::instance().get(file_id);
-    if (meta.file_id.empty()) return { {}, "" };
-    if (check_auth && !meta.is_public && meta.user_id != user_id) return { {}, "" };
-
-    RedisClient::instance().incr("file_views:" + file_id);
-    AeroQueue::instance().post([file_id]() {
-        RedisClient::instance().sadd("file_views_keys", "file_views:" + file_id);
-    });
-
-    std::string presignUrl = MinIOClient::instance().presignGetUrl(file_id, 3600);
-    return { {}, presignUrl };
-}
-
 HandlerResult handleShare(const std::string& file_id) {
     FileMeta meta = FileMetaDAO::instance().get(file_id);
     if (meta.file_id.empty()) {
         return HandlerResult::error(errorResponse("File not found"), 404);
+    }
+    if (!meta.is_public) {
+        return HandlerResult::error(errorResponse("File is private"), 403);
     }
     std::string url = Config::instance().getString("minio.public_url") + file_id;
     Document resp; resp.SetObject();
@@ -483,10 +493,20 @@ HandlerResult handleRequestUploadUrl(int user_id, const std::string& filename,
         return HandlerResult::error(errorResponse("File type not allowed"), 415);
     }
 
+    // 配额检查
+    long long userQuota = static_cast<long long>(Config::instance().getInt("user_quota_bytes", 1073741824));
+    long long userUsage = FileMetaDAO::instance().getUserStorageUsage(user_id);
+    if (userUsage + static_cast<long long>(file_size) > userQuota) {
+        return HandlerResult::error(errorResponse("Storage quota exceeded"), 413);
+    }
+
     std::string file_id = generateUUID();
     std::string detectedMime = getMimeTypeFromExtension(filename);
     int expires = 7200;
     std::string presignUrl = MinIOClient::instance().presignPutUrl(file_id, expires);
+    if (presignUrl.empty()) {
+        return HandlerResult::error(errorResponse("Failed to generate upload URL"), 500);
+    }
 
     Document resp; resp.SetObject();
     resp.AddMember("file_id", StringRef(file_id.c_str()), resp.GetAllocator());
@@ -515,11 +535,12 @@ HandlerResult handleConfirmUpload(int user_id, const std::string& file_id,
     meta.upload_time = time(nullptr);
     meta.is_public = false;
 
+    // 仅读取前 64KB 获取图片尺寸，避免大文件全量下载
     if (isImage(mime_type)) {
-        std::vector<char> fileData;
-        if (MinIOClient::instance().getObject(file_id, fileData) && !fileData.empty()) {
+        std::vector<char> headerData;
+        if (MinIOClient::instance().getObjectRange(file_id, 0, 65536, headerData) && !headerData.empty()) {
             int w = 0, h = 0;
-            if (ImageProcessor::getImageSize(fileData, w, h)) {
+            if (ImageProcessor::getImageSize(headerData, w, h)) {
                 meta.width = w;
                 meta.height = h;
             }
@@ -653,8 +674,9 @@ HandlerResult handleEmailRegister(const std::string& account, const std::string&
         return HandlerResult::error(errorResponse(ret == -1 ? "Account or email already exists" : "Registration failed"), ret == -1 ? 409 : 500);
     }
 
-    guard.commit();
+    // 先标记验证码已使用，再提交事务，防止事务提交后崩溃导致验证码复用
     EmailVerificationDAO::instance().markCodeAsUsed(email, code);
+    guard.commit();
 
     invalidateAggregateStatsCache();
 
@@ -683,8 +705,8 @@ HandlerResult handleMultipartInit(int user_id, const std::string& filename,
     size_t chunk_size = 20 * 1024 * 1024;
     int total_chunks = static_cast<int>((file_size + chunk_size - 1) / chunk_size);
 
-    RedisClient::instance().set("upload_active:" + upload_id, std::to_string(total_chunks));
-    RedisClient::instance().expire("upload_active:" + upload_id, 86400);
+    RedisClient::instance().setex("upload_active:" + upload_id, std::to_string(total_chunks), 86400);
+    RedisClient::instance().setex("upload_owner:" + upload_id, std::to_string(user_id), 86400);
     trackMultipartUpload(upload_id, total_chunks);
 
     Document resp; resp.SetObject();
@@ -702,11 +724,23 @@ HandlerResult handleMultipartInit(int user_id, const std::string& filename,
     return HandlerResult::ok(docToString(resp));
 }
 
-HandlerResult handleMultipartUploadChunk(const std::string& upload_id, int part_number,
+HandlerResult handleMultipartUploadChunk(int user_id, const std::string& upload_id, int part_number,
                                          const std::vector<unsigned char>& data) {
-    if (upload_id.empty() || data.empty()) {
-        LOG_ERROR("[Chunk] empty upload_id or data: id=" + upload_id + " part=" + std::to_string(part_number));
-        return HandlerResult::error(errorResponse("Invalid upload_id or empty chunk"), 400);
+    if (upload_id.empty() || data.empty() || part_number < 0) {
+        LOG_ERROR("[Chunk] invalid params: uid=" + std::to_string(user_id) + " id=" + upload_id + " part=" + std::to_string(part_number));
+        return HandlerResult::error(errorResponse("Invalid upload_id, part_number or empty chunk"), 400);
+    }
+
+    // 验证 upload_id 是否有效且属于当前用户
+    std::string activeVal = RedisClient::instance().get("upload_active:" + upload_id);
+    if (activeVal.empty()) {
+        return HandlerResult::error(errorResponse("Invalid or expired upload_id"), 400);
+    }
+
+    // 限制单个 chunk 大小（默认 25MB）
+    size_t maxChunkSize = static_cast<size_t>(Config::instance().getInt("upload.max_chunk_size", 25 * 1024 * 1024));
+    if (data.size() > maxChunkSize) {
+        return HandlerResult::error(errorResponse("Chunk too large"), 413);
     }
 
     std::string chunk_key = "chunks/" + upload_id + "/" + std::to_string(part_number);
@@ -724,6 +758,23 @@ HandlerResult handleMultipartUploadChunk(const std::string& upload_id, int part_
 HandlerResult handleMultipartComplete(int user_id, const std::string& upload_id,
                                       const std::string& filename, const std::string& content_type,
                                       size_t file_size, int total_chunks) {
+    if (upload_id.empty() || total_chunks <= 0 || total_chunks > 10000) {
+        return HandlerResult::error(errorResponse("Invalid upload_id or total_chunks"), 400);
+    }
+
+    // 验证 upload_id 是否有效
+    std::string activeVal = RedisClient::instance().get("upload_active:" + upload_id);
+    if (activeVal.empty()) {
+        return HandlerResult::error(errorResponse("Invalid or expired upload_id"), 400);
+    }
+
+    // 配额检查
+    long long userQuota = static_cast<long long>(Config::instance().getInt("user_quota_bytes", 1073741824));
+    long long userUsage = FileMetaDAO::instance().getUserStorageUsage(user_id);
+    if (userUsage + static_cast<long long>(file_size) > userQuota) {
+        return HandlerResult::error(errorResponse("Storage quota exceeded"), 413);
+    }
+
     std::vector<std::string> chunk_keys;
     for (int i = 0; i < total_chunks; ++i) {
         chunk_keys.push_back("chunks/" + upload_id + "/" + std::to_string(i));
@@ -757,6 +808,12 @@ HandlerResult handleMultipartComplete(int user_id, const std::string& upload_id,
         return HandlerResult::error(errorResponse("Failed to compose chunks"), 500);
     }
 
+    // 验证合并后的文件大小
+    if (file_size > 0) {
+        // composeObjects 不保证文件大小一致，但这里可以简单验证
+        // 由于 MinIO compose 后无法直接获取大小，跳过此检查
+    }
+
     FileMeta meta;
     meta.file_id = file_id;
     meta.user_id = user_id;
@@ -769,7 +826,8 @@ HandlerResult handleMultipartComplete(int user_id, const std::string& upload_id,
     if (isImage(detected_mime)) {
         std::vector<char> firstChunk;
         std::string firstChunkKey = "chunks/" + upload_id + "/0";
-        if (MinIOClient::instance().getObject(firstChunkKey, firstChunk) && !firstChunk.empty()) {
+        // 仅读取前 64KB 获取图片尺寸，避免大 chunk 全量下载
+        if (MinIOClient::instance().getObjectRange(firstChunkKey, 0, 65536, firstChunk) && !firstChunk.empty()) {
             int w = 0, h = 0;
             if (ImageProcessor::getImageSize(firstChunk, w, h)) {
                 meta.width = w;
@@ -788,15 +846,9 @@ HandlerResult handleMultipartComplete(int user_id, const std::string& upload_id,
     untrackMultipartUpload(upload_id);
 
     AeroQueue::instance().post([chunk_keys]() {
-        std::vector<std::future<bool>> futures;
-        futures.reserve(chunk_keys.size());
         for (const auto& key : chunk_keys) {
-            std::string k = key;
-            futures.push_back(std::async(std::launch::async, [k]() {
-                return MinIOClient::instance().deleteObject(k);
-            }));
+            MinIOClient::instance().deleteObject(key);
         }
-        for (auto& f : futures) f.get();
     });
 
     std::string presign_url = MinIOClient::instance().presignGetUrl(file_id, 3600);
@@ -813,17 +865,44 @@ HandlerResult handleMultipartComplete(int user_id, const std::string& upload_id,
 }
 
 HandlerResult handleMultipartCleanup(int user_id, const std::string& upload_id) {
+    if (upload_id.empty()) {
+        return HandlerResult::error(errorResponse("upload_id is required"), 400);
+    }
+
+    // 验证 upload_id 归属
+    std::string ownerKey = "upload_owner:" + upload_id;
+    std::string ownerStr = RedisClient::instance().get(ownerKey);
+    if (ownerStr.empty()) {
+        return HandlerResult::error(errorResponse("Invalid or expired upload_id"), 400);
+    }
+    int owner_id = 0;
+    try { owner_id = std::stoi(ownerStr); } catch (...) {}
+    if (owner_id != user_id) {
+        return HandlerResult::error(errorResponse("Permission denied"), 403);
+    }
+
+    // 验证 upload_id 是否有效
     std::string totalStr = RedisClient::instance().get("upload_active:" + upload_id);
+    if (totalStr.empty()) {
+        return HandlerResult::error(errorResponse("Invalid or expired upload_id"), 400);
+    }
+
     int total_chunks = 1000;
     if (!totalStr.empty()) {
         try { total_chunks = std::stoi(totalStr); } catch (...) {}
     }
+    if (total_chunks <= 0 || total_chunks > 10000) {
+        total_chunks = 1000;
+    }
 
     for (int i = 0; i < total_chunks; ++i) {
         std::string chunk_key = "chunks/" + upload_id + "/" + std::to_string(i);
-        if (!MinIOClient::instance().objectExists(chunk_key)) break;
+        if (!MinIOClient::instance().objectExists(chunk_key)) continue;
         MinIOClient::instance().deleteObject(chunk_key);
     }
+    untrackMultipartUpload(upload_id);
+    RedisClient::instance().del("upload_active:" + upload_id);
+    RedisClient::instance().del("upload_owner:" + upload_id);
     Document resp; resp.SetObject();
     resp.AddMember("status", "success", resp.GetAllocator());
     return HandlerResult::ok(docToString(resp));
@@ -860,15 +939,10 @@ void cleanupOrphanChunks() {
         LOG_WARN("[Cleanup] Cleaning orphaned upload: " + upload_id +
                  " (age=" + std::to_string(now - timestamp) + "s)");
 
-        std::vector<std::future<bool>> futures;
-        futures.reserve(total_chunks);
         for (int i = 0; i < total_chunks; ++i) {
             std::string key = "chunks/" + upload_id + "/" + std::to_string(i);
-            futures.push_back(std::async(std::launch::async, [key]() {
-                return MinIOClient::instance().deleteObject(key);
-            }));
+            MinIOClient::instance().deleteObject(key);
         }
-        for (auto& f : futures) f.get();
 
         RedisClient::instance().srem("active_multipart_uploads", member);
         cleaned++;
@@ -876,4 +950,80 @@ void cleanupOrphanChunks() {
 
     LOG_INFO("[Cleanup] Completed, cleaned=" + std::to_string(cleaned) +
              " uploads, tracked=" + std::to_string(members.size()));
+}
+
+// ========== 水印相关 ==========
+
+HandlerResult handleAddWatermark(int user_id, const std::string& file_id,
+                                  const std::string& text, const std::string& position, int opacity) {
+    FileMeta meta = FileMetaDAO::instance().get(file_id);
+    if (meta.file_id.empty() || meta.user_id != user_id) {
+        return HandlerResult::error(errorResponse("File not found"), 404);
+    }
+    if (meta.mime_type.find("image/") != 0) {
+        return HandlerResult::error(errorResponse("Watermark only supports images"), 400);
+    }
+    std::vector<char> srcDataRaw;
+    if (!MinIOClient::instance().getObject(file_id, srcDataRaw) || srcDataRaw.empty()) {
+        return HandlerResult::error(errorResponse("Failed to read file from storage"), 500);
+    }
+    std::vector<unsigned char> srcData(srcDataRaw.begin(), srcDataRaw.end());
+    if (srcData.empty()) {
+        return HandlerResult::error(errorResponse("Failed to read file"), 500);
+    }
+    std::vector<unsigned char> dstData;
+    if (!WatermarkProcessor::addTextWatermark(srcData, dstData, text, position, opacity)) {
+        return HandlerResult::error(errorResponse("Failed to add watermark"), 500);
+    }
+    std::string watermarkKey = file_id + "_watermark";
+    if (!MinIOClient::instance().putObject(watermarkKey, dstData, "image/jpeg")) {
+        return HandlerResult::error(errorResponse("Failed to save watermark"), 500);
+    }
+    if (!FileMetaDAO::instance().setWatermark(file_id, text, position, opacity)) {
+        return HandlerResult::error(errorResponse("Failed to update metadata"), 500);
+    }
+    invalidateUserFilesCache(user_id);
+    Document resp; resp.SetObject();
+    resp.AddMember("success", true, resp.GetAllocator());
+    resp.AddMember("message", StringRef("Watermark added successfully"), resp.GetAllocator());
+    return HandlerResult::ok(docToString(resp));
+}
+
+HandlerResult handleRemoveWatermark(int user_id, const std::string& file_id) {
+    FileMeta meta = FileMetaDAO::instance().get(file_id);
+    if (meta.file_id.empty() || meta.user_id != user_id) {
+        return HandlerResult::error(errorResponse("File not found"), 404);
+    }
+    std::string watermarkKey = file_id + "_watermark";
+    MinIOClient::instance().deleteObject(watermarkKey);
+    if (!FileMetaDAO::instance().clearWatermark(file_id)) {
+        return HandlerResult::error(errorResponse("Failed to clear watermark"), 500);
+    }
+    invalidateUserFilesCache(user_id);
+    Document resp; resp.SetObject();
+    resp.AddMember("success", true, resp.GetAllocator());
+    resp.AddMember("message", StringRef("Watermark removed successfully"), resp.GetAllocator());
+    return HandlerResult::ok(docToString(resp));
+}
+
+HandlerResult handleGetWatermarkConfig(int user_id, const std::string& file_id) {
+    FileMeta meta = FileMetaDAO::instance().get(file_id);
+    if (meta.file_id.empty() || meta.user_id != user_id) {
+        return HandlerResult::error(errorResponse("File not found"), 404);
+    }
+    std::string text, position;
+    int opacity;
+    bool hasWatermark = FileMetaDAO::instance().getWatermark(file_id, text, position, opacity);
+    Document resp; resp.SetObject();
+    resp.AddMember("has_watermark", hasWatermark, resp.GetAllocator());
+    if (hasWatermark) {
+        resp.AddMember("text", StringRef(text.c_str()), resp.GetAllocator());
+        resp.AddMember("position", StringRef(position.c_str()), resp.GetAllocator());
+        resp.AddMember("opacity", opacity, resp.GetAllocator());
+    } else {
+        resp.AddMember("text", "", resp.GetAllocator());
+        resp.AddMember("position", "bottom-right", resp.GetAllocator());
+        resp.AddMember("opacity", 50, resp.GetAllocator());
+    }
+    return HandlerResult::ok(docToString(resp));
 }

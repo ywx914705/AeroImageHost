@@ -59,6 +59,7 @@ private:
     std::string db_;      // 数据库名
     unsigned int port_;   // 数据库端口（默认 3306）
     int poolSize_ = 0;    // 连接池大小
+    int maxPoolSize_ = 0; // 最大连接池大小（默认 2x poolSize_）
 
     // 空闲连接队列，每个连接记录上次验证时间
     std::queue<std::pair<MYSQL*, std::chrono::steady_clock::time_point>> connections_;

@@ -22,6 +22,8 @@
 #include <unordered_map>
 #include <chrono>
 #include <condition_variable>
+#include <array>
+#include <atomic>
 
 class RedisClient {
 public:
@@ -40,6 +42,8 @@ public:
         int idle = 0;     // 空闲连接数
     };
     Stats getStats();
+
+    void close();
 
     // 执行 PING 命令（用于预热和健康检查）
     std::string ping();
@@ -91,11 +95,22 @@ public:
 
 private:
     RedisClient() = default;
-    std::queue<std::pair<redisContext*, std::chrono::steady_clock::time_point>> pool_;      // 空闲连接队列
-    std::mutex mutex_;                     // 保护连接队列的互斥锁
-    std::condition_variable cv_;           // 连接可用时的通知机制
-    std::string host_;                     // Redis 服务器地址
-    int port_;                             // Redis 端口
-    int poolSize_;                         // 连接池大小
-    std::string password_;                 // requirepass / ACL 密码（可为空）
+
+    static constexpr int SHARD_COUNT = 8;
+
+    struct Shard {
+        std::queue<std::pair<redisContext*, std::chrono::steady_clock::time_point>> pool;
+        std::mutex mutex;
+        std::condition_variable cv;
+    };
+
+    std::array<Shard, SHARD_COUNT> shards_;
+    std::atomic<bool> stopped_{false};
+
+    std::string host_;
+    int port_;
+    int poolSize_;
+    std::string password_;
+
+    size_t getShard() const;
 };
