@@ -32,9 +32,15 @@ Json::Value buildDeepHealth() {
     root["redis"] = redis_ok ? "ok" : "fail";
     all_ok = all_ok && redis_ok;
 
-    const bool minio_ok = MinIOClient::instance().isHealthy();
-    root["minio"] = minio_ok ? "ok" : "fail";
-    all_ok = all_ok && minio_ok;
+    static bool cachedMinioOk = false;
+    static std::chrono::steady_clock::time_point lastMinioCheck{};
+    auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::seconds>(now - lastMinioCheck).count() >= 5) {
+        cachedMinioOk = MinIOClient::instance().isHealthy();
+        lastMinioCheck = now;
+    }
+    root["minio"] = cachedMinioOk ? "ok" : "fail";
+    all_ok = all_ok && cachedMinioOk;
 
     root["status"] = all_ok ? "healthy" : "degraded";
     return root;

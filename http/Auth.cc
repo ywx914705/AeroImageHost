@@ -15,34 +15,46 @@
 #include <algorithm>
 #include <unordered_map>
 #include <list>
-#include <mutex>
+#include <shared_mutex>
 #include <chrono>
 
 // ========== 本地 LRU 缓存（list + unordered_map 实现真正的 LRU 淘汰） ==========
 static const size_t TOKEN_CACHE_CAPACITY = 10000;
 static const int TOKEN_CACHE_TTL_SECONDS = 60;
+static constexpr int CACHE_SHARDS = 16;
 
 struct CacheEntry {
     int user_id;
     std::chrono::steady_clock::time_point expire_at;
 };
 
-// LRU 缓存：list 前端 = 最近使用，后端 = 最久未使用
 using LruList = std::list<std::pair<std::string, CacheEntry>>;
-static LruList lruList_;
-static std::unordered_map<std::string, LruList::iterator> tokenCache_;
-static std::mutex cacheMutex_;
 
-// 采样清理：随机检查部分条目，移除过期项（避免全表扫描阻塞）
-static void cleanExpiredCache() {
+struct TokenShard {
+    LruList lruList;
+    std::unordered_map<std::string, LruList::iterator> cache;
+    std::shared_mutex mutex;
+    size_t capacity;
+
+    TokenShard() : capacity(TOKEN_CACHE_CAPACITY / CACHE_SHARDS) {}
+};
+
+static TokenShard shards_[CACHE_SHARDS];
+
+static size_t getShard(const std::string& key) {
+    size_t h = std::hash<std::string>{}(key);
+    return h % CACHE_SHARDS;
+}
+
+static void cleanExpiredShard(TokenShard& shard) {
     auto now = std::chrono::steady_clock::now();
-    int checkCount = std::min(static_cast<int>(tokenCache_.size()), 100);
-    auto it = lruList_.end();
-    for (int i = 0; i < checkCount && it != lruList_.begin(); ++i) {
+    int checkCount = std::min(static_cast<int>(shard.cache.size()), 20);
+    auto it = shard.lruList.end();
+    for (int i = 0; i < checkCount && it != shard.lruList.begin(); ++i) {
         --it;
         if (it->second.expire_at < now) {
-            tokenCache_.erase(it->first);
-            it = lruList_.erase(it);
+            shard.cache.erase(it->first);
+            it = shard.lruList.erase(it);
         }
     }
 }
@@ -61,44 +73,49 @@ static std::string generateRandomString(size_t length) {
 }
 
 std::shared_ptr<UserInfo> Auth::verify(const std::string& auth_header) {
-    std::string auth = auth_header;
-    if (auth.empty()) return nullptr;
-
-    if (auth.size() < 7 || (auth.substr(0, 7) != "Bearer " && auth.substr(0, 7) != "bearer ")) {
-        return nullptr;
-    }
-    std::string token = auth.substr(7);
-    token.erase(std::remove_if(token.begin(), token.end(), ::isspace), token.end());
+    if (auth_header.size() < 7) return nullptr;
+    if (auth_header.compare(0, 7, "Bearer ") != 0 &&
+        auth_header.compare(0, 7, "bearer ") != 0) return nullptr;
+    std::string token = auth_header.substr(7);
     if (token.empty()) return nullptr;
 
-    // 先查本地 LRU 缓存
+    size_t si = getShard(token);
+    auto& shard = shards_[si];
+
     {
-        std::lock_guard<std::mutex> lock(cacheMutex_);
-        auto it = tokenCache_.find(token);
-        if (it != tokenCache_.end()) {
+        std::shared_lock<std::shared_mutex> lock(shard.mutex);
+        auto it = shard.cache.find(token);
+        if (it != shard.cache.end()) {
             auto now = std::chrono::steady_clock::now();
             if (it->second->second.expire_at > now) {
                 auto user = std::make_shared<UserInfo>();
                 user->user_id = it->second->second.user_id;
-                // 命中：移到链表头部（最近使用），滑动过期
                 it->second->second.expire_at = now + std::chrono::seconds(TOKEN_CACHE_TTL_SECONDS);
-                lruList_.splice(lruList_.begin(), lruList_, it->second);
+                lock.unlock();
+                {
+                    std::unique_lock<std::shared_mutex> wlock(shard.mutex);
+                    shard.lruList.splice(shard.lruList.begin(), shard.lruList, shard.cache[token]);
+                }
                 MetricsCollector::instance().recordCacheHit("lru", true);
                 return user;
             }
-            // 已过期，移除
-            lruList_.erase(it->second);
-            tokenCache_.erase(it);
         }
     }
 
-    // 本地缓存未命中，查 Redis
+    {
+        std::unique_lock<std::shared_mutex> lock(shard.mutex);
+        auto it = shard.cache.find(token);
+        if (it != shard.cache.end() && it->second->second.expire_at <= std::chrono::steady_clock::now()) {
+            shard.lruList.erase(it->second);
+            shard.cache.erase(it);
+        }
+    }
+
     MetricsCollector::instance().recordCacheHit("lru", false);
     std::string key = "auth_token:" + token;
     RedisClient& redis = RedisClient::instance();
     std::string userIdStr = redis.get(key);
 
-    userIdStr.erase(std::remove_if(userIdStr.begin(), userIdStr.end(), ::isspace), userIdStr.end());
     if (userIdStr.empty()) {
         MetricsCollector::instance().recordCacheHit("redis", false);
         return nullptr;
@@ -111,26 +128,24 @@ std::shared_ptr<UserInfo> Auth::verify(const std::string& auth_header) {
 
         MetricsCollector::instance().recordCacheHit("redis", true);
 
-        // 滑动过期：刷新 Redis TTL
-        redis.expire(key, 86400);
+        static thread_local int expireCounter = 0;
+        if (++expireCounter % 100 == 0) {
+            redis.expire(key, 86400);
+        }
 
-        // 写入本地缓存
         {
-            std::lock_guard<std::mutex> lock(cacheMutex_);
-            // 超过容量时清理过期条目
-            if (tokenCache_.size() >= TOKEN_CACHE_CAPACITY) {
-                cleanExpiredCache();
+            std::unique_lock<std::shared_mutex> lock(shard.mutex);
+            if (shard.cache.size() >= shard.capacity) {
+                cleanExpiredShard(shard);
             }
-            // 仍超容量，淘汰链表尾部（最久未使用）
-            if (tokenCache_.size() >= TOKEN_CACHE_CAPACITY) {
-                auto& lru_back = lruList_.back();
-                tokenCache_.erase(lru_back.first);
-                lruList_.pop_back();
+            if (shard.cache.size() >= shard.capacity) {
+                auto& lru_back = shard.lruList.back();
+                shard.cache.erase(lru_back.first);
+                shard.lruList.pop_back();
             }
-            // 插入到链表头部（最近使用）
-            lruList_.emplace_front(token, CacheEntry{user_id,
+            shard.lruList.emplace_front(token, CacheEntry{user_id,
                 std::chrono::steady_clock::now() + std::chrono::seconds(TOKEN_CACHE_TTL_SECONDS)});
-            tokenCache_[token] = lruList_.begin();
+            shard.cache[token] = shard.lruList.begin();
         }
 
         return user;
@@ -150,12 +165,13 @@ std::string Auth::generateToken(int user_id, const std::string& /* username */) 
         return "";
     }
 
-    // 同时写入本地缓存（插入头部）
     {
-        std::lock_guard<std::mutex> lock(cacheMutex_);
-        lruList_.emplace_front(token, CacheEntry{user_id,
+        size_t si = getShard(token);
+        auto& shard = shards_[si];
+        std::unique_lock<std::shared_mutex> lock(shard.mutex);
+        shard.lruList.emplace_front(token, CacheEntry{user_id,
             std::chrono::steady_clock::now() + std::chrono::seconds(TOKEN_CACHE_TTL_SECONDS)});
-        tokenCache_[token] = lruList_.begin();
+        shard.cache[token] = shard.lruList.begin();
     }
 
     return token;
@@ -165,11 +181,12 @@ void Auth::revokeToken(const std::string& token) {
     std::string key = "auth_token:" + token;
     RedisClient::instance().del(key);
 
-    // 同时删除本地缓存
-    std::lock_guard<std::mutex> lock(cacheMutex_);
-    auto it = tokenCache_.find(token);
-    if (it != tokenCache_.end()) {
-        lruList_.erase(it->second);
-        tokenCache_.erase(it);
+    size_t si = getShard(token);
+    auto& shard = shards_[si];
+    std::unique_lock<std::shared_mutex> lock(shard.mutex);
+    auto it = shard.cache.find(token);
+    if (it != shard.cache.end()) {
+        shard.lruList.erase(it->second);
+        shard.cache.erase(it);
     }
 }

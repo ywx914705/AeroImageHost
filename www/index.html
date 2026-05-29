@@ -2235,7 +2235,9 @@
 
                     const THUMB_GRID_SIZE = 200;
                     const getFileUrl = (fileId, thumbnail = false) => {
-                        return `${API_BASE}/i/${fileId}${thumbnail ? `?size=${THUMB_GRID_SIZE}` : ''}`;
+                        const token = localStorage.getItem('token') || '';
+                        const sep = thumbnail ? '&' : '?';
+                        return `${API_BASE}/i/${fileId}${thumbnail ? `?size=${THUMB_GRID_SIZE}` : ''}${token ? `${sep}token=${token}` : ''}`;
                     };
 
                     // 获取图片 src：优先使用 presign_url（已签名直链，<img> 可直接加载）
@@ -2264,20 +2266,13 @@
 
                     // 文件详情弹窗
                     const openFileDetail = (file) => {
-                        detailFile.value = { ...file, _presignUrl: '' };
+                        detailFile.value = { ...file, _presignUrl: getFileUrl(file.file_id) };
                         textPreviewContent.value = '';
                         if (isTextFile(file)) {
                             loadTextPreview(file);
                         }
                         if (isImageFile(file)) {
                             loadWatermarkConfig(file.file_id);
-                        }
-                        if (isPdfFile(file) || isVideoFile(file) || isAudioFile(file)) {
-                            api.get(`/file/${file.file_id}/presign`).then(res => {
-                                if (detailFile.value && detailFile.value.file_id === file.file_id) {
-                                    detailFile.value._presignUrl = res.data.presign_url || '';
-                                }
-                            }).catch(() => {});
                         }
                     };
                     // 水印相关

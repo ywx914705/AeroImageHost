@@ -121,7 +121,7 @@ int main(int argc, char* argv[]) {
     }
 
     int httpPort = Config::instance().getInt("http_port", 8082);
-    int numThreads = Config::instance().getInt("http_threads", std::max(1, (int)std::thread::hardware_concurrency()));
+    int numThreads = Config::instance().getInt("http_threads", std::max(2, (int)std::thread::hardware_concurrency()));
     std::string corsOrigin = Config::instance().getString("security.cors_origin", "*");
 
     AsyncLog::instance().write(LogLevel::INFO, "HTTP server starting on port " + std::to_string(httpPort) + " with " + std::to_string(numThreads) + " threads");
@@ -158,16 +158,17 @@ int main(int argc, char* argv[]) {
             if (attrs) {
                 attrs->insert("metrics_start", std::chrono::steady_clock::now());
 
-                // Generate request ID if not provided by client
                 std::string reqId = req->getHeader("X-Request-Id");
                 if (reqId.empty()) {
-                    static thread_local std::random_device rd;
-                    static thread_local std::mt19937 gen(rd());
-                    static thread_local std::uniform_int_distribution<> dis(0, 15);
-                    reqId.reserve(16);
-                    for (int i = 0; i < 16; ++i) {
-                        reqId += "0123456789abcdef"[dis(gen)];
-                    }
+                    static thread_local std::atomic<uint64_t> counter{0};
+                    uint64_t id = counter.fetch_add(1, std::memory_order_relaxed);
+                    auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch()).count();
+                    char buf[32];
+                    int len = snprintf(buf, sizeof(buf), "%lx%lx",
+                                       static_cast<unsigned long>(nowMs & 0xFFFFF),
+                                       static_cast<unsigned long>(id & 0xFFFFF));
+                    reqId.assign(buf, len);
                 }
                 attrs->insert("request_id", reqId);
             }

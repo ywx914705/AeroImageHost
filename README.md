@@ -18,7 +18,7 @@
 [![libvips](https://img.shields.io/badge/libvips-8.0+-f5a3b8.svg?logo=vips)](https://github.com/libvips/libvips)
 
 [![GitHub stars](https://img.shields.io/github/stars/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/stargazers)
-[![GitHub forks](https://img.shields.io/github/stars/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/network/members)
+[![GitHub forks](https://img.shields.io/github/forks/ywx914705/AeroImageHost?style=social)](https://github.com/ywx914705/AeroImageHost/network/members)
 
 </div>
 
@@ -27,7 +27,7 @@
 AeroImageHost 是一个用 **C++17** 编写的高性能现代化图床系统，采用组件化单体架构设计，集成了 MySQL、MinIO、Redis 等技术栈。系统提供完整的用户认证、文件管理、图片处理和分布式存储功能，支持 Docker 一键部署，适用于个人、团队和企业级文件托管需求。
 
 - **26 种文件格式**：图片、文档、视频、音频、压缩包全覆盖
-- **极速性能**：缓存读取 39K+ QPS，认证列表 32K+ QPS，P50 < 6ms
+- **极速性能**：缓存读取 80K+ QPS，认证列表 80K+ QPS，P50 < 1ms
 - **智能上传**：拖拽、粘贴、断点续传，大文件自动分片
 - **在线预览**：图片缩略图、PDF 全屏、视频播放、音频试听
 - **安全可靠**：PBKDF2 加密、Token 鉴权、暴力破解防护、Nginx 三级限流
@@ -58,7 +58,7 @@ AeroImageHost 是一个用 **C++17** 编写的高性能现代化图床系统，�
 | 多格式上传 | 拖拽、粘贴、点击上传，大文件自动分片断点续传 |
 | 文件管理 | 搜索、排序、批量操作，文件列表分页加载 |
 | 在线预览 | 图片缩略图、PDF 全屏、视频播放、音频试听 |
-| 一键分享 | 永久链接，支持私有/公开切换，域名白名单防盗链 |
+| 一键分享 | 永久链接，支持私有/公开切换 |
 | 一键 Markdown | 粘贴图片自动生成 Markdown 链接，写作更高效 |
 | 安全可靠 | PBKDF2 加密、Token 鉴权、暴力破解防护、Nginx 三级限流 |
 | 私有化部署 | Docker 一键部署，数据完全自主可控 |
@@ -69,14 +69,15 @@ AeroImageHost 是一个用 **C++17** 编写的高性能现代化图床系统，�
 
 | 接口 | 说明 | QPS | P50 | P95 | P99 |
 |------|------|-----|-----|-----|-----|
-| `GET /api/metrics` | 认证 + 原子计数器 | **43,479** | 3.2ms | 13.8ms | 21.4ms |
-| `GET /api/stats` | Redis 缓存聚合 | **39,423** | 4.7ms | 9.1ms | 14.3ms |
-| `GET /api/files` | 认证 + Redis HGETALL | **32,901** | 5.7ms | 10.3ms | 15.2ms |
-| `GET /api/health` | MySQL + Redis + MinIO 深度检查 | **3,897** | 49.6ms | 84.7ms | 121.2ms |
+| `GET /api/metrics` | 认证 + 原子计数器 + 1s本地缓存 | **81,562** | 0.53ms | 1.04ms | 4.00ms |
+| `GET /api/stats` | Redis 缓存聚合 + 进程内缓存 | **82,611** | 0.56ms | 0.89ms | 1.34ms |
+| `GET /api/files` | 认证 + Redis 缓存 + 进程内缓存 | **79,689** | 0.57ms | 0.96ms | 1.81ms |
+| `GET /api/health` | MySQL + Redis + MinIO 深度检查 | **12,889** | 3.49ms | 6.66ms | 9.59ms |
 | `POST /api/auth/login` | PBKDF2 (10万次迭代) | **67** | 218.6ms | 716.0ms | 922.7ms |
 | `POST /api/upload` | MinIO 对象写入 | **101** | 13.1ms | 160.1ms | 160.1ms |
 
-测试条件：16 工作线程 / 200 并发连接 / HTTP Keep-Alive / 10 秒持续压测
+测试条件：4 工作线程 / 50 并发连接 / HTTP Keep-Alive / 10 秒持续压测 / Release (-O2) 编译
+> 100 并发下服务稳定运行，Stats/Metrics/Files 接口 QPS 均达 84K+
 
 ## 系统要求
 
@@ -137,7 +138,7 @@ bash deploy-local.sh
 | 数据库 | MySQL 8.0+ | 元数据存储 |
 | 对象存储 | MinIO | 文件存储（S3 兼容） |
 | 缓存 | Redis | 会话、缓存、限流 |
-| 图像处理 | libvips | 缩略图生成 |
+| 图像处理 | libvips + Cairo | 缩略图生成、水印渲染 |
 | 前端 | Vue 3 + Element Plus | SPA 用户界面 |
 | 部署 | Docker Compose | 一键部署 |
 
@@ -154,13 +155,14 @@ AeroImageHost/
 ├── main.cc                  # 主程序入口
 ├── http/                    # HTTP 控制器和业务逻辑
 ├── storage/                 # 数据访问层（MySQL、MinIO）
-├── image/                   # 图像处理（libvips）
+├── image/                   # 图像处理（libvips、Cairo 水印）
 ├── src/                     # 基础设施（连接池、日志、队列）
 ├── include/                 # 头文件（连接池、Redis、队列等）
 ├── utils/                   # 工具类（加密、限流、邮件）
 ├── monitor/                 # 监控指标采集
 ├── config/                  # 配置模块
 ├── schema/                  # SQL 初始化脚本
+├── tests/                   # 单元测试
 ├── benchmark/               # 性能基准测试
 ├── www/                     # 前端 SPA
 └── docs/                    # 详细文档

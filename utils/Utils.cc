@@ -60,7 +60,7 @@ std::string getCurrentTime() {
 
 std::string getFileExtension(const std::string& filename) {
     size_t dot = filename.rfind('.');
-    if (dot == std::string::npos) return "";
+    if (dot == std::string::npos || dot == 0) return "";
     std::string ext = filename.substr(dot + 1);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     return ext;

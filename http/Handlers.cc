@@ -259,14 +259,13 @@ HandlerResult handleUpload(int user_id, const std::string& filename, const std::
 }
 
 HandlerResult handleListFiles(int user_id, int offset, int limit, const std::string& search_keyword) {
-    // 参数边界校验
     if (offset < 0) offset = 0;
-    const int MAX_PAGE_SIZE = Config::instance().getInt("files_list.max_page_size", 100);
+    static const int MAX_PAGE_SIZE = Config::instance().getInt("files_list.max_page_size", 100);
     if (limit <= 0) limit = 20;
     if (limit > MAX_PAGE_SIZE) limit = MAX_PAGE_SIZE;
 
     std::string kw = search_keyword;
-    const int maxKwLen = Config::instance().getInt("files_list.max_search_keyword_length", 128);
+    static const int maxKwLen = Config::instance().getInt("files_list.max_search_keyword_length", 128);
     if (maxKwLen > 0 && static_cast<int>(kw.size()) > maxKwLen) {
         kw.resize(static_cast<size_t>(maxKwLen));
     }
@@ -274,18 +273,41 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
     std::string cacheKey = "user_files:" + std::to_string(user_id) + ":" +
                            std::to_string(offset) + ":" + std::to_string(limit) + ":" + kw;
 
+    struct FilesCacheEntry {
+        std::string data;
+        std::string key;
+    };
+    static std::atomic<int64_t> filesLocalCacheTimeMs{0};
+    static std::shared_ptr<const FilesCacheEntry> filesLocalCache;
+
+    {
+        auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        int64_t cachedTime = filesLocalCacheTimeMs.load(std::memory_order_acquire);
+        if (cachedTime > 0 && (nowMs - cachedTime) < 500) {
+            auto cached = std::atomic_load(&filesLocalCache);
+            if (cached && cached->key == cacheKey && !cached->data.empty()) {
+                MetricsCollector::instance().recordCacheHit("lru", true);
+                return HandlerResult::ok(cached->data);
+            }
+        }
+    }
+
     std::string cached = RedisClient::instance().get(cacheKey);
     if (!cached.empty()) {
         MetricsCollector::instance().recordCacheHit("redis", true);
+        auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        auto entry = std::make_shared<const FilesCacheEntry>(FilesCacheEntry{cached, cacheKey});
+        std::atomic_store(&filesLocalCache, entry);
+        filesLocalCacheTimeMs.store(nowMs, std::memory_order_release);
         return HandlerResult::ok(cached);
     }
     MetricsCollector::instance().recordCacheHit("redis", false);
 
-    // 使用分布式锁防止缓存雪崩
-    std::string lockKey = "lock:" + cacheKey;
-    bool hasLock = RedisClient::instance().setNxEx(lockKey, "1", 5);
-
     auto [files, total] = FileMetaDAO::instance().listAndCountByUserWithSearch(user_id, kw, offset, limit);
+
+    static const std::string publicUrl = Config::instance().getString("minio.public_url");
 
     Document resp; resp.SetObject();
     Value filesArr(kArrayType);
@@ -300,19 +322,17 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
         obj.AddMember("upload_time", static_cast<int64_t>(f.upload_time), resp.GetAllocator());
         obj.AddMember("is_public", (f.is_public != 0), resp.GetAllocator());
         obj.AddMember("view_count", static_cast<uint64_t>(f.view_count), resp.GetAllocator());
-        std::string pubUrl = Config::instance().getString("minio.public_url") + f.file_id;
+        std::string pubUrl = publicUrl + f.file_id;
         Value downloadUrlVal;
         downloadUrlVal.SetString(pubUrl.c_str(), pubUrl.size(), resp.GetAllocator());
         obj.AddMember("download_url", downloadUrlVal, resp.GetAllocator());
-        std::string mime = f.mime_type;
-        bool needsPreview = (mime.find("pdf") != std::string::npos ||
-                             mime.find("video") != std::string::npos ||
-                             mime.find("audio") != std::string::npos);
+        bool needsPreview = (f.mime_type.find("pdf") != std::string::npos ||
+                             f.mime_type.find("video") != std::string::npos ||
+                             f.mime_type.find("audio") != std::string::npos);
         obj.AddMember("needs_preview", needsPreview, resp.GetAllocator());
-        bool isImg = (mime.find("image/") != std::string::npos);
+        bool isImg = (f.mime_type.find("image/") != std::string::npos);
         if (isImg) {
-            // 使用公开URL代替presign URL，避免列表页大量MinIO调用
-            std::string imgUrl = Config::instance().getString("minio.public_url") + f.file_id;
+            std::string imgUrl = publicUrl + f.file_id;
             Value imgUrlVal;
             imgUrlVal.SetString(imgUrl.c_str(), imgUrl.size(), resp.GetAllocator());
             obj.AddMember("image_url", imgUrlVal, resp.GetAllocator());
@@ -327,10 +347,6 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
     std::string indexKey = "user_files_idx:" + std::to_string(user_id);
     RedisClient::instance().sadd(indexKey, cacheKey);
     RedisClient::instance().expire(indexKey, 60);
-
-    if (hasLock) {
-        RedisClient::instance().del(lockKey);
-    }
 
     return HandlerResult::ok(result);
 }
@@ -565,12 +581,27 @@ HandlerResult handleConfirmUpload(int user_id, const std::string& file_id,
 }
 
 HandlerResult handleStats() {
-    const int statsTtl = Config::instance().getInt("stats_cache_ttl_seconds", 60);
+    static const int statsTtl = Config::instance().getInt("stats_cache_ttl_seconds", 60);
     static const char* kStatsCacheKey = "cache:stats:aggregate";
+
+    static std::atomic<int64_t> localCacheTimeMs{0};
+    static std::shared_ptr<const std::string> localCache;
+
+    auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    int64_t cachedTime = localCacheTimeMs.load(std::memory_order_acquire);
+    if (cachedTime > 0 && (nowMs - cachedTime) < 1000) {
+        auto cached = std::atomic_load(&localCache);
+        if (cached && !cached->empty()) {
+            return HandlerResult::ok(*cached);
+        }
+    }
 
     if (statsTtl > 0) {
         std::string cached = RedisClient::instance().get(kStatsCacheKey);
         if (!cached.empty()) {
+            std::atomic_store(&localCache, std::make_shared<const std::string>(cached));
+            localCacheTimeMs.store(nowMs, std::memory_order_release);
             return HandlerResult::ok(cached);
         }
     }
@@ -589,6 +620,8 @@ HandlerResult handleStats() {
     if (statsTtl > 0) {
         RedisClient::instance().setex(kStatsCacheKey, result, statsTtl);
     }
+    std::atomic_store(&localCache, std::make_shared<const std::string>(result));
+    localCacheTimeMs.store(nowMs, std::memory_order_release);
     return HandlerResult::ok(result);
 }
 
@@ -731,10 +764,18 @@ HandlerResult handleMultipartUploadChunk(int user_id, const std::string& upload_
         return HandlerResult::error(errorResponse("Invalid upload_id, part_number or empty chunk"), 400);
     }
 
-    // 验证 upload_id 是否有效且属于当前用户
     std::string activeVal = RedisClient::instance().get("upload_active:" + upload_id);
     if (activeVal.empty()) {
         return HandlerResult::error(errorResponse("Invalid or expired upload_id"), 400);
+    }
+
+    std::string ownerStr = RedisClient::instance().get("upload_owner:" + upload_id);
+    if (!ownerStr.empty()) {
+        int owner_id = 0;
+        try { owner_id = std::stoi(ownerStr); } catch (...) {}
+        if (owner_id != user_id) {
+            return HandlerResult::error(errorResponse("Permission denied"), 403);
+        }
     }
 
     // 限制单个 chunk 大小（默认 25MB）
@@ -762,10 +803,18 @@ HandlerResult handleMultipartComplete(int user_id, const std::string& upload_id,
         return HandlerResult::error(errorResponse("Invalid upload_id or total_chunks"), 400);
     }
 
-    // 验证 upload_id 是否有效
     std::string activeVal = RedisClient::instance().get("upload_active:" + upload_id);
     if (activeVal.empty()) {
         return HandlerResult::error(errorResponse("Invalid or expired upload_id"), 400);
+    }
+
+    std::string ownerStr = RedisClient::instance().get("upload_owner:" + upload_id);
+    if (!ownerStr.empty()) {
+        int owner_id = 0;
+        try { owner_id = std::stoi(ownerStr); } catch (...) {}
+        if (owner_id != user_id) {
+            return HandlerResult::error(errorResponse("Permission denied"), 403);
+        }
     }
 
     // 配额检查
@@ -887,12 +936,14 @@ HandlerResult handleMultipartCleanup(int user_id, const std::string& upload_id) 
         return HandlerResult::error(errorResponse("Invalid or expired upload_id"), 400);
     }
 
-    int total_chunks = 1000;
+    int total_chunks = 0;
     if (!totalStr.empty()) {
         try { total_chunks = std::stoi(totalStr); } catch (...) {}
     }
     if (total_chunks <= 0 || total_chunks > 10000) {
-        total_chunks = 1000;
+        RedisClient::instance().del("upload_active:" + upload_id);
+        RedisClient::instance().del("upload_owner:" + upload_id);
+        return HandlerResult::error(errorResponse("Invalid upload metadata, cleaned up"), 400);
     }
 
     for (int i = 0; i < total_chunks; ++i) {
@@ -963,25 +1014,11 @@ HandlerResult handleAddWatermark(int user_id, const std::string& file_id,
     if (meta.mime_type.find("image/") != 0) {
         return HandlerResult::error(errorResponse("Watermark only supports images"), 400);
     }
-    std::vector<char> srcDataRaw;
-    if (!MinIOClient::instance().getObject(file_id, srcDataRaw) || srcDataRaw.empty()) {
-        return HandlerResult::error(errorResponse("Failed to read file from storage"), 500);
-    }
-    std::vector<unsigned char> srcData(srcDataRaw.begin(), srcDataRaw.end());
-    if (srcData.empty()) {
-        return HandlerResult::error(errorResponse("Failed to read file"), 500);
-    }
-    std::vector<unsigned char> dstData;
-    if (!WatermarkProcessor::addTextWatermark(srcData, dstData, text, position, opacity)) {
-        return HandlerResult::error(errorResponse("Failed to add watermark"), 500);
-    }
-    std::string watermarkKey = file_id + "_watermark";
-    if (!MinIOClient::instance().putObject(watermarkKey, dstData, "image/jpeg")) {
-        return HandlerResult::error(errorResponse("Failed to save watermark"), 500);
-    }
+    MinIOClient::instance().deleteObject(file_id + "_watermark");
     if (!FileMetaDAO::instance().setWatermark(file_id, text, position, opacity)) {
         return HandlerResult::error(errorResponse("Failed to update metadata"), 500);
     }
+    RedisClient::instance().del("file_meta:" + file_id);
     invalidateUserFilesCache(user_id);
     Document resp; resp.SetObject();
     resp.AddMember("success", true, resp.GetAllocator());
@@ -999,6 +1036,7 @@ HandlerResult handleRemoveWatermark(int user_id, const std::string& file_id) {
     if (!FileMetaDAO::instance().clearWatermark(file_id)) {
         return HandlerResult::error(errorResponse("Failed to clear watermark"), 500);
     }
+    RedisClient::instance().del("file_meta:" + file_id);
     invalidateUserFilesCache(user_id);
     Document resp; resp.SetObject();
     resp.AddMember("success", true, resp.GetAllocator());

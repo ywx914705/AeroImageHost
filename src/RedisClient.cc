@@ -87,8 +87,9 @@ bool RedisClient::init(const std::string& host, int port, int poolSize, const st
 }
 
 // 从连接池获取一个可用连接（带超时等待 + 懒验证 + 自动重建）
-redisContext* RedisClient::getContext() {
+redisContext* RedisClient::getContext(size_t* shardIdx) {
     size_t idx = getShard();
+    if (shardIdx) *shardIdx = idx;
     auto& shard = shards_[idx];
     std::unique_lock<std::mutex> lock(shard.mutex);
 
@@ -136,10 +137,10 @@ redisContext* RedisClient::getContext() {
 }
 
 // 归还连接到连接池，记录本次验证时间
-void RedisClient::releaseContext(redisContext* ctx) {
+void RedisClient::releaseContext(redisContext* ctx, size_t shardIdx) {
     if (!ctx) return;
-    size_t idx = getShard();
-    auto& shard = shards_[idx];
+    if (shardIdx == SIZE_MAX) shardIdx = getShard();
+    auto& shard = shards_[shardIdx];
     {
         std::lock_guard<std::mutex> lock(shard.mutex);
         shard.pool.push({ctx, std::chrono::steady_clock::now()});

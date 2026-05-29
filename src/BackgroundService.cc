@@ -48,27 +48,34 @@ void BackgroundService::start(std::atomic<bool>& running) {
                             freeReplyObject(reply);
                         }
                     }
-                    for (const auto& key : keys) {
-                        redisAppendCommand(ctx, "DEL %b", key.data(), key.size());
-                    }
-                    for (size_t i = 0; i < keys.size(); ++i) {
-                        redisReply* reply = nullptr;
-                        if (redisGetReply(ctx, (void**)&reply) == REDIS_OK && reply) {
-                            freeReplyObject(reply);
-                        }
-                    }
-                    redisAppendCommand(ctx, "DEL file_views_keys");
-                    redisReply* reply = nullptr;
-                    if (redisGetReply(ctx, (void**)&reply) == REDIS_OK && reply) {
-                        freeReplyObject(reply);
-                    }
-
                     redis.releaseContext(ctx);
                 }
 
                 if (!updates.empty()) {
-                    FileMetaDAO::instance().batchUpdateViewCount(updates);
-                    AERO_LOG_INFO("[ViewSync] Synced " + std::to_string(updates.size()) + " view counts");
+                    bool dbOk = FileMetaDAO::instance().batchUpdateViewCount(updates);
+                    if (dbOk) {
+                        ctx = redis.getContext();
+                        if (ctx) {
+                            for (const auto& key : keys) {
+                                redisAppendCommand(ctx, "DEL %b", key.data(), key.size());
+                            }
+                            for (size_t i = 0; i < keys.size(); ++i) {
+                                redisReply* reply = nullptr;
+                                if (redisGetReply(ctx, (void**)&reply) == REDIS_OK && reply) {
+                                    freeReplyObject(reply);
+                                }
+                            }
+                            redisAppendCommand(ctx, "DEL file_views_keys");
+                            redisReply* reply = nullptr;
+                            if (redisGetReply(ctx, (void**)&reply) == REDIS_OK && reply) {
+                                freeReplyObject(reply);
+                            }
+                            redis.releaseContext(ctx);
+                        }
+                        AERO_LOG_INFO("[ViewSync] Synced " + std::to_string(updates.size()) + " view counts");
+                    } else {
+                        AERO_LOG_ERROR("[ViewSync] batchUpdateViewCount failed, keeping Redis counters for retry");
+                    }
                 }
             } catch (const std::exception& e) {
                 AERO_LOG_ERROR("[ViewSync] Failed: " + std::string(e.what()));

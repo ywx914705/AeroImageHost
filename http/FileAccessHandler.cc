@@ -14,11 +14,36 @@
 
 using namespace rapidjson;
 
+static drogon::HttpResponsePtr proxyFromMinio(const std::string& key, const std::string& mime_type,
+                                               const std::string& disposition, const std::string& file_id,
+                                               bool isImageFile, bool isThumbRequest) {
+    std::vector<char> fileData;
+    if (!MinIOClient::instance().getObject(key, fileData) || fileData.empty()) {
+        return nullptr;
+    }
+    auto resp = drogon::HttpResponse::newHttpResponse();
+    resp->setStatusCode(drogon::k200OK);
+    resp->setBody(std::string(fileData.begin(), fileData.end()));
+    resp->setContentTypeString(mime_type);
+    resp->addHeader("Content-Disposition", disposition);
+    if (isImageFile) {
+        resp->addHeader("ETag", "W/\"" + file_id + "\"");
+        resp->addHeader("Cache-Control", isThumbRequest ? "public, max-age=86400" : "public, max-age=3600");
+    }
+    return resp;
+}
+
 void fileAccessHandler(const drogon::HttpRequestPtr &req,
                        std::function<void(const drogon::HttpResponsePtr &)> &&callback,
                        const std::string &file_id) {
     std::string auth = req->getHeader("Authorization");
     if (auth.empty()) auth = req->getHeader("authorization");
+    if (auth.empty()) {
+        std::string tokenParam = req->getParameter("token");
+        if (!tokenParam.empty()) {
+            auth = "Bearer " + tokenParam;
+        }
+    }
     auto user = Auth::verify(auth);
     int user_id = user ? user->user_id : 0;
 
@@ -58,6 +83,15 @@ void fileAccessHandler(const drogon::HttpRequestPtr &req,
         RedisClient::instance().sadd("file_views_keys", "file_views:" + file_id);
     });
 
+    std::string safeFilename = sanitizeFilename(meta.filename);
+    std::string encodedFilename = urlEncode(safeFilename);
+    std::string disposition;
+    if (isAttachmentType(meta.mime_type)) {
+        disposition = "attachment; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
+    } else {
+        disposition = "inline; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
+    }
+
     std::string sizeParam = req->getParameter("size");
     bool isThumbRequest = false;
     if (!sizeParam.empty()) {
@@ -67,12 +101,9 @@ void fileAccessHandler(const drogon::HttpRequestPtr &req,
             isThumbRequest = true;
             std::string thumbKey = "thumbs/" + file_id + "_" + std::to_string(thumbSize);
             if (MinIOClient::instance().objectExists(thumbKey)) {
-                std::string thumbUrl = MinIOClient::instance().presignGetUrl(thumbKey, 3600);
-                if (!thumbUrl.empty()) {
-                    auto resp = drogon::HttpResponse::newHttpResponse();
-                    resp->setStatusCode(drogon::k302Found);
-                    resp->addHeader("Location", thumbUrl);
-                    resp->addHeader("Cache-Control", "public, max-age=86400");
+                auto resp = proxyFromMinio(thumbKey, "image/jpeg", disposition, file_id, true, true);
+                if (resp) {
+                    MetricsCollector::instance().recordBytes(false, static_cast<size_t>(meta.size));
                     callback(resp);
                     return;
                 }
@@ -106,16 +137,8 @@ void fileAccessHandler(const drogon::HttpRequestPtr &req,
         }
     }
 
-    std::string safeFilename = sanitizeFilename(meta.filename);
-    std::string encodedFilename = urlEncode(safeFilename);
-    std::string disposition;
-    if (isAttachmentType(meta.mime_type) || !isImageFile) {
-        disposition = "attachment; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
-    } else {
-        disposition = "inline; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
-    }
-
     std::string targetFileId = file_id;
+    std::string targetMimeType = meta.mime_type;
     if (isImageFile && !isThumbRequest) {
         std::string watermarkText, watermarkPosition;
         int watermarkOpacity;
@@ -135,27 +158,20 @@ void fileAccessHandler(const drogon::HttpRequestPtr &req,
             }
             if (exists) {
                 targetFileId = watermarkKey;
+                targetMimeType = "image/jpeg";
             }
         }
     }
 
-    std::string presignUrl = MinIOClient::instance().presignGetUrl(targetFileId, 3600, disposition);
-    if (presignUrl.empty()) {
-        auto resp = drogon::HttpResponse::newHttpResponse();
-        resp->setStatusCode(drogon::k500InternalServerError);
-        resp->setBody(errorResponse("Failed to generate download URL"));
+    auto resp = proxyFromMinio(targetFileId, targetMimeType, disposition, file_id, isImageFile, isThumbRequest);
+    if (resp) {
+        MetricsCollector::instance().recordBytes(false, static_cast<size_t>(meta.size));
         callback(resp);
         return;
     }
 
-    MetricsCollector::instance().recordBytes(false, static_cast<size_t>(meta.size));
-
-    auto resp = drogon::HttpResponse::newHttpResponse();
-    resp->setStatusCode(drogon::k302Found);
-    resp->addHeader("Location", presignUrl);
-    if (isImageFile && !isThumbRequest) {
-        resp->addHeader("ETag", "W/\"" + file_id + "\"");
-        resp->addHeader("Cache-Control", "public, max-age=3600");
-    }
-    callback(resp);
+    auto errResp = drogon::HttpResponse::newHttpResponse();
+    errResp->setStatusCode(drogon::k500InternalServerError);
+    errResp->setBody(errorResponse("Failed to retrieve file"));
+    callback(errResp);
 }

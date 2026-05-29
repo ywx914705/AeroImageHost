@@ -32,9 +32,9 @@ public:
     // 初始化连接池：创建指定数量的 Redis 连接（password 为空则不发 AUTH，兼容无密码 Redis）
     bool init(const std::string& host, int port, int poolSize = 32, const std::string& password = "");
     // 获取一个可用连接（带 3 秒超时等待 + 健康检查 + 自动重建）
-    redisContext* getContext();
+    redisContext* getContext(size_t* shardIdx = nullptr);
     // 归还连接到连接池
-    void releaseContext(redisContext* ctx);
+    void releaseContext(redisContext* ctx, size_t shardIdx = SIZE_MAX);
 
     // 获取连接池统计信息：活跃连接数、空闲连接数
     struct Stats {

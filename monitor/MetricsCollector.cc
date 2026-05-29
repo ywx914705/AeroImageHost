@@ -24,32 +24,42 @@ MetricsCollector::MetricsCollector()
 
 /* 获取或创建端点指标对象 */
 MetricsCollector::EndpointMetrics* MetricsCollector::getOrCreateEndpoint(const std::string& endpoint) {
-    std::lock_guard<std::mutex> lock(endpointsMutex_);
+    {
+        std::shared_lock<std::shared_mutex> lock(endpointsMutex_);
+        auto it = endpoints_.find(endpoint);
+        if (it != endpoints_.end()) return it->second.get();
+    }
+    std::unique_lock<std::shared_mutex> lock(endpointsMutex_);
     auto it = endpoints_.find(endpoint);
     if (it != endpoints_.end()) return it->second.get();
     auto m = std::make_unique<EndpointMetrics>();
     auto* ptr = m.get();
-    endpoints_[endpoint] = std::move(m);
+    endpoints_.emplace(endpoint, std::move(m));
     return ptr;
 }
 
-/* 记录一次请求完成 */
 void MetricsCollector::recordRequest(const std::string& endpoint, double durationMs, int statusCode) {
-    auto* m = getOrCreateEndpoint(endpoint);
+    thread_local std::string lastEndpoint;
+    thread_local EndpointMetrics* lastMetric = nullptr;
 
-    // 先 fetch_add 获取旧值用于采样，再更新其他计数
+    EndpointMetrics* m;
+    if (endpoint == lastEndpoint && lastMetric) {
+        m = lastMetric;
+    } else {
+        m = getOrCreateEndpoint(endpoint);
+        lastEndpoint = endpoint;
+        lastMetric = m;
+    }
+
     int64_t oldCount = m->totalRequests.fetch_add(1, std::memory_order_relaxed);
     m->totalDurationUs.fetch_add(static_cast<int64_t>(durationMs * 1000), std::memory_order_relaxed);
     m->currentWindowRequests.fetch_add(1, std::memory_order_relaxed);
     globalCurrentWindowRequests_.fetch_add(1, std::memory_order_relaxed);
 
-    // 仅将 5xx 服务端错误计入错误统计
-    // 4xx 客户端错误（如 403 权限拒绝、404 资源不存在）属于正常业务行为，不计入错误
     if (statusCode >= 500) {
         m->errorCount.fetch_add(1, std::memory_order_relaxed);
     }
 
-    // 采样延迟（非每请求都采样，1/10 概率采样减少内存开销）
     if (oldCount % 10 == 0) {
         globalLatency_.add(durationMs);
     }
@@ -121,7 +131,7 @@ void MetricsCollector::tick() {
     globalQPS_.store(static_cast<double>(windowReqs), std::memory_order_relaxed);
 
     // 各端点 QPS
-    std::lock_guard<std::mutex> lock(endpointsMutex_);
+    std::unique_lock<std::shared_mutex> lock(endpointsMutex_);
     for (auto& [name, m] : endpoints_) {
         int64_t reqs = m->currentWindowRequests.exchange(0, std::memory_order_relaxed);
         m->currentWindowQPS.store(static_cast<double>(reqs), std::memory_order_relaxed);
@@ -142,6 +152,16 @@ void MetricsCollector::tick() {
 
 /* 生成监控指标 JSON */
 std::string MetricsCollector::getMetricsJson() {
+    auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    int64_t cachedTime = lastMetricsTimeMs_.load(std::memory_order_acquire);
+    if (cachedTime > 0 && (nowMs - cachedTime) < METRICS_CACHE_TTL_MS) {
+        auto cached = std::atomic_load(&cachedMetricsJsonPtr_);
+        if (cached && !cached->empty()) {
+            return *cached;
+        }
+    }
+
     using namespace rapidjson;
     Document doc;
     doc.SetObject();
@@ -199,7 +219,7 @@ std::string MetricsCollector::getMetricsJson() {
     // 各端点指标
     Value endpoints(kObjectType);
     {
-        std::lock_guard<std::mutex> lock(endpointsMutex_);
+        std::shared_lock<std::shared_mutex> lock(endpointsMutex_);
         int64_t totalReqs = 0;
         double totalDur = 0;
         for (auto& [name, m] : endpoints_) {
@@ -234,5 +254,11 @@ std::string MetricsCollector::getMetricsJson() {
     StringBuffer buffer;
     Writer<StringBuffer> writer(buffer);
     doc.Accept(writer);
-    return buffer.GetString();
+    auto newJson = std::make_shared<const std::string>(buffer.GetString());
+    std::atomic_store(&cachedMetricsJsonPtr_, newJson);
+    lastMetricsTimeMs_.store(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count(),
+        std::memory_order_release);
+    return *newJson;
 }

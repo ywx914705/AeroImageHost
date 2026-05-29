@@ -3,6 +3,13 @@ project(AeroImageHost)
 
 set(CMAKE_CXX_STANDARD 17)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
+
 list(APPEND CMAKE_PREFIX_PATH "/usr/local")
 if(DEFINED ENV{HOME})
     list(APPEND CMAKE_PREFIX_PATH "$ENV{HOME}/.local")
@@ -57,8 +64,9 @@ file(GLOB_RECURSE SOURCES
     "utils/*.cc"
     "src/*.cc"
     "monitor/*.cc"
-    "main.cc"
 )
+
+list(APPEND SOURCES "${CMAKE_SOURCE_DIR}/main.cc")
 
 # .cc 文件由 GLOB_RECURSE 自动发现，无需手动追加
 
@@ -118,4 +126,36 @@ if(BUILD_TESTING)
         curl
         z)
     add_test(NAME test_metrics_collector COMMAND test_metrics_collector)
+
+    add_executable(test_core
+        tests/test_core.cc
+        utils/Utils.cc
+        utils/PasswordHash.cc
+        monitor/MetricsCollector.cc
+        src/ConnectionPool.cc
+        src/RedisClient.cc
+        src/Log.cc
+        config/Config.cc)
+    target_include_directories(test_core PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/http
+        ${CMAKE_SOURCE_DIR}/utils
+        ${CMAKE_SOURCE_DIR}/monitor
+        ${CMAKE_SOURCE_DIR}/config
+        ${CMAKE_SOURCE_DIR}/src
+        ${MYSQL_INCLUDE_DIR}
+        ${VIPS_INCLUDE_DIRS}
+        ${CURL_INCLUDE_DIRS}
+        ${OPENSSL_INCLUDE_DIR})
+    target_link_libraries(test_core
+        Drogon::Drogon
+        ${MYSQL_LIBRARY}
+        hiredis
+        pthread
+        ssl
+        crypto
+        curl
+        z)
+    add_test(NAME test_core COMMAND test_core)
 endif()

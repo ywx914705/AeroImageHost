@@ -46,7 +46,7 @@ struct WatermarkConfig {
         : position(WatermarkPosition::BOTTOM_RIGHT)
         , opacity(80)
         , fontSize(24)
-        , fontColor("#000000")
+        , fontColor("#FFFFFF")
         , margin(20) {}
 };
 

@@ -1,5 +1,6 @@
 # Build output
 build/
+build_test/
 *.o
 *.so
 *.dylib
@@ -15,6 +16,7 @@ build/
 
 # Claude Code
 .claude/
+config/.claude/
 CLAUDE.md
 
 # Logs
@@ -40,6 +42,7 @@ Thumbs.db
 *.cache
 *.pre-redesign
 *.orig
+resume.md
 
 # Frontend backups
 www/index.html.*
@@ -55,12 +58,23 @@ package-lock.json
 # Docker
 .docker/
 
-# Tests (unit tests not needed in production)
-tests/
+# Tests build artifacts
+tests/*.o
 
 # Uploads (runtime data)
 uploads/
 
 # Benchmark runtime artifacts
-benchmark/bench_c
-benchmark/BENCHMARK.md
+benchmark/bench
+
+# Flutter / Android / Dart (mobile app - develop separately)
+aero_app/
+aero_app_tmp/
+android-sdk/
+flutter/
+.pub_cache/
+.android/
+.dart-tool/
+.flutter
+.flutter/
+.flutter_config/

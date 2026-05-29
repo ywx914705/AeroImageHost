@@ -107,10 +107,25 @@ bool WatermarkProcessor::renderTextToPNG(const std::string& text,
                                          int& textHeight) {
     std::string fontName = findFontForText(text);
 
-    int surfaceWidth = fontSize * text.length() * 2;
-    int surfaceHeight = fontSize * 2;
+    cairo_surface_t* tmpSurface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1);
+    cairo_t* tmpCr = cairo_create(tmpSurface);
+    cairo_select_font_face(tmpCr, fontName.c_str(), CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(tmpCr, fontSize);
+    cairo_text_extents_t extents;
+    cairo_text_extents(tmpCr, text.c_str(), &extents);
+    textWidth = static_cast<int>(extents.width + fabs(extents.x_bearing));
+    textHeight = static_cast<int>(extents.height + fabs(extents.y_bearing));
+    cairo_destroy(tmpCr);
+    cairo_surface_destroy(tmpSurface);
 
-    cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surfaceWidth, surfaceHeight);
+    double angle = -30.0 * M_PI / 180.0;
+    double cosA = fabs(cos(angle));
+    double sinA = fabs(sin(angle));
+    int pad = static_cast<int>(fontSize * 0.5);
+    int rotatedW = static_cast<int>(textWidth * cosA + textHeight * sinA) + pad * 2;
+    int rotatedH = static_cast<int>(textWidth * sinA + textHeight * cosA) + pad * 2;
+
+    cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, rotatedW, rotatedH);
     if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
         AERO_LOG_ERROR("[Watermark] Failed to create Cairo surface");
         return false;
@@ -128,54 +143,29 @@ bool WatermarkProcessor::renderTextToPNG(const std::string& text,
     cairo_select_font_face(cr, fontName.c_str(), CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
     cairo_set_font_size(cr, fontSize);
 
-    cairo_text_extents_t extents;
-    cairo_text_extents(cr, text.c_str(), &extents);
-    textWidth = static_cast<int>(extents.width + extents.x_bearing);
-    textHeight = static_cast<int>(extents.height + extents.y_bearing);
-
-    cairo_destroy(cr);
-    cairo_surface_destroy(surface);
-
-    surfaceWidth = textWidth + 20;
-    surfaceHeight = textHeight + 20;
-
-    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surfaceWidth, surfaceHeight);
-    if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
-        AERO_LOG_ERROR("[Watermark] Failed to create final Cairo surface");
-        return false;
-    }
-    cr = cairo_create(surface);
-    if (!cr) {
-        cairo_surface_destroy(surface);
-        AERO_LOG_ERROR("[Watermark] Failed to create final Cairo context");
-        return false;
-    }
-
-    cairo_set_source_rgba(cr, 0, 0, 0, 0);
-    cairo_paint(cr);
-
-    cairo_select_font_face(cr, fontName.c_str(), CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
-    cairo_set_font_size(cr, fontSize);
-
     double r, g, b;
     parseHexColor(fontColor, r, g, b);
     double alpha = opacity / 100.0;
 
-    // 先绘制黑色描边（增强任何背景下的可见性）
-    cairo_set_source_rgba(cr, 0, 0, 0, alpha * 0.8);
-    cairo_set_line_width(cr, fontSize * 0.15);
-    cairo_move_to(cr, 10, surfaceHeight - 10);
+    cairo_set_source_rgba(cr, 0, 0, 0, alpha * 0.4);
+    cairo_set_line_width(cr, fontSize * 0.08);
+
+    cairo_save(cr);
+    cairo_translate(cr, rotatedW / 2.0, rotatedH / 2.0);
+    cairo_rotate(cr, angle);
+    cairo_move_to(cr, -textWidth / 2.0, textHeight / 2.0 - extents.y_bearing);
     cairo_text_path(cr, text.c_str());
     cairo_stroke(cr);
+    cairo_restore(cr);
 
-    // 设置文字颜色
     cairo_set_source_rgba(cr, r, g, b, alpha);
-
-    // 绘制文字
-    cairo_move_to(cr, 10, surfaceHeight - 10);
+    cairo_save(cr);
+    cairo_translate(cr, rotatedW / 2.0, rotatedH / 2.0);
+    cairo_rotate(cr, angle);
+    cairo_move_to(cr, -textWidth / 2.0, textHeight / 2.0 - extents.y_bearing);
     cairo_show_text(cr, text.c_str());
+    cairo_restore(cr);
 
-    // 输出为 PNG
     cairo_surface_flush(surface);
 
     // 获取像素数据
@@ -184,8 +174,16 @@ bool WatermarkProcessor::renderTextToPNG(const std::string& text,
     int height = cairo_image_surface_get_height(surface);
     int width = cairo_image_surface_get_width(surface);
 
-    // 转换为 PNG 格式（使用 libvips）
-    VipsImage* vipsImg = vips_image_new_from_memory(data, stride * height, width, height, 4, VIPS_FORMAT_UCHAR);
+    int pixelCount = width * height;
+    std::vector<unsigned char> rgbaData(pixelCount * 4);
+    for (int i = 0; i < pixelCount; ++i) {
+        rgbaData[i * 4 + 0] = data[i * 4 + 2]; // R <- Cairo B
+        rgbaData[i * 4 + 1] = data[i * 4 + 1]; // G <- Cairo G
+        rgbaData[i * 4 + 2] = data[i * 4 + 0]; // B <- Cairo R
+        rgbaData[i * 4 + 3] = data[i * 4 + 3]; // A <- Cairo A
+    }
+
+    VipsImage* vipsImg = vips_image_new_from_memory(rgbaData.data(), width * height * 4, width, height, 4, VIPS_FORMAT_UCHAR);
     if (!vipsImg) {
         cairo_destroy(cr);
         cairo_surface_destroy(surface);
@@ -379,23 +377,33 @@ bool WatermarkProcessor::addTextWatermark(const std::vector<unsigned char>& src,
                                            std::vector<unsigned char>& dst,
                                            const WatermarkConfig& config) {
     if (src.empty() || config.text.empty()) return false;
-    
-    // 渲染文字为透明 PNG
+
+    VipsImage* probe = vips_image_new_from_buffer(src.data(), src.size(), nullptr, nullptr);
+    if (!probe) {
+        vips_error_clear();
+        return false;
+    }
+    int imgW = vips_image_get_width(probe);
+    int imgH = vips_image_get_height(probe);
+    g_object_unref(probe);
+
+    int scaledFontSize = std::max(config.fontSize, static_cast<int>(imgW * 0.05));
+    int scaledMargin = std::max(config.margin, static_cast<int>(imgW * 0.02));
+
     std::vector<unsigned char> watermarkPng;
     int textWidth, textHeight;
-    if (!renderTextToPNG(config.text, config.fontSize, config.fontColor, 
+    if (!renderTextToPNG(config.text, scaledFontSize, config.fontColor, 
                          config.opacity, watermarkPng, textWidth, textHeight)) {
         LOG_ERROR("Failed to render watermark text");
         return false;
     }
     
-    // 合成水印
-    if (!compositeWatermark(src, watermarkPng, dst, config.position, config.margin)) {
+    if (!compositeWatermark(src, watermarkPng, dst, config.position, scaledMargin)) {
         LOG_ERROR("Failed to composite watermark");
         return false;
     }
     
-    LOG_INFO("Watermark applied: " + config.text);
+    LOG_INFO("Watermark applied: " + config.text + " (fontSize=" + std::to_string(scaledFontSize) + ", imgW=" + std::to_string(imgW) + ")");
     return true;
 }
 

@@ -127,7 +127,6 @@ bool FileMetaDAO::save(const FileMeta& meta) {
 }
 
 FileMeta FileMetaDAO::get(const std::string& file_id) {
-    // 先查 Redis Hash 缓存
     std::string cacheKey = META_CACHE_PREFIX + file_id;
     auto cached = RedisClient::instance().hgetall(cacheKey);
     if (!cached.empty()) {
@@ -137,11 +136,6 @@ FileMeta FileMetaDAO::get(const std::string& file_id) {
             return empty;
         }
         return hashToMeta(cached);
-    }
-
-    std::string typeCheck = RedisClient::instance().type(cacheKey);
-    if (typeCheck != "none" && typeCheck != "hash") {
-        RedisClient::instance().del(cacheKey);
     }
 
     std::string lockKey = "lock:meta:" + file_id;
@@ -609,9 +603,9 @@ std::pair<std::vector<FileMeta>, int> FileMetaDAO::listAndCountByUserWithSearch(
 
     std::string sql;
     if (keyword.empty()) {
-        sql = "SELECT SQL_CALC_FOUND_ROWS file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files WHERE user_id = ? ORDER BY upload_time DESC LIMIT ?, ?";
+        sql = "SELECT file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files WHERE user_id = ? ORDER BY upload_time DESC LIMIT ?, ?";
     } else {
-        sql = "SELECT SQL_CALC_FOUND_ROWS file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files WHERE user_id = ? AND filename LIKE ? ORDER BY upload_time DESC LIMIT ?, ?";
+        sql = "SELECT file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files WHERE user_id = ? AND filename LIKE ? ORDER BY upload_time DESC LIMIT ?, ?";
     }
 
     MYSQL_STMT* stmt = mysql_stmt_init(conn);
@@ -708,22 +702,7 @@ std::pair<std::vector<FileMeta>, int> FileMetaDAO::listAndCountByUserWithSearch(
 
     mysql_stmt_close(stmt);
 
-    MYSQL_RES* foundRes = mysql_store_result(conn);
-    if (foundRes) {
-        mysql_free_result(foundRes);
-    }
-    MYSQL_ROW foundRow = nullptr;
-    MYSQL_RES* fr2 = nullptr;
-    if (mysql_query(conn, "SELECT FOUND_ROWS()") == 0) {
-        fr2 = mysql_store_result(conn);
-        if (fr2) {
-            foundRow = mysql_fetch_row(fr2);
-            if (foundRow && foundRow[0]) {
-                total = std::stoi(foundRow[0]);
-            }
-            mysql_free_result(fr2);
-        }
-    }
+    total = countByUserWithSearch(user_id, keyword);
 
     releaseConn(conn);
     return {result, total};

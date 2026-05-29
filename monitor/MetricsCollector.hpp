@@ -8,7 +8,7 @@
 
 #include <string>
 #include <atomic>
-#include <mutex>
+#include <shared_mutex>
 #include <map>
 #include <memory>
 #include <vector>
@@ -30,6 +30,10 @@ public:
 private:
     MetricsCollector();
 
+    std::shared_ptr<const std::string> cachedMetricsJsonPtr_;
+    std::atomic<int64_t> lastMetricsTimeMs_{0};
+    static constexpr int METRICS_CACHE_TTL_MS = 1000;
+
     struct EndpointMetrics {
         std::atomic<int64_t> totalRequests{0};
         std::atomic<int64_t> errorCount{0};
@@ -50,7 +54,7 @@ private:
 
     EndpointMetrics* getOrCreateEndpoint(const std::string& endpoint);
 
-    std::mutex endpointsMutex_;
+    std::shared_mutex endpointsMutex_;
     std::map<std::string, std::unique_ptr<EndpointMetrics>> endpoints_;
 
     std::atomic<int64_t> globalCurrentWindowRequests_{0};

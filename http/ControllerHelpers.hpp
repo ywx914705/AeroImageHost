@@ -12,8 +12,27 @@
 inline int getUserIdFromToken(const drogon::HttpRequestPtr& req) {
     std::string auth = req->getHeader("Authorization");
     if (auth.empty()) auth = req->getHeader("authorization");
+    if (auth.empty()) return 0;
+
+    static thread_local std::string tl_lastToken;
+    static thread_local int tl_lastUserId = 0;
+    static thread_local auto tl_lastTime = std::chrono::steady_clock::now();
+
+    if (auth == tl_lastToken) {
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - tl_lastTime).count() < 30) {
+            return tl_lastUserId;
+        }
+    }
+
     auto user = Auth::verify(auth);
-    return user ? user->user_id : 0;
+    int uid = user ? user->user_id : 0;
+    if (uid > 0) {
+        tl_lastToken = auth;
+        tl_lastUserId = uid;
+        tl_lastTime = std::chrono::steady_clock::now();
+    }
+    return uid;
 }
 
 inline drogon::HttpResponsePtr makeResponse(const HandlerResult& r) {
