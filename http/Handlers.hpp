@@ -14,7 +14,7 @@ HandlerResult handleMultipartInit(int user_id, const std::string& filename, cons
 HandlerResult handleMultipartUploadChunk(int user_id, const std::string& upload_id, int part_number, const std::vector<unsigned char>& data);
 HandlerResult handleMultipartComplete(int user_id, const std::string& upload_id, const std::string& filename, const std::string& content_type, size_t file_size, int total_chunks);
 HandlerResult handleMultipartCleanup(int user_id, const std::string& upload_id);
-HandlerResult handleListFiles(int user_id, int offset, int limit, const std::string& search_keyword = "");
+HandlerResult handleListFiles(int user_id, int offset, int limit, const std::string& search_keyword = "", const std::string& type = "", const std::string& sort = "time", const std::string& order = "desc");
 HandlerResult handleDeleteFile(int user_id, const std::string& file_id);
 HandlerResult handleBatchDeleteFiles(int user_id, const std::vector<std::string>& file_ids);
 HandlerResult handleShare(const std::string& file_id);

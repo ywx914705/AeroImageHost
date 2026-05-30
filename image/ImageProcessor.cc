@@ -86,7 +86,7 @@ bool ImageProcessor::generateThumbnail(const std::vector<char>& src, std::vector
     
     void* buf = nullptr;
     size_t len = 0;
-    if (vips_image_write_to_buffer(out, ".jpg", &buf, &len, nullptr)) {
+    if (vips_image_write_to_buffer(out, ".jpg", &buf, &len, "Q", 85, nullptr)) {
         LOG_ERROR("vips_image_write_to_buffer failed");
         g_object_unref(in);
         g_object_unref(out);

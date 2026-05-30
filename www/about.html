@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>关于 AeroImageHost</title>
+<link rel="stylesheet" href="/assets/font-awesome.css">
+<link rel="icon" href="/assets/favicon.png" type="image/png">
+<style>
+:root {
+    --bg: #f8fafc; --card: #ffffff; --text: #0f172a; --text2: #475569; --text3: #94a3b8;
+    --border: #e2e8f0; --accent: #2563eb; --accent-light: rgba(37,99,235,0.06);
+    --blue: #2563eb; --green: #10b981; --purple: #8b5cf6; --orange: #f97316; --pink: #ec4899;
+}
+[data-theme="dark"] {
+    --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
+    --border: #334155; --accent: #60a5fa; --accent-light: rgba(96,165,250,0.1);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+
+.container { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+
+/* 顶部导航 */
+.topbar { position: sticky; top: 0; z-index: 100; background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 0; backdrop-filter: blur(12px); }
+.topbar-inner { max-width: 900px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+.topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; }
+.topbar-brand i { color: var(--accent); font-size: 1.2rem; }
+.topbar-links { display: flex; gap: 8px; }
+.topbar-links a { padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 500; color: var(--text2); transition: all 0.2s; }
+.topbar-links a:hover { background: var(--accent-light); color: var(--accent); }
+.topbar-links .btn-primary { background: var(--accent); color: #fff; }
+.topbar-links .btn-primary:hover { opacity: 0.9; }
+
+/* Hero */
+.hero { text-align: center; padding: 60px 0 50px; }
+.hero-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; background: var(--accent-light); color: var(--accent); font-size: 0.8rem; font-weight: 600; margin-bottom: 20px; border: 1px solid rgba(37,99,235,0.1); }
+.hero h1 { font-size: 2.8rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; background: linear-gradient(135deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero p { font-size: 1.15rem; color: var(--text2); max-width: 600px; margin: 0 auto; line-height: 1.7; }
+
+/* 技术栈 */
+.tech-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 40px 0; }
+.tech-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; text-align: center; transition: all 0.3s ease; }
+.tech-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
+.tech-card i { font-size: 2rem; margin-bottom: 12px; }
+.tech-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; }
+.tech-card p { font-size: 0.8rem; color: var(--text3); }
+
+/* 功能列表 */
+.features { margin: 40px 0; }
+.features h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+.feature-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.feature-item { display: flex; gap: 14px; padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; transition: all 0.2s; }
+.feature-item:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(37,99,235,0.08); }
+.feature-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+.feature-text h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 4px; }
+.feature-text p { font-size: 0.8rem; color: var(--text3); line-height: 1.5; }
+
+/* 性能数据 */
+.perf { margin: 40px 0; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 32px; }
+.perf h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 20px; text-align: center; }
+.perf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; }
+.perf-item .value { font-size: 2rem; font-weight: 800; color: var(--accent); }
+.perf-item .label { font-size: 0.8rem; color: var(--text3); margin-top: 4px; }
+
+/* 架构 */
+.arch { margin: 40px 0; }
+.arch h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 16px; text-align: center; }
+.arch-flow { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+.arch-node { padding: 12px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.arch-arrow { color: var(--text3); font-size: 1.2rem; }
+
+/* 页脚 */
+.footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); text-align: center; color: var(--text3); font-size: 0.8rem; }
+.footer a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 768px) {
+    .hero h1 { font-size: 2rem; }
+    .tech-grid { grid-template-columns: 1fr; }
+    .feature-list { grid-template-columns: 1fr; }
+    .perf-grid { grid-template-columns: 1fr; }
+    .arch-flow { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="topbar-inner">
+        <a href="/" class="topbar-brand"><i class="fas fa-cloud"></i> AeroImageHost</a>
+        <div class="topbar-links">
+            <a href="/">返回首页</a>
+            <a href="/" class="btn-primary"><i class="fas fa-sign-in-alt"></i> 进入控制台</a>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="hero">
+        <div class="hero-badge"><i class="fas fa-bolt"></i> 高性能 · 私有化部署</div>
+        <h1>AeroImageHost</h1>
+        <p>新一代高性能图片与文件托管服务。基于 C++17 + Drogon 构建，专为速度和可靠性设计。</p>
+    </div>
+
+    <div class="tech-grid">
+        <div class="tech-card">
+            <i class="fas fa-bolt" style="color: var(--orange)"></i>
+            <h3>C++17 + Drogon</h3>
+            <p>高性能 HTTP 框架，单机 QPS 80K+，毫秒级响应</p>
+        </div>
+        <div class="tech-card">
+            <i class="fas fa-database" style="color: var(--blue)"></i>
+            <h3>MySQL 8 + Redis</h3>
+            <p>可靠元数据存储 + 高速缓存，多层缓存策略</p>
+        </div>
+        <div class="tech-card">
+            <i class="fas fa-cloud" style="color: var(--green)"></i>
+            <h3>MinIO 对象存储</h3>
+            <p>S3 兼容，支持预签名直传，海量文件存储</p>
+        </div>
+        <div class="tech-card">
+            <i class="fas fa-image" style="color: var(--purple)"></i>
+            <h3>libvips 图片处理</h3>
+            <p>实时缩略图生成，高质量 JPEG 输出，水印支持</p>
+        </div>
+        <div class="tech-card">
+            <i class="fab fa-vuejs" style="color: var(--green)"></i>
+            <h3>Vue 3 前端</h3>
+            <p>现代化 SPA，Element Plus UI，暗色模式</p>
+        </div>
+        <div class="tech-card">
+            <i class="fab fa-docker" style="color: var(--blue)"></i>
+            <h3>Docker 一键部署</h3>
+            <p>完整容器化，MySQL + Redis + MinIO + Nginx 全栈</p>
+        </div>
+    </div>
+
+    <div class="features">
+        <h2>核心功能</h2>
+        <div class="feature-list">
+            <div class="feature-item">
+                <div class="feature-icon" style="background:rgba(37,99,235,0.1);color:var(--blue)"><i class="fas fa-upload"></i></div>
+                <div class="feature-text"><h4>多格式上传</h4><p>支持图片、文档、视频、音频、压缩包，最大 100MB，分片断点续传</p></div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon" style="background:rgba(16,185,129,0.1);color:var(--green)"><i class="fas fa-link"></i></div>
+                <div class="feature-text"><h4>永久外链</h4><p>文件上传即生成永久链接，支持 Markdown 嵌入，博客/自媒体必备</p></div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon" style="background:rgba(139,92,246,0.1);color:var(--purple)"><i class="fas fa-shield-alt"></i></div>
+                <div class="feature-text"><h4>安全可控</h4><p>公开/私有切换，JWT 认证，暴力破解防护，IP 限流</p></div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon" style="background:rgba(249,115,22,0.1);color:var(--orange)"><i class="fas fa-tachometer-alt"></i></div>
+                <div class="feature-text"><h4>极致性能</h4><p>epoll 非阻塞 I/O，连接池，Redis 多层缓存，QPS 80K+</p></div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon" style="background:rgba(236,72,153,0.1);color:var(--pink)"><i class="fas fa-palette"></i></div>
+                <div class="feature-text"><h4>图片水印</h4><p>自定义文字水印，可调位置和透明度，保护版权</p></div>
+            </div>
+            <div class="feature-item">
+                <div class="feature-icon" style="background:rgba(14,165,233,0.1);color:#0ea5e9"><i class="fas fa-chart-bar"></i></div>
+                <div class="feature-text"><h4>实时监控</h4><p>内建 MetricsCollector，QPS/延迟/缓存命中率一目了然</p></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="perf">
+        <h2>性能基准</h2>
+        <div class="perf-grid">
+            <div class="perf-item"><div class="value">80K+</div><div class="label">QPS（文件列表）</div></div>
+            <div class="perf-item"><div class="value">&lt;1ms</div><div class="label">P99 延迟</div></div>
+            <div class="perf-item"><div class="value">0</div><div class="label">错误率</div></div>
+        </div>
+    </div>
+
+    <div class="arch">
+        <h2>系统架构</h2>
+        <div class="arch-flow">
+            <div class="arch-node" style="background:var(--accent-light);color:var(--accent)"><i class="fas fa-desktop"></i> 客户端</div>
+            <span class="arch-arrow"><i class="fas fa-arrow-right"></i></span>
+            <div class="arch-node" style="background:rgba(249,115,22,0.1);color:var(--orange)"><i class="fas fa-shield-alt"></i> Nginx</div>
+            <span class="arch-arrow"><i class="fas fa-arrow-right"></i></span>
+            <div class="arch-node" style="background:rgba(139,92,246,0.1);color:var(--purple)"><i class="fas fa-server"></i> Drogon (C++)</div>
+            <span class="arch-arrow"><i class="fas fa-arrow-right"></i></span>
+            <div class="arch-node" style="background:rgba(16,185,129,0.1);color:var(--green)"><i class="fas fa-database"></i> MySQL + Redis</div>
+            <span class="arch-arrow"><i class="fas fa-arrow-right"></i></span>
+            <div class="arch-node" style="background:rgba(37,99,235,0.1);color:var(--blue)"><i class="fas fa-cloud"></i> MinIO</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>AeroImageHost · 高性能图床与文件托管</p>
+        <p style="margin-top:6px">Built with <i class="fas fa-heart" style="color:#ef4444"></i> using C++17, Drogon, Vue 3</p>
+    </div>
+</div>
+
+<script>
+// 主题切换
+const toggle = document.createElement('button');
+toggle.innerHTML = '<i class="fas fa-moon"></i>';
+toggle.style.cssText = 'position:fixed;bottom:24px;right:24px;width:48px;height:48px;border-radius:14px;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;transition:all 0.2s';
+toggle.onclick = () => {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', dark ? '' : 'dark');
+    toggle.innerHTML = dark ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+};
+document.body.appendChild(toggle);
+</script>
+</body>
+</html>

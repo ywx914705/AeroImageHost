@@ -21,77 +21,63 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/landing.main.css?v=14">
 
-<style>
-    /* 基础样式 */
-    :root {
-        --bg-primary: #ffffff;
-        --bg-secondary: #f7f8fa;
-        --bg-card: #ffffff;
-        --text-primary: #1a1a2e;
-        --text-secondary: #4e5969;
-        --text-tertiary: #86909c;
-        --border-subtle: #e5e6eb;
-        --border-card: #e5e6eb;
-        --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 1px 6px rgba(0,0,0,0.06);
-        --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-        --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
-        --glass-bg: #ffffff;
-        --glass-border: #e5e6eb;
-        --overlay-bg: transparent;
-        --upload-zone-bg: #f7f8fa;
-        --thumb-bg: #f2f3f5;
-        --accent: #2563eb;
-        --accent-light: rgba(37, 99, 235, 0.06);
-        --accent-border: rgba(37, 99, 235, 0.15);
-        --gradient-primary: linear-gradient(135deg, #2563eb, #3b82f6);
-        --gradient-button: linear-gradient(135deg, #2563eb, #3b82f6);
-        --navbar-bg: #ffffff;
-        --navbar-border: #e5e6eb;
-        --input-bg: #f7f8fa;
-        --badge-bg: rgba(37, 99, 235, 0.06);
-        --badge-border: rgba(37, 99, 235, 0.15);
-        --empty-icon-opacity: 0.5;
-    }
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
+<style>
+    * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .glass { background: rgba(255,255,255,.72); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,.5); }
+    .gradient-main { background: linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #9333ea 100%); }
+    .shadow-soft { box-shadow: 0 15px 40px rgba(15,23,42,.08); }
+    .sidebar-item { transition: .25s ease; }
+    .sidebar-item:hover { transform: translateX(4px); background: rgba(255,255,255,.9); }
+    .sidebar-item.active { background: linear-gradient(90deg, rgba(37,99,235,.12), rgba(124,58,237,.1)); color: #2563eb; border: 1px solid rgba(37,99,235,.12); }
+    .hover-card { transition: .3s ease; }
+    .hover-card:hover { transform: translateY(-6px); box-shadow: 0 20px 60px rgba(15,23,42,.12); }
+    .aurora { position: fixed; width: 600px; height: 600px; border-radius: 50%; filter: blur(120px); opacity: .15; z-index: -1; }
+    .masonry { column-count: 3; column-gap: 20px; }
+    .masonry-item { break-inside: avoid; margin-bottom: 20px; }
+    .gallery-overlay { opacity: 0; transition: .3s ease; }
+    .gallery-card:hover .gallery-overlay { opacity: 1; }
+    .stat-line { height: 10px; border-radius: 999px; overflow: hidden; background: #e2e8f0; }
+    .stat-line div { height: 100%; border-radius: 999px; }
+    @media(max-width: 1200px) { .masonry { column-count: 2; } }
+    @media(max-width: 768px) { .masonry { column-count: 1; } }
+    [data-theme="dark"] .glass { background: rgba(30,41,59,.85); border-color: rgba(51,65,85,.5); }
+    [data-theme="dark"] body { background: #0f172a; color: #f1f5f9; }
+
+    /* 基础样式 - preview(1) 设计系统 */
+    :root {
+        --bg: #f8fafc;
+        --bg-card: #ffffff;
+        --text: #0f172a;
+        --text-secondary: #475569;
+        --border: #e2e8f0;
+        --accent: #2563eb;
+    }
     [data-theme="dark"] {
-        --bg-primary: #17171a;
-        --bg-secondary: #232324;
-        --bg-card: #2a2a2d;
-        --text-primary: #e8e8ed;
-        --text-secondary: #a6a6b3;
-        --text-tertiary: #6b6b80;
-        --border-subtle: #3a3a3d;
-        --border-card: #3a3a3d;
-        --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
-        --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
-        --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
-        --glass-bg: #2a2a2d;
-        --glass-border: #3a3a3d;
-        --overlay-bg: #17171a;
-        --upload-zone-bg: #232324;
-        --thumb-bg: #2a2a2d;
+        --bg: #0f172a;
+        --bg-card: #1e293b;
+        --text: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border: #334155;
         --accent: #60a5fa;
-        --accent-light: rgba(96, 165, 250, 0.1);
-        --accent-border: rgba(96, 165, 250, 0.2);
-        --gradient-primary: linear-gradient(135deg, #3b82f6, #60a5fa);
-        --gradient-button: linear-gradient(135deg, #3b82f6, #60a5fa);
-        --navbar-bg: #17171a;
-        --navbar-border: #3a3a3d;
-        --input-bg: #232324;
-        --badge-bg: rgba(96, 165, 250, 0.15);
-        --badge-border: rgba(96, 165, 250, 0.25);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', 'Helvetica Neue', Arial, sans-serif;
-        color: var(--text-primary);
-        min-height: 100vh;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(180deg, #eef4ff 0%, #f6f8ff 40%, #f4f7fb 100%);
+        color: #111827;
         overflow-x: hidden;
-        background: #ffffff;
-        transition: background 0.4s ease;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
+        min-height: 100vh; line-height: 1.5;
+        -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+    [data-theme="dark"] body {
+        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+        color: #f1f5f9;
     }
 
     body::before {
@@ -99,12 +85,8 @@
         position: fixed;
         inset: 0;
         z-index: -3;
-        background: #f8f9fb; background-image: radial-gradient(circle, #e0e3e8 1px, transparent 1px); background-size: 20px 20px;
+        background: transparent;
         transition: background 0.4s ease;
-    }
-
-    [data-theme="dark"] body::before {
-        background: #121215; background-image: radial-gradient(circle, #252528 1px, transparent 1px); background-size: 20px 20px;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -125,61 +107,65 @@
 
     .bg-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
-        background: var(--overlay-bg);
+        background: transparent;
         transition: background 0.4s ease;
     }
 
     .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
 
-    .brand-logo { display: flex; align-items: center; gap: 10px; font-size: 1.9rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; transition: color 0.3s ease; }
-    .brand-icon { font-size: 2rem; color: var(--accent); transition: color 0.3s ease; }
-    .brand-icon img { width: 36px; height: 36px; object-fit: contain; }
-    .brand-text { background: var(--gradient-primary); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .brand-logo { display: flex; align-items: center; gap: 12px; font-size: 1.3rem; font-weight: 700; color: #111827; text-decoration: none; }
+    .brand-icon { width: 32px; height: 32px; }
+    .brand-icon img { width: 100%; height: 100%; object-fit: contain; }
 
     .login-logo { justify-content: center; margin-bottom: 0.5rem; }
     .login-logo .brand-icon img { width: 56px; height: 56px; }
     .login-logo .brand-text { font-size: 2.2rem; }
 
-    .glass-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; box-shadow: var(--shadow-md); transition: all 0.25s ease; padding: 1.2rem; }
+    .glass-card {
+        background: white; border: 1px solid #e2e7eb;
+        border-radius: 30px; padding: 20px;
+        transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
     .navbar {
-        background: var(--navbar-bg); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
-        border-bottom: 1px solid var(--navbar-border); padding: 0 2rem; height: 60px;
-        display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100;
+        background: white; border-bottom: 1px solid #e2e7eb;
+        padding: 0 28px; height: 64px;
+        display: flex; align-items: center; justify-content: space-between;
+        position: sticky; top: 0; z-index: 100;
     }
-
     .user-area { display: flex; align-items: center; gap: 12px; }
-    .user-badge { background: var(--accent-light); padding: 0.4rem 1.2rem; border-radius: 8px; font-weight: 600; border: 1px solid var(--accent-border); color: var(--accent); font-size: 0.85rem; }
+    .user-badge {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; border-radius: 9999px;
+        background: #f1f5f9; color: #475569;
+        font-size: 0.82rem; font-weight: 500;
+    }
 
     .theme-toggle {
-        width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--navbar-border); background: var(--bg-secondary);
-        color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
-        font-size: 1.1rem; transition: all 0.3s ease; backdrop-filter: blur(8px);
+        width: 38px; height: 38px; border-radius: 16px;
+        border: 1px solid #e2e7eb; background: white;
+        color: #475569; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.95rem; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .theme-toggle:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+    .theme-toggle:hover { border-color: #2563eb; color: #2563eb; }
 
-    .main { max-width: 1360px; margin: 2rem auto; padding: 0 1.8rem; width: 100%; flex: 1; animation: fadeInUp 0.5s ease; }
+    .main {
+        max-width: 1400px; margin: 0 auto; padding: 24px 28px;
+        width: 100%; flex: 1;
+    }
 
     /* 欢迎横幅 */
     .dash-welcome {
-        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); border-radius: 14px; padding: 2rem 2.5rem;
-        margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;
-        color: white; position: relative; overflow: hidden;
-    }
-    .dash-welcome::before {
-        content: ''; position: absolute; inset: 0;
-        background: radial-gradient(circle at 80% 50%, rgba(255,255,255,0.15) 0%, transparent 60%);
-        pointer-events: none;
-    }
-    .dash-welcome::after {
-        content: ''; position: absolute; right: -50px; bottom: -50px;
-        width: 200px; height: 200px; border-radius: 50%;
-        background: rgba(255,255,255,0.08); pointer-events: none;
+        background: #2563eb; border-radius: 30px;
+        padding: 24px 28px; margin-bottom: 24px;
+        display: flex; align-items: center; justify-content: space-between;
+        color: #fff; position: relative; overflow: hidden;
     }
     .dash-welcome-text { position: relative; z-index: 1; }
-    .dash-welcome-text h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.4rem; }
-    .dash-welcome-text p { font-size: 0.9rem; opacity: 0.85; }
-    .dash-welcome-icon { width: 56px; height: 56px; border-radius: 14px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; position: relative; z-index: 1; }
+    .dash-welcome-text h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
+    .dash-welcome-text p { font-size: 0.88rem; opacity: 0.85; }
+    .dash-welcome-icon { width: 48px; height: 48px; border-radius: 16px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; position: relative; z-index: 1; }
 
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -187,42 +173,61 @@
 
     .login-card {
         max-width: 480px; margin: 100px auto 0; padding: 2.8rem 2.2rem;
-        background: var(--bg-primary); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-        border: 1px solid var(--glass-border); border-radius: 2.5rem; box-shadow: var(--shadow-lg);
+        background: white; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,.5); border-radius: 2.5rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.06);
         animation: fadeInUp 0.6s ease;
     }
 
     .upload-zone {
-        border: 2px dashed var(--border-subtle); border-radius: 12px; padding: 2.5rem 1.5rem;
-        text-align: center; cursor: pointer; transition: all 0.25s ease;
-        background: linear-gradient(135deg, var(--upload-zone-bg) 0%, var(--bg-card) 100%);
-        position: relative;
+        border: 2px dashed #e2e7eb; border-radius: 30px;
+        padding: 28px 24px; text-align: center;
+        cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        background: white;
     }
-    .upload-zone:hover { border-color: var(--accent); background: linear-gradient(135deg, var(--accent-light) 0%, var(--bg-card) 100%); transform: translateY(-2px); box-shadow: var(--shadow-sm); }
-    .upload-zone.drag-over { border-color: var(--accent); background: var(--accent-light); transform: scale(1.01); box-shadow: 0 0 0 4px var(--accent-light); }
+    .upload-zone:hover {
+        border-color: #2563eb; background: rgba(37,99,235,0.06);
+    }
+    .upload-zone.drag-over {
+        border-color: #2563eb; background: rgba(37,99,235,0.06);
+        box-shadow: 0 0 0 4px rgba(37,99,235,0.06);
+    }
 
-    .file-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+    .file-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 24px; margin-top: 24px;
+    }
 
     .file-card {
-        background: var(--bg-card);
-        border-radius: 10px; overflow: hidden; border: 1px solid var(--border-subtle);
-        border-top: 3px solid var(--accent);
-        transition: all 0.25s ease; cursor: pointer;
-        user-select: none; display: flex; flex-direction: column;
+        background: white; border: 1px solid #e2e7eb;
+        border-radius: 30px; overflow: hidden;
+        position: relative;
+        box-shadow: 0 16px 50px rgba(15,23,42,.05);
+        transition: .22s ease; cursor: pointer;
     }
-    .file-card:hover { transform: translateY(-3px); border-color: var(--accent-border); box-shadow: var(--shadow-md); }
+    [data-theme="dark"] .file-card { background: #1e293b; }
+    .file-card:hover { transform: translateY(-4px); }
+    .card-cover { height: 240px; overflow: hidden; position: relative; background: #f3f4f6; }
+    .card-cover img { width: 100%; height: 100%; object-fit: cover; transition: .4s ease; }
+    .file-card:hover .card-cover img { transform: scale(1.04); }
+    .card-cover-icon { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3rem; }
+    .card-content { padding: 22px; }
+    .card-title { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-meta { margin-top: 8px; font-size: 13px; color: #6b7280; }
+    .card-actions { margin-top: 18px; display: flex; gap: 12px; }
+    .card-btn { flex: 1; height: 44px; border: none; border-radius: 14px; background: #f3f4f6; font-weight: 700; font-size: 13px; cursor: pointer; transition: .18s; }
+    .card-btn:hover { transform: translateY(-2px); }
+    .card-btn.primary { background: #111827; color: white; }
 
     .file-thumb {
-        height: 140px; background: var(--thumb-bg); display: flex; align-items: center; justify-content: center;
-        position: relative; overflow: hidden;
+        height: 240px; background: #f3f4f6; display: flex;
+        align-items: center; justify-content: center; position: relative; overflow: hidden;
     }
-    .file-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
-    .file-card:hover .file-thumb img { transform: scale(1.05); }
+    .file-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+    .file-card:hover .file-thumb img { transform: scale(1.04); }
 
     .file-icon-container {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        width: 100%; height: 100%; position: relative;
-        background: linear-gradient(135deg, var(--thumb-bg) 0%, var(--bg-secondary) 100%);
+        width: 100%; height: 100%; gap: 8px;
     }
     .file-icon-large {
         font-size: 2rem; transition: all 0.3s ease; margin-bottom: 4px;
@@ -235,123 +240,92 @@
         text-transform: uppercase;
     }
 
-    .file-info { padding: 1rem 1.1rem; color: var(--text-primary); display: flex; flex-direction: column; flex: 1; }
-    .file-name { font-weight: 600; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.85rem; line-height: 1.4; color: var(--text-primary); }
-    .file-meta { font-size: 0.75rem; color: var(--text-tertiary); margin: 4px 0 8px; }
+    .file-info { padding: 22px; flex: 1; display: flex; flex-direction: column; }
+    .file-name {
+        font-size: 0.85rem; font-weight: 600; color: #111827;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        margin-bottom: 4px;
+    }
+    .file-meta { font-size: 0.75rem; color: #94a3b8; margin-top: auto; }
     .file-actions {
-        display: flex; gap: 4px;
-        border-top: 1px solid var(--border-subtle);
-        padding-top: 8px;
-        margin-top: auto;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 22px 22px;
+        border-top: 1px solid #e2e7eb;
     }
     .file-actions .action-btn {
-        display: flex; align-items: center; gap: 3px;
-        padding: 4px 8px; border-radius: 5px;
-        cursor: pointer; transition: all 0.2s ease;
-        font-size: 0.68rem; font-weight: 500;
-        color: var(--text-secondary); border: 1px solid var(--border-subtle);
-        background: var(--bg-card); white-space: nowrap;
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 5px 10px; border-radius: 8px; border: none;
+        background: transparent; color: #94a3b8;
+        font-size: 0.72rem; font-weight: 500; cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .file-actions .action-btn:hover {
-        background: var(--accent-light);
-        color: var(--accent);
-    }
-    .file-actions .action-btn i {
-        font-size: 0.85rem;
-    }
-    .file-actions .action-btn.danger:hover {
-        background: rgba(239, 68, 68, 0.1);
-        color: #ef4444;
-    }
-    .file-actions .action-btn.success {
-        color: var(--accent); border-color: var(--accent-border); background: var(--accent-light);
-    }
-    .file-actions .action-btn.success:hover {
-        background: var(--accent); color: white;
-    }
-    .file-actions .action-btn:hover {
-        border-color: var(--accent-border); color: var(--accent); background: var(--accent-light);
-    }
-    .file-actions .action-btn.danger { color: #ef4444; border-color: rgba(239,68,68,0.2); }
-    .file-actions .action-btn.danger:hover { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.4); }
+    .file-actions .action-btn:hover { background: rgba(37,99,235,0.06); color: #2563eb; }
+    .file-actions .action-btn.success { color: #10b981; }
+    .file-actions .action-btn.danger:hover { background: rgba(239,68,68,0.08); color: #ef4444; }
 
-    .el-button--primary { background: var(--accent) !important; border: none !important; transition: all 0.2s ease !important; border-radius: 8px !important; }
+    .el-button--primary { background: #2563eb !important; border: none !important; transition: all 0.2s ease !important; border-radius: 8px !important; }
     .el-button--primary:hover { opacity: 0.9; }
 
-    .el-input__wrapper { background: var(--input-bg) !important; border-radius: 8px !important; transition: all 0.2s ease !important; box-shadow: 0 0 0 1px var(--border-subtle) !important; }
-    .el-dialog { background: var(--bg-primary) !important; border: 1px solid var(--border-subtle); border-radius: 12px !important; color: var(--text-primary); box-shadow: var(--shadow-lg) !important; }
-    .el-descriptions__title, .el-descriptions__label, .el-descriptions__content { color: var(--text-primary) !important; }
-    .el-tabs__item { color: var(--text-secondary) !important; }
-    .el-tabs__item.is-active { color: var(--accent) !important; }
-    .el-tabs__active-bar { background-color: var(--accent) !important; }
-    .el-pagination button, .el-pager li { color: var(--text-primary) !important; }
-    .el-pagination .el-pager li.is-active { background-color: var(--accent) !important; color: white !important; }
+    .el-input__wrapper { background: white !important; border-radius: 8px !important; transition: all 0.2s ease !important; box-shadow: 0 0 0 1px #e2e7eb !important; }
+    .el-dialog { background: white !important; border: 1px solid #e2e7eb; border-radius: 12px !important; color: #111827; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.06) !important; }
+    .el-descriptions__title, .el-descriptions__label, .el-descriptions__content { color: #111827 !important; }
+    .el-tabs__item { color: #475569 !important; }
+    .el-tabs__item.is-active { color: #2563eb !important; }
+    .el-tabs__active-bar { background-color: #2563eb !important; }
+    .el-pagination { display: flex; align-items: center; gap: 4px; }
+    .el-pagination button, .el-pager li {
+        color: #374151 !important; background: white !important;
+        border: 1px solid #e5e7eb !important; border-radius: 10px !important;
+        min-width: 36px; height: 36px;
+    }
+    .el-pagination button:hover, .el-pager li:hover {
+        color: #2563eb !important; border-color: #2563eb !important;
+    }
+    .el-pagination .el-pager li.is-active {
+        background: #2563eb !important; color: white !important;
+        border-color: #2563eb !important;
+    }
 
-    .empty-state { text-align: center; padding: 4rem 1rem; color: var(--text-secondary); animation: fadeInUp 0.5s ease; }
+    .empty-state { text-align: center; padding: 48px 24px; }
+    .empty-state .icon {
+        width: 80px; height: 80px; border-radius: 50%;
+        background: rgba(37,99,235,0.06); display: inline-flex;
+        align-items: center; justify-content: center; margin-bottom: 20px;
+    }
+    .empty-state .icon i { font-size: 1.8rem; color: #2563eb; opacity: 0.6; }
+    .empty-state p { font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 8px; }
+    .empty-state .sub { font-size: 0.88rem; color: #94a3b8; margin-bottom: 20px; }
 
-    .skeleton-card { background: var(--bg-card); border-radius: 1.5rem; overflow: hidden; border: 1px solid var(--border-card); }
-    .skeleton-thumb { height: 175px; background: linear-gradient(90deg, var(--thumb-bg) 25%, rgba(128,128,128,0.08) 50%, var(--thumb-bg) 75%); background-size: 200px 100%; animation: shimmer 1.5s infinite; }
+    .skeleton-card { background: white; border-radius: 1.5rem; overflow: hidden; border: 1px solid #e2e8f0; }
+    .skeleton-thumb { height: 175px; background: linear-gradient(90deg, #f3f4f6 25%, rgba(128,128,128,0.08) 50%, #f3f4f6 75%); background-size: 200px 100%; animation: shimmer 1.5s infinite; }
     .skeleton-info { padding: 1rem 1.1rem; }
-    .skeleton-line { height: 14px; border-radius: 8px; background: linear-gradient(90deg, var(--thumb-bg) 25%, rgba(128,128,128,0.08) 50%, var(--thumb-bg) 75%); background-size: 200px 100%; animation: shimmer 1.5s infinite; margin-bottom: 8px; }
+    .skeleton-line { height: 14px; border-radius: 8px; background: linear-gradient(90deg, #f3f4f6 25%, rgba(128,128,128,0.08) 50%, #f3f4f6 75%); background-size: 200px 100%; animation: shimmer 1.5s infinite; margin-bottom: 8px; }
     .skeleton-line.short { width: 60%; }
     .skeleton-line.tiny { width: 35%; height: 10px; }
 
     /* 批量操作工具栏 */
     .batch-toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 16px;
-        margin-bottom: 16px;
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        border-radius: 1rem;
-        border: 1px solid var(--border-card);
-        box-shadow: var(--shadow-sm);
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 12px 16px; margin-bottom: 16px;
+        background: white; border: 1px solid #e2e7eb;
+        border-radius: 16px;
     }
-    .batch-toolbar-left {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-    .batch-toolbar-right {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
+    .batch-toolbar-left { display: flex; align-items: center; gap: 16px; }
+    .batch-toolbar-right { display: flex; align-items: center; gap: 8px; }
     .selected-count {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: var(--accent);
-        background: var(--accent-light);
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        border: 1px solid var(--accent-border);
+        font-size: 0.82rem; font-weight: 600; color: #2563eb;
+        background: rgba(37,99,235,0.06); padding: 4px 12px; border-radius: 9999px;
     }
     .batch-toolbar .action-btn {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        transition: all 0.2s ease;
+        display: flex; align-items: center; gap: 5px;
+        padding: 8px 14px; border-radius: 8px; font-size: 0.82rem;
+        font-weight: 600; border: none; background: transparent;
+        color: #475569; cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .batch-toolbar .action-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    .batch-toolbar .action-btn.danger:not(:disabled) {
-        background: rgba(239, 68, 68, 0.1);
-        color: #ef4444;
-        border: 1px solid rgba(239, 68, 68, 0.2);
-    }
-    .batch-toolbar .action-btn.danger:not(:disabled):hover {
-        background: #ef4444;
-        color: white;
-    }
+    .batch-toolbar .action-btn:hover { background: #f1f5f9; color: #111827; }
+    .batch-toolbar .action-btn.danger { color: #ef4444; }
+    .batch-toolbar .action-btn.danger:hover { background: rgba(239,68,68,0.08); }
 
     /* 文件卡片复选框 */
     .file-card { position: relative; }
@@ -374,8 +348,8 @@
         backdrop-filter: blur(4px);
     }
     .file-checkbox .el-checkbox__input.is-checked .el-checkbox__inner {
-        background: var(--accent);
-        border-color: var(--accent);
+        background: #2563eb;
+        border-color: #2563eb;
     }
     [data-theme="dark"] .file-checkbox .el-checkbox__inner {
         border-color: rgba(30, 41, 59, 0.8);
@@ -394,7 +368,7 @@
     .pdf-fullscreen-close { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: rgba(0,0,0,0.5); color: white; font-size: 1.4rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; z-index: 10001; }
     .pdf-fullscreen-close:hover { background: rgba(255,255,255,0.2); border-color: white; }
     .pdf-expand-btn { position: absolute; bottom: 12px; right: 12px; padding: 6px 12px; border-radius: 8px; background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3); cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; z-index: 10; }
-    .pdf-expand-btn:hover { background: rgba(59,130,246,0.8); border-color: var(--accent); }
+    .pdf-expand-btn:hover { background: rgba(59,130,246,0.8); border-color: #2563eb; }
 
     /* 文件详情弹窗 */
     .file-detail-overlay {
@@ -404,8 +378,8 @@
         animation: fadeIn 0.2s ease;
     }
     .file-detail-card {
-        background: var(--bg-primary); backdrop-filter: blur(20px);
-        border: 1px solid var(--border-card); border-radius: 1.5rem;
+        background: white; backdrop-filter: blur(20px);
+        border: 1px solid #e2e8f0; border-radius: 1.5rem;
         width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
         box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
         animation: slideUp 0.3s ease;
@@ -413,10 +387,10 @@
     @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     .file-detail-header {
         padding: 1.5rem 1.5rem 1rem; display: flex; align-items: flex-start; gap: 1rem;
-        border-bottom: 1px solid var(--border-subtle);
+        border-bottom: 1px solid #e5e7eb;
     }
     .file-detail-preview {
-        width: 80px; height: 80px; border-radius: 12px; background: var(--thumb-bg);
+        width: 80px; height: 80px; border-radius: 12px; background: #f3f4f6;
         display: flex; align-items: center; justify-content: center;
         flex-shrink: 0; overflow: hidden;
     }
@@ -428,8 +402,8 @@
     }
     .file-detail-large-preview {
         width: 100%; height: 400px; border-radius: 1.5rem 1.5rem 0 0;
-        background: var(--thumb-bg); overflow: hidden;
-        border-bottom: 1px solid var(--border-subtle);
+        background: #f3f4f6; overflow: hidden;
+        border-bottom: 1px solid #e5e7eb;
         position: relative;
     }
     .file-detail-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; transition: transform 0.2s ease; }
@@ -457,66 +431,66 @@
         margin: 0; font-size: 0.7rem; line-height: 1.4;
         font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
         white-space: pre-wrap; word-break: break-all;
-        color: var(--text-primary);
+        color: #111827;
     }
     .file-detail-title { flex: 1; min-width: 0; }
     .file-detail-title h3 {
-        font-size: 1.1rem; font-weight: 600; color: var(--text-primary);
+        font-size: 1.1rem; font-weight: 600; color: #111827;
         margin: 0 0 0.4rem; word-break: break-all; line-height: 1.4;
     }
     .file-detail-close {
-        width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-subtle);
-        background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer;
+        width: 32px; height: 32px; border-radius: 50%; border: 1px solid #e5e7eb;
+        background: #f8fafc; color: #475569; cursor: pointer;
         display: flex; align-items: center; justify-content: center; font-size: 1rem;
         transition: all 0.2s ease; flex-shrink: 0;
     }
-    .file-detail-close:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+    .file-detail-close:hover { background: rgba(37,99,235,0.06); color: #2563eb; border-color: #2563eb; }
     .file-detail-body { padding: 1.2rem 1.5rem; }
     .file-detail-row {
         display: flex; justify-content: space-between; align-items: center;
-        padding: 0.6rem 0; border-bottom: 1px dashed var(--border-subtle);
+        padding: 0.6rem 0; border-bottom: 1px dashed #e5e7eb;
     }
     .file-detail-row:last-child { border-bottom: none; }
     .file-detail-label {
-        font-size: 0.8rem; color: var(--text-tertiary); display: flex; align-items: center; gap: 6px;
+        font-size: 0.8rem; color: #64748b; display: flex; align-items: center; gap: 6px;
     }
     .file-detail-label i { font-size: 0.85rem; width: 16px; text-align: center; }
     .file-detail-value {
-        font-size: 0.85rem; color: var(--text-primary); font-weight: 500;
+        font-size: 0.85rem; color: #111827; font-weight: 500;
         text-align: right; max-width: 60%; word-break: break-all;
     }
     .file-detail-links { padding: 1rem 1.5rem 1.5rem; }
     .file-detail-links label {
-        display: block; font-size: 0.75rem; color: var(--text-tertiary);
+        display: block; font-size: 0.75rem; color: #64748b;
         margin-bottom: 0.4rem; font-weight: 500;
     }
     .file-link-box {
         display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem;
-        background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+        background: #f8fafc; border: 1px solid #e5e7eb;
         border-radius: 0.8rem; padding: 0.5rem 0.8rem;
     }
     .file-link-box input {
-        flex: 1; border: none; background: transparent; color: var(--text-primary);
+        flex: 1; border: none; background: transparent; color: #111827;
         font-size: 0.78rem; outline: none; font-family: 'SF Mono', 'Fira Code', monospace;
     }
     .file-link-box .copy-sm-btn {
-        padding: 4px 10px; border-radius: 0.5rem; border: 1px solid var(--border-subtle);
-        background: var(--bg-primary); color: var(--text-secondary); cursor: pointer;
+        padding: 4px 10px; border-radius: 0.5rem; border: 1px solid #e5e7eb;
+        background: white; color: #475569; cursor: pointer;
         font-size: 0.72rem; font-weight: 500; white-space: nowrap; transition: all 0.2s ease;
     }
-    .file-link-box .copy-sm-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+    .file-link-box .copy-sm-btn:hover { background: rgba(37,99,235,0.06); color: #2563eb; border-color: #2563eb; }
     .file-detail-actions {
         display: flex; gap: 0.5rem; padding: 0 1.5rem 1.5rem;
     }
     .file-detail-actions button {
         flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-        padding: 0.6rem; border-radius: 0.8rem; border: 1px solid var(--border-subtle);
-        background: var(--bg-secondary); color: var(--text-primary); cursor: pointer;
+        padding: 0.6rem; border-radius: 0.8rem; border: 1px solid #e5e7eb;
+        background: #f8fafc; color: #111827; cursor: pointer;
         font-size: 0.82rem; font-weight: 500; transition: all 0.2s ease;
     }
-    .file-detail-actions button:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+    .file-detail-actions button:hover { background: rgba(37,99,235,0.06); color: #2563eb; border-color: #2563eb; }
     .file-detail-actions button.danger:hover { background: rgba(239,68,68,0.1); color: #ef4444; border-color: #ef4444; }
-    .file-detail-actions button.success { color: var(--accent); }
+    .file-detail-actions button.success { color: #2563eb; }
     .file-detail-actions button.success:hover { background: rgba(34,197,94,0.1); color: #22c55e; border-color: #22c55e; }
     .status-badge {
         display: inline-flex; align-items: center; gap: 4px;
@@ -525,36 +499,217 @@
     .status-badge.public { background: rgba(34,197,94,0.1); color: #22c55e; }
     .status-badge.private { background: rgba(107,114,128,0.1); color: #6b7280; }
     .wm-pos-btn {
-        padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-subtle);
-        background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer;
+        padding: 5px 10px; border-radius: 6px; border: 1px solid #e5e7eb;
+        background: #f8fafc; color: #475569; cursor: pointer;
         font-size: 0.72rem; font-weight: 500; transition: all 0.15s ease; white-space: nowrap;
     }
-    .wm-pos-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-    .wm-pos-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .wm-pos-btn:hover { border-color: #2563eb; color: #2563eb; background: rgba(37,99,235,0.06); }
+    .wm-pos-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
     input[type="range"]::-webkit-slider-thumb {
         -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
-        background: var(--accent); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        background: #2563eb; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         cursor: pointer; position: relative; z-index: 2;
     }
     input[type="range"]::-moz-range-thumb {
         width: 16px; height: 16px; border-radius: 50%;
-        background: var(--accent); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        background: #2563eb; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         cursor: pointer;
     }
 
-    @media (max-width: 768px) {
-        .main { padding: 0 1rem; }
-        .file-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
-        .login-card { margin-top: 60px; padding: 2rem 1.5rem; }
-        .navbar { padding: 0 1rem; }
-        .file-thumb { height: 140px; }
-        .file-info { padding: 0.7rem 0.8rem; }
-        .file-name { font-size: 0.82rem; }
-        .brand-logo { font-size: 1.4rem; }
-        .brand-icon { font-size: 1.5rem; }
-        .navbar { padding: 0 1rem; }
-        .guest-navbar, .navbar { padding: 0 1rem; }
-    }
+    /* ========== preview(1) 风格设计系统 ========== */
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    
+    body { background: linear-gradient(180deg, #eef4ff 0%, #f6f8ff 40%, #f4f7fb 100%); color: #111827; overflow-x: hidden; }
+    [data-theme="dark"] body { background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); color: #f1f5f9; }
+    
+    .app-layout { display: flex; flex-direction: row; min-height: 100vh; }
+    
+    /* 侧边栏 */
+    .sidebar { width: 290px; background: rgba(255,255,255,.72); backdrop-filter: blur(22px); border-right: 1px solid rgba(255,255,255,.7); padding: 20px; display: flex; flex-direction: column; overflow: auto; position: sticky; top: 0; height: 100vh; flex-shrink: 0; }
+    [data-theme="dark"] .sidebar { background: rgba(30,41,59,.85); border-color: rgba(51,65,85,.5); }
+    .logo { display: flex; align-items: center; gap: 16px; padding: 8px 10px; }
+    .logo-box { width: 54px; height: 54px; border-radius: 18px; background: linear-gradient(135deg, #2563eb, #7c3aed); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 16px 40px rgba(37,99,235,.25); }
+    .logo h1 { font-size: 22px; font-weight: 800; }
+    .logo p { margin-top: 4px; font-size: 12px; color: #6b7280; }
+    
+    /* 工作区 */
+    .workspace { margin-top: 28px; padding: 18px; border-radius: 24px; background: linear-gradient(135deg, rgba(37,99,235,.08), rgba(124,58,237,.05)); }
+    .workspace-top { display: flex; justify-content: space-between; align-items: center; }
+    .workspace-label { font-size: 12px; color: #6b7280; }
+    .workspace-name { margin-top: 10px; font-size: 18px; font-weight: 800; }
+    
+    /* 导航 */
+    .nav { margin-top: 28px; display: flex; flex-direction: column; gap: 8px; }
+    .nav-item { height: 52px; border-radius: 16px; padding: 0 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; font-weight: 600; transition: .18s; color: #374151; }
+    .nav-item:hover { background: #f3f4f6; }
+    .nav-item.active { background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; box-shadow: 0 16px 40px rgba(37,99,235,.22); }
+    
+    /* 存储卡片 */
+    .storage-card { margin-top: 28px; padding: 18px; border-radius: 20px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; position: relative; overflow: hidden; }
+    .storage-card::after { content: ''; position: absolute; width: 100px; height: 100px; border-radius: 50%; background: rgba(255,255,255,.1); right: -20px; top: -20px; }
+    .storage-card .label { font-size: 11px; opacity: .7; text-transform: uppercase; letter-spacing: 2px; }
+    .storage-card .value { font-size: 28px; font-weight: 800; margin-top: 8px; }
+    .storage-card .bar { margin-top: 14px; height: 8px; background: rgba(255,255,255,.2); border-radius: 99px; overflow: hidden; }
+    .storage-card .bar-fill { height: 100%; background: white; border-radius: 99px; transition: width .5s ease; }
+    
+    /* 用户卡片 */
+    .user-card { margin-top: auto; padding: 14px; border-radius: 18px; background: white; display: flex; align-items: center; gap: 12px; border: 1px solid #e5e7eb; }
+    [data-theme="dark"] .user-card { background: #1e293b; border-color: #334155; }
+    .user-avatar { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #2563eb, #7c3aed); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 14px; }
+    .user-info { flex: 1; }
+    .user-info h4 { font-size: 14px; font-weight: 700; }
+    .user-info p { font-size: 12px; color: #6b7280; }
+    .user-logout { width: 36px; height: 36px; border-radius: 10px; border: none; background: #f3f4f6; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #6b7280; transition: .18s; }
+    .user-logout:hover { background: #fee2e2; color: #ef4444; }
+    
+    /* 主内容区 */
+    .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    
+    /* 顶部栏 */
+    .topbar { height: 82px; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,.7); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,.7); position: sticky; top: 0; z-index: 50; }
+    [data-theme="dark"] .topbar { background: rgba(30,41,59,.8); border-color: rgba(51,65,85,.5); }
+    .top-left h2 { font-size: 24px; font-weight: 800; }
+    .top-left p { margin-top: 6px; font-size: 13px; color: #6b7280; }
+    .top-right { display: flex; align-items: center; gap: 14px; }
+    .search-box { width: 380px; height: 50px; border-radius: 16px; background: white; border: 1px solid #e5e7eb; display: flex; align-items: center; gap: 12px; padding: 0 16px; }
+    [data-theme="dark"] .search-box { background: #1e293b; border-color: #334155; }
+    .search-box input { width: 100%; border: none; outline: none; background: none; font-size: 14px; color: inherit; }
+    .top-btn { width: 48px; height: 48px; border-radius: 16px; background: white; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid #e5e7eb; transition: .18s; }
+    [data-theme="dark"] .top-btn { background: #1e293b; border-color: #334155; }
+    .top-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    
+    /* 内容区 */
+    .content { flex: 1; overflow: auto; padding: 28px; }
+    .page { display: none; animation: pageIn .25s ease; }
+    .page.active { display: block; }
+    @keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    
+    /* 统计卡片 */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .stat { background: white; padding: 24px; border-radius: 28px; box-shadow: 0 14px 50px rgba(15,23,42,.05); transition: .2s; }
+    [data-theme="dark"] .stat { background: #1e293b; }
+    .stat:hover { transform: translateY(-3px); box-shadow: 0 20px 60px rgba(15,23,42,.08); }
+    .stat-label { font-size: 13px; color: #6b7280; }
+    .stat-value { margin-top: 18px; font-size: 36px; font-weight: 800; }
+    .stat-desc { margin-top: 12px; font-size: 12px; font-weight: 700; color: #2563eb; }
+
+    /* 时间线 */
+    .timeline { margin-top: 28px; display: flex; gap: 18px; overflow-x: auto; }
+    .time-card { min-width: 240px; background: white; padding: 22px; border-radius: 24px; box-shadow: 0 12px 40px rgba(15,23,42,.04); flex-shrink: 0; }
+    [data-theme="dark"] .time-card { background: #1e293b; }
+    .time-card h3 { font-size: 16px; font-weight: 800; }
+    .time-card p { margin-top: 12px; line-height: 1.8; font-size: 13px; color: #6b7280; }
+    
+    /* 上传区域 */
+    .upload-box { background: white; border-radius: 28px; overflow: hidden; box-shadow: 0 20px 60px rgba(15,23,42,.05); }
+    [data-theme="dark"] .upload-box { background: #1e293b; }
+    .upload-header { padding: 28px; border-bottom: 1px solid #f1f5f9; }
+    .upload-header h3 { font-size: 24px; font-weight: 800; }
+    .upload-header p { margin-top: 10px; color: #6b7280; }
+    .dropzone { margin: 26px; padding: 42px; border-radius: 30px; border: 2px dashed rgba(37,99,235,.18); background: linear-gradient(135deg, rgba(37,99,235,.06), rgba(124,58,237,.04)); transition: .18s; cursor: pointer; }
+    .dropzone:hover, .dropzone.drag { border-color: #2563eb; transform: scale(1.01); }
+    .drop-icon { width: 88px; height: 88px; border-radius: 26px; background: linear-gradient(135deg, #2563eb, #7c3aed); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; }
+    .drop-left h2 { font-size: 34px; font-weight: 800; }
+    .drop-left p { margin-top: 14px; color: #6b7280; line-height: 1.8; }
+    .upload-actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn-primary { height: 50px; padding: 0 24px; border: none; border-radius: 16px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; font-weight: 700; cursor: pointer; transition: .18s; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,.3); }
+    .btn-secondary { height: 50px; padding: 0 24px; border: none; border-radius: 16px; background: white; font-weight: 700; cursor: pointer; transition: .18s; }
+    .btn-secondary:hover { background: #f3f4f6; }
+    
+    /* 上传队列 */
+    .queue { margin: 0 26px 26px 26px; border-radius: 26px; overflow: hidden; border: 1px solid #eef2f7; }
+    [data-theme="dark"] .queue { border-color: #334155; }
+    .queue-header { height: 62px; padding: 0 22px; display: flex; align-items: center; justify-content: space-between; background: #fafcff; border-bottom: 1px solid #eef2f7; }
+    [data-theme="dark"] .queue-header { background: #1e293b; border-color: #334155; }
+    .queue-header h3 { font-size: 15px; font-weight: 700; }
+    .queue-list { background: white; max-height: 420px; overflow: auto; }
+    [data-theme="dark"] .queue-list { background: #1e293b; }
+    .upload-item { display: flex; gap: 16px; padding: 18px; border-bottom: 1px solid #f5f7fb; animation: pageIn .3s ease; }
+    [data-theme="dark"] .upload-item { border-color: #334155; }
+    .upload-preview { width: 70px; height: 70px; border-radius: 18px; object-fit: cover; background: #f3f4f6; }
+    .upload-body { flex: 1; }
+    .progress { margin-top: 14px; height: 10px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
+    .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #2563eb, #7c3aed); border-radius: 999px; transition: width .3s ease; }
+    
+    /* 工具栏 */
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .toolbar-left { display: flex; gap: 10px; flex-wrap: wrap; }
+    .chip { height: 42px; padding: 0 16px; border-radius: 14px; background: white; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: .18s; border: 1px solid #e5e7eb; }
+    [data-theme="dark"] .chip { background: #1e293b; border-color: #334155; }
+    .chip:hover { transform: translateY(-2px); border-color: #2563eb; }
+    .chip.active { background: #2563eb; color: white; border-color: #2563eb; }
+    .chip .count { font-size: 11px; background: rgba(255,255,255,.2); padding: 1px 6px; border-radius: 8px; }
+    .chip.active .count { background: rgba(255,255,255,.3); }
+    
+    /* 卡片网格 */
+    .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; margin-top: 24px; }
+    .file-card { background: white; border-radius: 30px; overflow: hidden; position: relative; box-shadow: 0 16px 50px rgba(15,23,42,.05); transition: .22s ease; cursor: pointer; }
+    [data-theme="dark"] .file-card { background: #1e293b; }
+    .file-card:hover { transform: translateY(-4px); }
+    .card-cover { height: 240px; overflow: hidden; position: relative; background: #f3f4f6; }
+    .card-cover img { width: 100%; height: 100%; object-fit: cover; transition: .4s ease; }
+    .file-card:hover .card-cover img { transform: scale(1.04); }
+    .card-cover-icon { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3rem; }
+    .card-content { padding: 22px; }
+    .card-title { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-meta { margin-top: 8px; font-size: 13px; color: #6b7280; }
+    .card-actions { margin-top: 18px; display: flex; gap: 12px; }
+    .card-btn { flex: 1; height: 44px; border: none; border-radius: 14px; background: #f3f4f6; font-weight: 700; font-size: 13px; cursor: pointer; transition: .18s; }
+    .card-btn:hover { transform: translateY(-2px); }
+    .card-btn.primary { background: #111827; color: white; }
+    .card-btn.primary:hover { background: #374151; }
+    .card-btn.danger { background: #fef2f2; color: #ef4444; }
+    .card-btn.danger:hover { background: #fee2e2; }
+    
+    /* 瀑布流 */
+    .masonry { columns: 3 320px; column-gap: 22px; margin-top: 24px; }
+    .masonry-card { break-inside: avoid; margin-bottom: 22px; background: white; border-radius: 28px; overflow: hidden; box-shadow: 0 12px 40px rgba(15,23,42,.05); transition: .2s ease; }
+    [data-theme="dark"] .masonry-card { background: #1e293b; }
+    .masonry-card:hover { transform: translateY(-4px); }
+    .masonry-card img { width: 100%; display: block; }
+    .masonry-content { padding: 20px; }
+    .masonry-content h3 { font-size: 18px; font-weight: 800; }
+    .masonry-content p { margin-top: 10px; color: #6b7280; font-size: 13px; }
+    .masonry-meta { margin-top: 16px; display: flex; gap: 16px; font-size: 13px; color: #6b7280; }
+    
+    /* 列表视图 */
+    .list-view { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 12px 40px rgba(15,23,42,.05); }
+    [data-theme="dark"] .list-view { background: #1e293b; }
+    .list-header { display: grid; grid-template-columns: 44px 1fr 100px 140px 140px; padding: 12px 20px; background: #fafcff; border-bottom: 1px solid #eef2f7; font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: .5px; }
+    [data-theme="dark"] .list-header { background: #1e293b; border-color: #334155; }
+    .list-row { display: grid; grid-template-columns: 44px 1fr 100px 140px 140px; padding: 14px 20px; align-items: center; border-bottom: 1px solid #f5f7fb; transition: background .15s; cursor: pointer; }
+    [data-theme="dark"] .list-row { border-color: #334155; }
+    .list-row:last-child { border-bottom: none; }
+    .list-row:hover { background: #f8fafc; }
+    [data-theme="dark"] .list-row:hover { background: #334155; }
+    .list-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+    .list-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
+    .list-size, .list-date { font-size: 13px; color: #6b7280; }
+    .list-actions { display: flex; gap: 4px; justify-content: flex-end; }
+    .list-actions button { width: 32px; height: 32px; border-radius: 8px; border: none; background: transparent; color: #9ca3af; cursor: pointer; transition: .15s; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+    .list-actions button:hover { background: #f3f4f6; color: #2563eb; }
+    .list-actions button.danger:hover { background: #fef2f2; color: #ef4444; }
+    
+    /* 徽章 */
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+    .badge-public { background: #ecfdf5; color: #10b981; }
+    .badge-private { background: #f3f4f6; color: #9ca3af; }
+    
+    /* 空状态 */
+    .empty-state { text-align: center; padding: 80px 20px; }
+    .empty-icon { width: 80px; height: 80px; border-radius: 50%; background: #eff6ff; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+    .empty-icon i { font-size: 2rem; color: #2563eb; opacity: .6; }
+    .empty-state h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 6px; }
+    .empty-state p { font-size: 0.9rem; color: #6b7280; margin-bottom: 20px; }
+    
+    /* 分页 */
+    .el-pagination button, .el-pager li { color: #374151 !important; background: white !important; border: 1px solid #e5e7eb !important; border-radius: 10px !important; min-width: 36px; height: 36px; }
+    .el-pagination .el-pager li.is-active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+    
+    /* 响应式 */
+    @media(max-width: 1200px) { .stats { grid-template-columns: repeat(2, 1fr); } .masonry { columns: 2; } }
+    @media(max-width: 768px) { .sidebar { display: none; } .stats { grid-template-columns: 1fr; } .masonry { columns: 1; } .search-box { width: 220px; } .file-grid { grid-template-columns: 1fr; } }
 
     /* 加载状态 */
     .loading-indicator {
@@ -583,10 +738,10 @@
     /* 上传队列样式 */
     .upload-queue-container {
         margin-top: 2rem;
-        background: var(--bg-card);
+        background: white;
         border-radius: 1rem;
         padding: 1.5rem;
-        border: 1px solid var(--accent);
+        border: 1px solid #2563eb;
         box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15);
     }
 
@@ -597,17 +752,17 @@
     }
 
     .upload-item {
-        background: var(--bg-primary);
+        background: white;
         border-radius: 0.8rem;
         padding: 0.8rem 1rem;
-        border: 1px solid var(--border-subtle);
+        border: 1px solid #e5e7eb;
         transition: all 0.3s ease;
         min-height: 60px;
     }
 
     .upload-item.uploading {
-        border-color: var(--accent);
-        background: var(--accent-light);
+        border-color: #2563eb;
+        background: rgba(37,99,235,0.06);
         animation: upload-pulse 2s ease-in-out infinite;
     }
 
@@ -627,72 +782,37 @@
     }
 
     .upload-item:hover {
-        border-color: var(--accent);
+        border-color: #2563eb;
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
     }
 
 
     /* 搜索框样式 */
-    .search-container {
-        position: relative;
-        margin-bottom: 1.5rem;
-        max-width: 400px;
-    }
-
+    .search-container { position: relative; flex: 1; }
     .search-container .search-input {
-        width: 100%;
-        padding: 8px 12px 8px 36px;
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        background: var(--bg-card);
-        color: var(--text-primary);
-        font-size: 13px;
-        outline: none;
-        transition: all 0.2s ease;
+        width: 100%; padding: 10px 14px 10px 40px;
+        border: 1px solid #e2e7eb; border-radius: 16px;
+        background: white; color: #111827;
+        font-size: 0.88rem; outline: none;
+        transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-
     .search-container .search-input:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 2px var(--accent-light);
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37,99,235,0.06);
     }
-
-    .search-container .search-input::placeholder {
-        color: var(--text-tertiary);
-    }
-
     .search-container i {
-        position: absolute;
-        left: 1rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-tertiary);
+        position: absolute; left: 14px; top: 50%;
+        transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem;
     }
-
     .search-btn {
-        padding: 8px 16px;
-        border: none;
-        border-radius: 8px;
-        background: var(--accent);
-        color: white;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 13px;
+        padding: 10px 20px; border: none; border-radius: 16px;
+        background: #2563eb; color: #fff; font-weight: 600;
+        font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px;
+        transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         white-space: nowrap;
     }
-
-    .search-btn:hover:not(:disabled) {
-        opacity: 0.9;
-        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
-    }
-
-    .search-btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
+    .search-btn:hover { background: #1d4ed8; }
+    .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .upload-info {
         margin-bottom: 0.8rem;
@@ -700,7 +820,7 @@
 
     .upload-name {
         font-weight: 600;
-        color: var(--text-primary);
+        color: #111827;
         display: flex;
         align-items: center;
         gap: 0.5rem;
@@ -709,12 +829,12 @@
 
     .upload-status {
         font-size: 0.85rem;
-        color: var(--text-secondary);
+        color: #475569;
     }
 
     .upload-speed {
         font-size: 0.8rem;
-        color: var(--accent);
+        color: #2563eb;
         font-weight: 500;
     }
 
@@ -730,7 +850,7 @@
 
     .progress-text {
         font-size: 0.85rem;
-        color: var(--text-secondary);
+        color: #475569;
         font-weight: 600;
         min-width: 40px;
         text-align: right;
@@ -746,12 +866,12 @@
         align-items: center;
         gap: 0.5rem;
         font-size: 0.85rem;
-        color: var(--text-secondary);
+        color: #475569;
         margin-top: 0.8rem;
     }
     .paste-hint kbd {
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-subtle);
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
         border-radius: 4px;
         padding: 1px 6px;
         font-size: 0.75rem;
@@ -761,6 +881,9 @@
 </style>
 </head>
 <body>
+<div class="aurora bg-blue-500 top-[-200px] left-[-150px]"></div>
+<div class="aurora bg-violet-500 top-[100px] right-[-150px]"></div>
+
 <!-- 加载指示器 -->
 <div id="loading" class="loading-indicator" style="display: none;">
     <div style="color: white; text-align: center;">
@@ -791,7 +914,7 @@
                     <button class="theme-toggle" @click="toggleTheme" :title="isDark ? '切换亮色模式' : '切换暗色模式'">
                         <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'"></i>
                     </button>
-                    <button class="nav-btn-about" @click="showAboutModal = true">关于 AeroImageHost</button>
+                    <button class="nav-btn-about" @click="window.open('/about.html', '_blank')">关于 AeroImageHost</button>
                     <button class="nav-btn-login" @click="showAuthModal = true">登录</button>
                 </div>
             </nav>
@@ -819,15 +942,15 @@
             <!-- Stats -->
             <div class="lp-stats">
                 <div class="lp-stat">
-                    <div class="lp-stat-num">{{ displayStats.total_users }}<span style="font-size:1.2rem;font-weight:600;color:var(--text-secondary);">+</span></div>
+                    <div class="lp-stat-num">{{ displayStats.total_users }}<span style="font-size:1.2rem;font-weight:600;color:#475569;">+</span></div>
                     <div class="lp-stat-label">注册用户</div>
                 </div>
                 <div class="lp-stat">
-                    <div class="lp-stat-num">{{ displayStats.total_files }}<span style="font-size:1.2rem;font-weight:600;color:var(--text-secondary);">+</span></div>
+                    <div class="lp-stat-num">{{ displayStats.total_files }}<span style="font-size:1.2rem;font-weight:600;color:#475569;">+</span></div>
                     <div class="lp-stat-label">文件已上传</div>
                 </div>
                 <div class="lp-stat">
-                    <div class="lp-stat-num">{{ displayStats.total_images }}<span style="font-size:1.2rem;font-weight:600;color:var(--text-secondary);">+</span></div>
+                    <div class="lp-stat-num">{{ displayStats.total_images }}<span style="font-size:1.2rem;font-weight:600;color:#475569;">+</span></div>
                     <div class="lp-stat-label">图片托管</div>
                 </div>
             </div>
@@ -1231,215 +1354,249 @@
 
         <!-- 已登录 -->
         <div v-else>
-            <div class="navbar">
-                <div class="brand-logo">
-                    <span class="brand-icon"><img src="/assets/logo.png" alt="AeroImageHost"></span>
-                    <span class="brand-text">AeroImageHost</span>
-                </div>
-                <div class="user-area">
-                    <span class="user-badge"><i class="fas fa-user-astronaut"></i> {{ username }}</span>
-                    <button class="theme-toggle" @click="toggleTheme" :title="isDark ? '切换亮色模式' : '切换暗色模式'">
-                        <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'"></i>
-                    </button>
-                    <el-dropdown @command="handleUserCommand">
-                        <span style="cursor: pointer; background: var(--bg-secondary); padding: 0.5rem 0.9rem; border-radius: 30px; border: 1px solid var(--navbar-border);"><i class="fas fa-cog" style="color: var(--text-secondary);"></i></span>
-                        <template #dropdown>
-                            <el-dropdown-menu>
-                                <el-dropdown-item command="monitor"><i class="fas fa-tachometer-alt"></i> 系统监控</el-dropdown-item>
-                                <el-dropdown-item command="stats"><i class="fas fa-chart-bar"></i> 使用统计</el-dropdown-item>
-                                <el-dropdown-item command="shortcuts"><i class="fas fa-keyboard"></i> 快捷键</el-dropdown-item>
-                                <el-dropdown-item command="logout" divided style="color: #ef4444;"><i class="fas fa-sign-out-alt"></i> 退出登录</el-dropdown-item>
-                            </el-dropdown-menu>
-                        </template>
-                    </el-dropdown>
-                </div>
-            </div>
-
-            <div class="main">
-                <!-- 欢迎横幅 -->
-                <div class="dash-welcome">
-                    <div class="dash-welcome-text">
-                        <h2>欢迎使用 AeroImageHost</h2>
-                        <p>你已有 {{ total || 0 }} 个文件</p>
-                    </div>
-                    <div class="dash-welcome-icon"><i class="fas fa-cloud-arrow-up"></i></div>
-                </div>
-
-                <!-- 上传区域 -->
-                <div class="glass-card" style="margin-bottom: 20px; overflow: hidden;">
-                    <div class="upload-zone"
-                         @click="triggerFileInput"
-                         @dragover.prevent="dragOver = true"
-                         @dragleave="dragOver = false"
-                         @drop.prevent="handleDrop"
-                         :class="{ 'drag-over': dragOver }">
-                        <div style="width: 56px; height: 56px; border-radius: 14px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
-                            <i class="fas fa-cloud-arrow-up" style="font-size: 1.4rem; color: var(--accent);"></i>
-                        </div>
-                        <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">拖拽文件到此处上传</div>
-                        <div style="font-size: 0.85rem; color: var(--text-tertiary);">或 <span style="color: var(--accent); font-weight: 500; cursor: pointer;">点击选择文件</span> · 支持图片、文档、视频、音频、压缩包</div>
-                        <div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-tertiary);"><kbd style="padding: 1px 5px; border: 1px solid var(--border-subtle); border-radius: 3px; font-size: 11px; background: var(--bg-card);">Ctrl+V</kbd> 粘贴上传 · 默认私有 · 最大 100MB</div>
-                    </div>
-                    <input type="file" ref="fileInput" style="display: none" @change="handleFileChange" multiple>
-                </div>
-
-                <!-- 搜索栏 -->
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                    <div class="search-container" style="flex: 1; margin-bottom: 0;">
-                        <i class="fas fa-search"></i>
-                        <input type="text" class="search-input" v-model="searchKeyword" @keyup.enter="handleSearch" placeholder="搜索文件名...">
-                    </div>
-                    <button class="search-btn" @click="handleSearch" :disabled="fileListLoading">
-                        <i class="fas fa-search"></i>
-                        <span v-if="!fileListLoading">搜索</span>
-                        <span v-else><i class="fas fa-spinner fa-spin"></i></span>
-                    </button>
-                        <button class="search-btn" @click="clearSearch" v-if="searchKeyword.trim()" style="background: var(--bg-secondary);">
-                            <i class="fas fa-times"></i>
-                            <span>清除</span>
-                        </button>
-                </div>
-
-                <!-- 上传队列 -->
-                <div v-if="uploadQueue.length > 0" class="upload-queue-container">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h3 style="color: var(--text-primary); margin: 0;">
-                            <i class="fas fa-upload"></i> 上传队列 ({{ uploadQueue.length }})
-                        </h3>
-                        <button v-if="uploadQueue.some(i => i.status === 'success' || i.status === 'error')" @click="clearFinishedUploads" style="background: none; border: 1px solid var(--border-subtle); color: var(--text-secondary); padding: 0.3rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.8rem;">
-                            <i class="fas fa-broom"></i> 清除已完成
-                        </button>
-                    </div>
-                    <div class="upload-queue">
-                        <div v-for="item in uploadQueue" :key="item.id" class="upload-item" :class="item.status">
-                            <div class="upload-info">
-                                <div class="upload-name">
-                                    <i v-if="item.status === 'pending'" class="fas fa-clock"></i>
-                                    <i v-else-if="item.status === 'uploading'" class="fas fa-spinner fa-spin"></i>
-                                    <i v-else-if="item.status === 'success'" class="fas fa-check-circle" style="color: #22c55e;"></i>
-                                    <i v-else-if="item.status === 'error'" class="fas fa-exclamation-circle" style="color: #ef4444;"></i>
-                                    {{ item.name }}
-                                    <span v-if="item.status === 'error'" style="margin-left: auto; display: inline-flex; gap: 0.5rem;">
-                                        <button @click.stop="retryUpload(item)" style="background: rgba(59,130,246,0.1); color: #3b82f6; border: none; padding: 0.2rem 0.6rem; border-radius: 0.4rem; cursor: pointer; font-size: 0.75rem;"><i class="fas fa-redo"></i> 重试</button>
-                                        <button @click.stop="removeUploadItem(item)" style="background: rgba(239,68,68,0.1); color: #ef4444; border: none; padding: 0.2rem 0.6rem; border-radius: 0.4rem; cursor: pointer; font-size: 0.75rem;"><i class="fas fa-times"></i></button>
-                                    </span>
-                                </div>
-                                <div class="upload-status" :style="item.status === 'error' ? 'color: #ef4444;' : ''">{{ item.statusText }}</div>
-                                <div class="upload-speed" v-if="item.status === 'uploading'">
-                                    <span v-if="item.speed">{{ item.speed }}</span>
-                                    <span v-if="item.eta">· {{ item.eta }}</span>
-                                </div>
-                            </div>
-                            <div class="upload-progress">
-                                <!-- 小文件没收到 progress 事件时显示 spinner -->
-                                <template v-if="item.status === 'uploading' && !item._progressReceived && item.progress === 0">
-                                    <div style="flex: 1; display: flex; align-items: center; gap: 0.5rem;">
-                                        <i class="fas fa-spinner fa-spin" style="color: var(--accent);"></i>
-                                        <span style="font-size: 0.85rem; color: var(--text-secondary);">上传中...</span>
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <el-progress
-                                        :percentage="item.progress"
-                                        :status="item.status === 'success' ? 'success' : item.status === 'error' ? 'exception' : ''"
-                                        :stroke-width="8"
-                                        :show-text="false"
-                                        :format="() => `${item.progress}%`"
-                                        :color="item.progress === 100 ? '#22c55e' : undefined"
-                                    />
-                                    <span class="progress-text">{{ item.progress }}%</span>
-                                </template>
-                            </div>
+            <div class="app-layout">
+                <!-- 侧边栏 -->
+                <div class="sidebar">
+                    <div class="logo">
+                        <div class="logo-box"><i data-lucide="cloud"></i></div>
+                        <div>
+                            <h1>AeroImageHost</h1>
+                            <p>高性能图床平台</p>
                         </div>
                     </div>
-                </div>
-
-                <!-- 文件列表 -->
-                <div v-loading="fileListLoading">
-                    <!-- 批量操作工具栏 -->
-                    <div v-if="files.length > 0" class="batch-toolbar">
-                        <div class="batch-toolbar-left">
-                            <el-checkbox v-model="isAllSelected" @change="handleSelectAll">全选</el-checkbox>
-                            <span v-if="selectedFiles.length > 0" class="selected-count">已选择 {{ selectedFiles.length }} 个文件</span>
-                        </div>
-                        <div class="batch-toolbar-right">
-                            <el-popconfirm title="确定要删除选中的文件吗？此操作不可恢复。" confirm-button-text="确定删除" cancel-button-text="取消" confirm-button-type="danger" @confirm="handleBatchDelete">
-                                <template #reference>
-                                    <button class="action-btn danger" :disabled="selectedFiles.length === 0">
-                                        <i class="fas fa-trash-alt"></i>
-                                        <span>批量删除</span>
-                                    </button>
-                                </template>
-                            </el-popconfirm>
-                        </div>
-                    </div>
-
-                    <div v-if="files.length === 0" class="empty-state">
-                        <div style="width: 72px; height: 72px; border-radius: 18px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-                            <i class="fas fa-folder-open" style="font-size: 1.8rem; color: var(--accent);"></i>
-                        </div>
-                        <p style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">还没有文件</p>
-                        <p style="font-size: 0.85rem; color: var(--text-tertiary); margin-bottom: 16px;">拖拽文件到上方区域或点击上传</p>
-                        <button class="lp-btn lp-btn-primary" @click="triggerFileInput" style="height: 38px; font-size: 13px; padding: 0 18px;">
-                            <i class="fas fa-plus"></i> 上传文件
-                        </button>
-                    </div>
-                    <div v-else class="file-grid">
-                        <div v-for="file in files" :key="file.file_id" class="file-card" :style="{ borderTopColor: getFileColor(file) }" @click="openFileDetail(file)">
-                            <div class="file-checkbox" @click.stop>
-                                <el-checkbox v-model="file.selected" @change="handleFileSelect(file)"></el-checkbox>
-                            </div>
-                            <div class="file-thumb">
-                                <img v-if="isImageFile(file)" :src="getImageSrc(file)" :alt="file.filename" loading="lazy" decoding="async" @error="handleImageError" />
-                                <div v-else class="file-icon-container">
-                                    <i :class="getFileIconClass(file)" class="file-icon-large" :style="{ color: getFileColor(file) }"></i>
-                                    <span class="file-extension-tag" :style="{ backgroundColor: getFileColor(file) }">{{ getFileExtension(file.filename) }}</span>
-                                </div>
-                            </div>
-                            <div class="file-info">
-                                <div class="file-name" :title="file.filename">{{ file.filename }}</div>
-                                <div class="file-meta">{{ formatSize(file.size) }} · {{ formatDate(file.upload_time) }}</div>
-                                <div class="file-actions">
-                                    <button class="action-btn" @click.stop="copyLink(file.file_id, true)" title="复制链接">
-                                        <i class="fas fa-link"></i>
-                                        <span>链接</span>
-                                    </button>
-                                    <button class="action-btn" @click.stop="copyMarkdown(file)" title="复制 Markdown">
-                                        <i class="fas fa-font"></i>
-                                        <span>MD</span>
-                                    </button>
-                                    <button class="action-btn" :class="{'success': !!file.is_public}" @click.stop="togglePublic(file)" :title="file.is_public ? '设为私有' : '设为公开'">
-                                        <i :class="file.is_public ? 'fas fa-globe' : 'fas fa-lock'"></i>
-                                        <span>{{ file.is_public ? '公开' : '私有' }}</span>
-                                    </button>
-                                    <el-popconfirm title="确定要删除此文件吗？此操作不可恢复。" confirm-button-text="确定删除" cancel-button-text="取消" confirm-button-type="danger" @confirm="handleDelete(file)">
-                                        <template #reference>
-                                            <button class="action-btn danger" title="删除文件">
-                                                <i class="fas fa-trash-alt"></i>
-                                                <span>删除</span>
-                                            </button>
-                                        </template>
-                                    </el-popconfirm>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     
-                    <!-- 分页组件 -->
-                    <div style="margin-top: 2rem; display: flex; justify-content: center; align-items: center;">
-                            <el-pagination
-                                v-model:current-page="page"
-                                v-model:page-size="pageSize"
-                                :page-sizes="[10, 20, 50, 100]"
-                                :total="total"
-                                layout="total, sizes, prev, pager, next, jumper"
-                                @size-change="handlePageSizeChange"
-                                @current-change="handlePageChange"
-                            />
+                    <div class="workspace">
+                        <div class="workspace-top">
+                            <div>
+                                <div class="workspace-label">工作空间</div>
+                                <div class="workspace-name">{{ username }}</div>
+                            </div>
+                            <i data-lucide="chevrons-up-down"></i>
                         </div>
+                    </div>
+                    
+                    <div class="nav">
+                        <div class="nav-item" :class="{active: currentView==='dashboard'}" @click="currentView='dashboard'">
+                            <i data-lucide="layout-dashboard"></i> 控制台
+                        </div>
+                        <div class="nav-item" :class="{active: currentView==='upload'}" @click="currentView='upload'">
+                            <i data-lucide="upload-cloud"></i> 上传中心
+                        </div>
+                        <div class="nav-item" :class="{active: currentView==='library'}" @click="currentView='library'">
+                            <i data-lucide="folder"></i> 我的图床
+                        </div>
+                        <div class="nav-item" :class="{active: currentView==='hall'}" @click="currentView='hall'">
+                            <i data-lucide="image"></i> 图床大厅
+                        </div>
+                        <div v-if="user_id === statsData.admin_user_id" class="nav-item" @click="window.open('/monitor/dashboard.html', '_blank')">
+                            <i data-lucide="bar-chart-3"></i> 系统监控
+                        </div>
+                    </div>
+                    
+                    <div class="storage-card">
+                        <div class="label">存储空间</div>
+                        <div class="value">{{ storageStats.totalSize }}</div>
+                        <div class="bar"><div class="bar-fill" :style="{width: Math.min(100, storageStats.total)+'%'}"></div></div>
+                    </div>
+                    
+                    <div class="user-card">
+                        <div class="user-avatar">{{ username ? username.charAt(0).toUpperCase() : 'U' }}</div>
+                        <div class="user-info">
+                            <h4>{{ username }}</h4>
+                            <p>{{ storageStats.total }} 个文件</p>
+                        </div>
+                        <button class="user-logout" @click="handleUserCommand('logout')" title="退出"><i data-lucide="log-out"></i></button>
+                    </div>
+                </div>
+                
+                <!-- 主内容区 -->
+                <div class="main-content">
+                    <div class="topbar">
+                        <div class="top-left">
+                            <h2>{{ currentView === 'dashboard' ? '控制台' : currentView === 'upload' ? '上传中心' : currentView === 'library' ? '我的图床' : '图床大厅' }}</h2>
+                            <p>现代化媒体资产管理平台</p>
+                        </div>
+                        <div class="top-right">
+                            <div class="search-box">
+                                <i data-lucide="search" style="width:16px;height:16px;color:#9ca3af"></i>
+                                <input placeholder="搜索文件..." v-model="searchKeyword" @keyup.enter="handleSearch" />
+                            </div>
+                            <button class="top-btn" @click="toggleTheme"><i :class="isDark?'fas fa-sun':'fas fa-moon'"></i></button>
+                            <button class="top-btn" @click="currentView='upload'"><i data-lucide="plus"></i></button>
+                        </div>
+                    </div>
+                    
+                    <div class="content">
+                        <!-- 控制台 -->
+                        <div class="page" :class="{active: currentView==='dashboard'}">
+                            <div class="stats">
+                                <div class="stat">
+                                    <div class="stat-label">存储空间</div>
+                                    <div class="stat-value">{{ storageStats.totalSize }}</div>
+                                    <div class="stat-desc">安全加密存储</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-label">文件总数</div>
+                                    <div class="stat-value">{{ storageStats.total }}</div>
+                                    <div class="stat-desc">支持 26 种格式</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-label">图片数量</div>
+                                    <div class="stat-value">{{ storageStats.images }}</div>
+                                    <div class="stat-desc">高质量缩略图</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-label">分享次数</div>
+                                    <div class="stat-value">{{ storageStats.docs }}</div>
+                                    <div class="stat-desc">PDF/Word/Excel</div>
+                                </div>
+                            </div>
+                            <div class="timeline">
+                                <div class="time-card"><h3>最近上传</h3><p v-for="f in files.slice(0,3)" :key="f.file_id">{{ f.filename }}<br>{{ formatSize(f.size) }}</p></div>
+                                <div class="time-card"><h3>快速操作</h3><p>拖拽文件到上传中心<br>支持批量上传<br>自动生成外链</p></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 上传中心 -->
+                        <div class="page" :class="{active: currentView==='upload'}">
+                            <div class="upload-box">
+                                <div class="upload-header">
+                                    <h3>智能上传引擎</h3>
+                                    <p>支持拖拽上传、断点续传、分片上传、批量上传、粘贴上传</p>
+                                </div>
+                                <div class="dropzone" @click="triggerFileInput" @dragover.prevent="dragOver=true" @dragleave="dragOver=false" @drop.prevent="handleDrop" :class="{drag:dragOver}">
+                                    <div class="drop-inner">
+                                        <div style="display:flex;gap:20px;align-items:center">
+                                            <div class="drop-icon"><i data-lucide="upload-cloud"></i></div>
+                                            <div>
+                                                <h2>拖拽文件上传</h2>
+                                                <p>支持图片、视频、PDF、ZIP、音频等 26 种文件格式</p>
+                                                <div class="upload-actions">
+                                                    <button class="btn-primary" @click.stop="triggerFileInput">选择文件</button>
+                                                    <button class="btn-secondary" @click.stop>粘贴截图</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <input type="file" ref="fileInput" style="display:none" @change="handleFileChange" multiple />
+                                </div>
+                                <div class="queue" v-if="uploadQueue.length > 0">
+                                    <div class="queue-header"><h3>上传队列</h3><span>{{ uploadQueue.filter(i=>i.status==='uploading').length }} 个文件上传中</span></div>
+                                    <div class="queue-list">
+                                        <div v-for="item in uploadQueue" :key="item.id" class="upload-item">
+                                            <div class="upload-preview" style="display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#9ca3af"><i class="fas fa-file"></i></div>
+                                            <div class="upload-body">
+                                                <div style="display:flex;justify-content:space-between"><span style="font-weight:700">{{ item.name }}</span><span>{{ item.progress }}%</span></div>
+                                                <div style="margin-top:6px;font-size:12px;color:#6b7280">{{ item.statusText }}</div>
+                                                <div class="progress"><div class="progress-bar" :style="{width:item.progress+'%'}"></div></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 我的图床 -->
+                        <div class="page" :class="{active: currentView==='library'}">
+                            <div class="toolbar">
+                                <div class="toolbar-left">
+                                    <button v-for="tab in fileTabs" :key="tab.key" class="chip" :class="{active:currentTab===tab.key}" @click="switchTab(tab.key)">
+                                        <i :class="tab.icon"></i> {{ tab.label }}
+                                        <span class="count">{{ tabCounts[tab.key]||0 }}</span>
+                                    </button>
+                                </div>
+                                <div style="display:flex;gap:8px">
+                                    <button class="chip" @click="viewMode=viewMode==='gallery'?'list':'gallery'"><i :class="viewMode==='gallery'?'fas fa-list':'fas fa-th'"></i></button>
+                                </div>
+                            </div>
+                            
+                            <div v-if="files.length===0" class="empty-state">
+                                <div class="empty-icon"><i class="fas fa-folder-open"></i></div>
+                                <h3>还没有文件</h3>
+                                <p>上传你的第一个文件开始使用</p>
+                                <button class="btn-primary" @click="currentView='upload'">去上传</button>
+                            </div>
+                            
+                            <div v-else-if="viewMode==='gallery'" class="file-grid">
+                                <div v-for="file in files" :key="file.file_id" class="file-card" @click="openFileDetail(file)">
+                                    <div class="card-cover">
+                                        <img v-if="isImageFile(file)" :src="getImageSrc(file)" loading="lazy" @error="handleImageError" />
+                                        <div v-else class="card-cover-icon" :style="{color:getFileColor(file)}"><i :class="getFileIconClass(file)"></i></div>
+                                    </div>
+                                    <div class="card-content">
+                                        <div class="card-title" :title="file.filename">{{ file.filename }}</div>
+                                        <div class="card-meta">{{ formatSize(file.size) }} · {{ formatDate(file.upload_time) }}</div>
+                                        <div class="card-actions">
+                                            <button class="card-btn" @click.stop="copyLink(file.file_id,true,isPdfFile(file))">链接</button>
+                                            <button class="card-btn" @click.stop="copyMarkdown(file)">MD</button>
+                                            <button class="card-btn" :class="file.is_public?'primary':''" @click.stop="togglePublic(file)">{{ file.is_public?'公开':'私有' }}</button>
+                                            <el-popconfirm title="确定删除？" @confirm="handleDelete(file)"><template #reference><button class="card-btn danger" @click.stop>删除</button></template></el-popconfirm>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div v-else class="list-view">
+                                <div class="list-header"><span></span><span>文件名</span><span>大小</span><span>时间</span><span>操作</span></div>
+                                <div v-for="file in files" :key="file.file_id" class="list-row" @click="openFileDetail(file)">
+                                    <div class="list-icon" :style="{background:getFileColorBg(file),color:getFileColor(file)}"><i :class="getFileIconClass(file)"></i></div>
+                                    <div class="list-name">{{ file.filename }} <span v-if="file.is_public" class="badge badge-public">公开</span></div>
+                                    <div class="list-size">{{ formatSize(file.size) }}</div>
+                                    <div class="list-date">{{ formatDate(file.upload_time) }}</div>
+                                    <div class="list-actions">
+                                        <button @click.stop="copyLink(file.file_id,true,isPdfFile(file))" title="链接"><i class="fas fa-link"></i></button>
+                                        <button @click.stop="copyMarkdown(file)" title="MD"><i class="fas fa-font"></i></button>
+                                        <button @click.stop="togglePublic(file)" :style="file.is_public?'color:#10b981':''"><i :class="file.is_public?'fas fa-globe':'fas fa-lock'"></i></button>
+                                        <el-popconfirm title="确定删除？" @confirm="handleDelete(file)"><template #reference><button class="danger" @click.stop><i class="fas fa-trash"></i></button></template></el-popconfirm>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div v-if="total>0" style="margin-top:24px;display:flex;justify-content:center">
+                                <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50,100]" :total="total" layout="total, sizes, prev, pager, next" @size-change="handlePageSizeChange" @current-change="handlePageChange" />
+                            </div>
+                        </div>
+                        
+                        <!-- 图床大厅 -->
+                        <div class="page" :class="{active: currentView==='hall'}">
+                            <div class="toolbar">
+                                <div class="toolbar-left">
+                                    <button v-for="cat in hallCategories" :key="cat.key" class="chip" :class="{active:hallCat===cat.key}" @click="hallCat=cat.key; hallPage=1; loadHallPosts()">
+                                        <i :class="cat.icon"></i> {{ cat.label }}
+                                    </button>
+                                    <button class="chip" :class="{active:hallSort==='latest'}" @click="hallSort='latest'; loadHallPosts()"><i class="fas fa-clock"></i> 最新</button>
+                                    <button class="chip" :class="{active:hallSort==='popular'}" @click="hallSort='popular'; loadHallPosts()"><i class="fas fa-fire"></i> 最热</button>
+                                </div>
+                                <button class="btn-primary" @click="showHallPublish=true"><i class="fas fa-plus" style="margin-right:6px"></i>发布</button>
+                            </div>
+                            <div v-if="hallPosts.length===0 && !hallLoading" class="empty-state">
+                                <div class="empty-icon"><i class="fas fa-images"></i></div>
+                                <h3>大厅还没有图片</h3>
+                                <p>上传图片并设置为公开，然后发布到大厅吧！</p>
+                            </div>
+                            <div v-else class="masonry">
+                                <div v-for="post in hallPosts" :key="post.id" class="masonry-card">
+                                    <img :src="post.image_url + (post.image_url.includes('?') ? '&' : '?') + 'token=' + token" :alt="post.title" loading="lazy" @error="$event.target.src='/assets/logo.png'" />
+                                    <div class="masonry-content">
+                                        <h3>{{ post.title || post.filename }}</h3>
+                                        <p v-if="post.username">@{{ post.username }}</p>
+                                        <div class="masonry-meta">
+                                            <span><i class="fas fa-heart" style="margin-right:4px"></i>{{ post.likes || 0 }}</span>
+                                            <span><i class="fas fa-eye" style="margin-right:4px"></i>{{ post.views || 0 }}</span>
+                                        </div>
+                                        <div style="margin-top:12px;display:flex;gap:8px">
+                                            <button class="card-btn" :class="post.is_liked?'primary':''" @click.stop="toggleHallLike(post)"><i :class="post.is_liked?'fas fa-heart':'far fa-heart'" style="margin-right:4px"></i>{{ post.likes || 0 }}</button>
+                                            <button class="card-btn" @click.stop="copyLink(post.file_id, true)"><i class="fas fa-link" style="margin-right:4px"></i>链接</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
+            
+            <!-- 保留所有现有弹窗 -->
         </div>
 
         <!-- 文件详情弹窗 -->
@@ -1458,7 +1615,7 @@
                     <video v-else-if="isVideoFile(detailFile)" :src="detailFile._presignUrl || getFileUrl(detailFile.file_id)" controls preload="metadata" style="width: 100%; height: 100%;"></video>
                     <!-- 音频预览 -->
                     <div v-else-if="isAudioFile(detailFile)" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem;">
-                        <i class="fas fa-music" style="font-size: 4rem; margin-bottom: 1.5rem; color: var(--accent);"></i>
+                        <i class="fas fa-music" style="font-size: 4rem; margin-bottom: 1.5rem; color: #2563eb;"></i>
                         <audio :src="detailFile._presignUrl || getFileUrl(detailFile.file_id)" controls style="width: 100%; max-width: 400px;"></audio>
                     </div>
                     <!-- 代码/文本预览 -->
@@ -1472,7 +1629,7 @@
                 <div class="file-detail-header">
                     <!-- 图片预览 -->
                     <div class="file-detail-preview" v-if="isImageFile(detailFile)" @click="previewFromDetail(detailFile)" style="cursor: pointer;">
-                        <img :src="getImageSrc(detailFile)" :alt="detailFile.filename" loading="lazy" decoding="async" />
+                        <img :src="getImageSrc(detailFile, 'detail')" :alt="detailFile.filename" loading="lazy" decoding="async" />
                     </div>
                     <!-- 其他文件图标 -->
                     <div class="file-detail-preview" v-else-if="!isPdfFile(detailFile) && !isVideoFile(detailFile) && !isAudioFile(detailFile)">
@@ -1526,11 +1683,11 @@
                     </div>
                 </div>
                 <!-- 水印配置 -->
-                <div v-if="isImageFile(detailFile)" class="file-detail-links" style="border-top: 1px solid var(--border-subtle); padding-top: 1rem; margin-top: 0.5rem;">
+                <div v-if="isImageFile(detailFile)" class="file-detail-links" style="border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 0.5rem;">
                     <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
                         <i class="fas fa-tint"></i> 水印设置
                     </label>
-                    <div v-if="watermarkLoading" style="display: flex; align-items: center; justify-content: center; padding: 1.2rem; color: var(--text-tertiary); font-size: 0.82rem; gap: 8px;">
+                    <div v-if="watermarkLoading" style="display: flex; align-items: center; justify-content: center; padding: 1.2rem; color: #64748b; font-size: 0.82rem; gap: 8px;">
                         <i class="fas fa-circle-notch fa-spin"></i> 加载中...
                     </div>
                     <template v-else>
@@ -1538,8 +1695,8 @@
                             <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15); border-radius: 10px;">
                                 <i class="fas fa-check-circle" style="color: #10b981; font-size: 1.1rem;"></i>
                                 <div style="flex: 1; min-width: 0;">
-                                    <div style="font-size: 0.82rem; font-weight: 500; color: var(--text-primary);">水印已启用</div>
-                                    <div style="font-size: 0.72rem; color: var(--text-tertiary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ watermarkConfig.text }} · {{ { 'bottom-right':'右下','bottom-left':'左下','bottom-center':'下中','top-left':'左上','top-right':'右上','top-center':'上中','middle-left':'左中','middle-right':'右中','center':'居中' }[watermarkConfig.position] || watermarkConfig.position }} · {{ watermarkConfig.opacity }}%</div>
+                                    <div style="font-size: 0.82rem; font-weight: 500; color: #111827;">水印已启用</div>
+                                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ watermarkConfig.text }} · {{ { 'bottom-right':'右下','bottom-left':'左下','bottom-center':'下中','top-left':'左上','top-right':'右上','top-center':'上中','middle-left':'左中','middle-right':'右中','center':'居中' }[watermarkConfig.position] || watermarkConfig.position }} · {{ watermarkConfig.opacity }}%</div>
                                 </div>
                                 <button class="copy-sm-btn" style="background: rgba(239,68,68,0.08); color: #ef4444; border-color: rgba(239,68,68,0.2); font-size: 0.72rem;" :disabled="watermarkSubmitting" @click="removeWatermark">
                                     <i class="fas fa-trash-alt" style="margin-right: 3px;"></i>移除
@@ -1552,9 +1709,9 @@
                         <div v-else style="display: flex; flex-direction: column; gap: 10px;">
                             <div style="position: relative;">
                                 <input v-model="watermarkText" placeholder="输入水印文字" maxlength="30"
-                                    style="width: 100%; padding: 8px 12px; padding-right: 42px; border: 1px solid var(--border-subtle); border-radius: 8px; font-size: 0.82rem; background: var(--bg-secondary); color: var(--text-primary); transition: border-color 0.2s; outline: none; box-sizing: border-box;"
-                                    onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border-subtle)'" />
-                                <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.68rem; color: var(--text-tertiary);">{{ watermarkText.length }}/30</span>
+                                    style="width: 100%; padding: 8px 12px; padding-right: 42px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 0.82rem; background: #f8fafc; color: #111827; transition: border-color 0.2s; outline: none; box-sizing: border-box;"
+                                    onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e5e7eb'" />
+                                <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.68rem; color: #64748b;">{{ watermarkText.length }}/30</span>
                             </div>
                             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 <button v-for="pos in watermarkPositions" :key="pos.value"
@@ -1565,18 +1722,18 @@
                             </div>
                             <div style="display: flex; flex-direction: column; gap: 6px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">不透明度</label>
-                                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--accent); min-width: 40px; text-align: right;">{{ watermarkOpacity }}%</span>
+                                    <label style="font-size: 0.75rem; color: #475569; font-weight: 500;">不透明度</label>
+                                    <span style="font-size: 0.85rem; font-weight: 600; color: #2563eb; min-width: 40px; text-align: right;">{{ watermarkOpacity }}%</span>
                                 </div>
                                 <div style="position: relative; height: 24px; display: flex; align-items: center;">
-                                    <div style="position: absolute; left: 0; right: 0; height: 6px; border-radius: 3px; background: var(--border-subtle);"></div>
-                                    <div :style="{ position: 'absolute', left: 0, width: ((watermarkOpacity - 10) / 90 * 100) + '%', height: '6px', borderRadius: '3px', background: 'var(--accent)', transition: 'width 0.1s' }"></div>
+                                    <div style="position: absolute; left: 0; right: 0; height: 6px; border-radius: 3px; background: #e5e7eb;"></div>
+                                    <div :style="{ position: 'absolute', left: 0, width: ((watermarkOpacity - 10) / 90 * 100) + '%', height: '6px', borderRadius: '3px', background: '#2563eb', transition: 'width 0.1s' }"></div>
                                     <input type="range" v-model.number="watermarkOpacity" min="10" max="100" step="5"
                                         style="position: absolute; left: 0; width: 100%; height: 24px; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; margin: 0; z-index: 1;"
                                         oninput="this.style.setProperty('--val', this.value)" />
                                 </div>
                             </div>
-                            <button style="padding: 9px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 500; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; opacity: 1;"
+                            <button style="padding: 9px 16px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 500; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; opacity: 1;"
                                 :style="{ opacity: (!watermarkText.trim() || watermarkSubmitting) ? 0.5 : 1, cursor: (!watermarkText.trim() || watermarkSubmitting) ? 'not-allowed' : 'pointer' }"
                                 :disabled="!watermarkText.trim() || watermarkSubmitting"
                                 @click="addWatermark">
@@ -1588,7 +1745,7 @@
                 </div>
 
                 <div class="file-detail-actions">
-                    <button @click="copyLink(detailFile.file_id, true); closeFileDetail()">
+                    <button @click="copyLink(detailFile.file_id, true, isPdfFile(detailFile)); closeFileDetail()">
                         <i class="fas fa-link"></i> 复制链接
                     </button>
                     <button :class="{'success': !!detailFile.is_public}" @click="togglePublicAndRefresh(detailFile)">
@@ -1620,7 +1777,7 @@
 
         <!-- 图片预览弹窗 -->
         <div v-if="previewImage" class="image-preview-overlay" @click="closeImagePreview">
-            <img :src="getImageSrc(previewImage)" :alt="previewImage.filename" loading="eager" decoding="async" @click.stop />
+            <img :src="getImageSrc(previewImage, 'full')" :alt="previewImage.filename" loading="eager" decoding="async" @click.stop />
             <div class="image-preview-close" @click="closeImagePreview">
                 <i class="fas fa-times"></i>
             </div>
@@ -1639,7 +1796,7 @@
                     <div style="font-size: 0.95rem; opacity: 0.85; text-align: center; line-height: 1.6;">极速 · 安全 · 云存储<br>文件轻松上传与分享</div>
                 </div>
                 <div style="flex: 1; padding: 2.5rem; display: flex; flex-direction: column; justify-content: center;">
-                    <div style="margin-bottom: 1.5rem; font-size: 1.3rem; font-weight: 700; color: var(--text-primary);">欢迎回来</div>
+                    <div style="margin-bottom: 1.5rem; font-size: 1.3rem; font-weight: 700; color: #111827;">欢迎回来</div>
                     <el-tabs v-model="activeTab" stretch>
                         <el-tab-pane label="登录" name="login">
                             <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" @keyup.enter="handleLoginModal">
@@ -1674,6 +1831,40 @@
                 </div>
             </div>
         </el-dialog>
+
+        <!-- 发布到大厅弹窗 -->
+        <div v-if="showHallPublish" class="file-detail-overlay" @click.self="showHallPublish = false" style="z-index:10000">
+            <div class="file-detail-card" style="max-width:500px" @click.stop>
+                <div class="file-detail-header" style="padding:20px 24px;border-bottom:1px solid #e5e7eb">
+                    <div class="file-detail-title"><h3><i class="fas fa-share-alt" style="color:#2563eb;margin-right:8px"></i>发布到图床大厅</h3></div>
+                    <button class="file-detail-close" @click="showHallPublish = false"><i class="fas fa-times"></i></button>
+                </div>
+                <div style="padding:24px">
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;font-size:0.85rem;font-weight:600;color:#111827;margin-bottom:6px">选择图片</label>
+                        <select v-model="hallPublishFileId" style="width:100%;padding:10px 14px;border:1px solid #e5e7eb;border-radius:10px;background:white;color:#111827;font-size:0.85rem;outline:none">
+                            <option value="">请选择一张公开图片</option>
+                            <option v-for="f in hallPublishImages" :key="f.file_id" :value="f.file_id">{{ f.filename }}</option>
+                        </select>
+                        <p v-if="hallPublishImages.length === 0" style="font-size:0.78rem;color:#64748b;margin-top:4px">没有公开的图片，请先将图片设为公开</p>
+                    </div>
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;font-size:0.85rem;font-weight:600;color:#111827;margin-bottom:6px">标题</label>
+                        <input v-model="hallPublishTitle" type="text" placeholder="给图片起个名字" style="width:100%;padding:10px 14px;border:1px solid #e5e7eb;border-radius:10px;background:white;color:#111827;font-size:0.85rem;outline:none" />
+                    </div>
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;font-size:0.85rem;font-weight:600;color:#111827;margin-bottom:6px">标签 <span style="font-weight:400;color:#64748b">(用逗号分隔)</span></label>
+                        <input v-model="hallPublishTags" type="text" placeholder="风景, 自然, 日落" style="width:100%;padding:10px 14px;border:1px solid #e5e7eb;border-radius:10px;background:white;color:#111827;font-size:0.85rem;outline:none" />
+                    </div>
+                    <div style="display:flex;gap:10px;justify-content:flex-end">
+                        <button class="fi-action-btn" style="padding:10px 20px;border:1px solid #e5e7eb;border-radius:10px" @click="showHallPublish = false">取消</button>
+                        <button class="fi-action-btn" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:10px;font-weight:600" @click="submitHallPublish" :disabled="!hallPublishFileId">
+                            <i class="fas fa-paper-plane" style="margin-right:6px"></i>发布
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -2086,7 +2277,186 @@
                     const showAboutModal = ref(false); // 关于弹窗
                     const stats = reactive({ total_users: 0, total_files: 0, total_images: 0 }); // 站点统计
                     const displayStats = reactive({ total_users: 0, total_files: 0, total_images: 0 }); // 动画显示值
+                    const statsData = ref({ admin_user_id: 1 }); // 管理员 ID
                     let statsAnimating = false;
+
+                    // ========== 文件列表重构状态 ==========
+                    const currentView = ref('dashboard'); // 'dashboard' | 'library' | 'hall'
+                    const showHallPublish = ref(false);
+                    const hallPublishFileId = ref('');
+                    const hallPublishTitle = ref('');
+                    const hallPublishTags = ref('');
+                    const hallPublishImages = ref([]);
+
+                    // 加载用户的公开图片列表
+                    const loadHallPublishImages = async () => {
+                        try {
+                            const res = await api.get('/files', { params: { offset: 0, limit: 200, type: 'image' } });
+                            if (res.data && res.data.files) {
+                                hallPublishImages.value = res.data.files.filter(f => f.is_public);
+                            }
+                        } catch (e) { /* 静默 */ }
+                    };
+
+                    // 监听弹窗打开，自动加载公开图片
+                    watch(showHallPublish, (val) => {
+                        if (val) {
+                            hallPublishFileId.value = '';
+                            hallPublishTitle.value = '';
+                            hallPublishTags.value = '';
+                            loadHallPublishImages();
+                        }
+                    });
+                    const hallCat = ref('all'); // 大厅分类筛选
+                    const hallPosts = ref([]);
+                    const hallLoading = ref(false);
+                    const hallTotal = ref(0);
+                    const hallPage = ref(1);
+                    const hallPageSize = ref(20);
+                    const hallTags = ref([]);
+                    const hallSort = ref('latest');
+
+                    const hallCategories = computed(() => {
+                        const base = [
+                            { key: 'all', label: '全部', icon: 'fas fa-th-large' },
+                        ];
+                        hallTags.value.forEach(t => {
+                            base.push({ key: t.name, label: `${t.name} (${t.count})`, icon: 'fas fa-tag' });
+                        });
+                        return base;
+                    });
+
+                    const loadHallPosts = async () => {
+                        hallLoading.value = true;
+                        try {
+                            const params = {
+                                offset: (hallPage.value - 1) * hallPageSize.value,
+                                limit: hallPageSize.value,
+                                sort: hallSort.value,
+                            };
+                            if (hallCat.value && hallCat.value !== 'all') {
+                                params.tag = hallCat.value;
+                            }
+                            const res = await api.get('/hall', { params });
+                            if (res.data && res.data.posts) {
+                                const tk = token.value || '';
+                                hallPosts.value = res.data.posts.map(p => ({
+                                    ...p,
+                                    image_url: (p.image_url || `${API_BASE}/i/${p.file_id}`) + (tk ? `?token=${tk}` : ''),
+                                }));
+                                hallTotal.value = res.data.total || 0;
+                            }
+                        } catch (e) {
+                            console.error('Failed to load hall posts:', e);
+                        }
+                        hallLoading.value = false;
+                    };
+
+                    const loadHallTags = async () => {
+                        try {
+                            const res = await api.get('/hall/tags');
+                            if (res.data && res.data.tags) {
+                                hallTags.value = res.data.tags;
+                            }
+                        } catch (e) {}
+                    };
+
+                    const toggleHallLike = async (post) => {
+                        try {
+                            const res = await api.post(`/hall/${post.id}/like`);
+                            if (res.data) {
+                                post.likes = res.data.likes;
+                                post.is_liked = res.data.is_liked;
+                            }
+                        } catch (e) {}
+                    };
+
+                    const publishToHall = async (file) => {
+                        try {
+                            const res = await api.post('/hall/publish', {
+                                file_id: file.file_id,
+                                title: file.filename,
+                                description: '',
+                                tags: '',
+                            });
+                            if (res.data && res.data.status === 'success') {
+                                ElMessage?.success?.('已发布到图床大厅');
+                            }
+                        } catch (e) {
+                            ElMessage?.error?.(e.response?.data?.error || '发布失败');
+                        }
+                    };
+
+                    const submitHallPublish = async () => {
+                        if (!hallPublishFileId.value) return;
+                        try {
+                            const res = await api.post('/hall/publish', {
+                                file_id: hallPublishFileId.value,
+                                title: hallPublishTitle.value || '未命名图片',
+                                description: '',
+                                tags: hallPublishTags.value,
+                            });
+                            if (res.data && res.data.status === 'success') {
+                                ElMessage?.success?.('已发布到图床大厅！');
+                                showHallPublish.value = false;
+                                hallPublishFileId.value = '';
+                                hallPublishTitle.value = '';
+                                hallPublishTags.value = '';
+                                // 刷新大厅
+                                if (currentView.value === 'hall') {
+                                    loadHallPosts();
+                                    loadHallTags();
+                                }
+                            }
+                        } catch (e) {
+                            ElMessage?.error?.(e.response?.data?.error || '发布失败');
+                        }
+                    };
+                    const currentTab = ref('all');
+                    const viewMode = ref(localStorage.getItem('fi_viewMode') || 'gallery');
+                    const currentSort = ref('time');
+                    const sortOrder = ref('desc');
+                    const showSortDropdown = ref(false);
+                    const tabCounts = ref({ all: 0, image: 0, document: 0, video: 0, audio: 0 });
+                    const fileTabs = [
+                        { key: 'all', label: '总览', icon: 'fas fa-th-large' },
+                        { key: 'image', label: '图片', icon: 'fas fa-image' },
+                        { key: 'document', label: '文档', icon: 'fas fa-file-alt' },
+                        { key: 'video', label: '视频', icon: 'fas fa-video' },
+                        { key: 'audio', label: '音频', icon: 'fas fa-music' },
+                    ];
+                    const sortOptions = [
+                        { key: 'time', label: '最近上传', icon: 'fas fa-clock' },
+                        { key: 'name', label: '文件名', icon: 'fas fa-font' },
+                        { key: 'size', label: '文件大小', icon: 'fas fa-weight-hanging' },
+                    ];
+
+                    // Dashboard 分组：将文件按类型分组
+                    const dashboardGroups = computed(() => {
+                        if (currentTab.value !== 'all') return null;
+                        const groups = { image: [], document: [], video: [], audio: [] };
+                        files.value.forEach(f => {
+                            const mime = f.mime_type || '';
+                            if (mime.startsWith('image/')) groups.image.push(f);
+                            else if (mime.startsWith('video/')) groups.video.push(f);
+                            else if (mime.startsWith('audio/')) groups.audio.push(f);
+                            else groups.document.push(f);
+                        });
+                        return groups;
+                    });
+
+                    // 统计卡片数据
+                    const userTotalSize = ref(0);
+                    const storageStats = computed(() => {
+                        return {
+                            total: tabCounts.value.all,
+                            images: tabCounts.value.image,
+                            docs: tabCounts.value.document,
+                            videos: tabCounts.value.video,
+                            audios: tabCounts.value.audio,
+                            totalSize: formatSize(userTotalSize.value),
+                        };
+                    });
 
                     // 数字递增动画
                     const animateStats = (target) => {
@@ -2233,21 +2603,83 @@
                         return colorMap[ext] || '#64748b';
                     };
 
-                    const THUMB_GRID_SIZE = 200;
+                    // 获取文件类型背景色（半透明）
+                    const getFileColorBg = (file) => {
+                        const color = getFileColor(file);
+                        return color + '18'; // 12% opacity hex
+                    };
+
+                    // ========== 文件列表重构函数 ==========
+                    const switchTab = (key) => {
+                        currentTab.value = key;
+                        // 自动切换视图：图片→gallery，其他→list
+                        if (key === 'image') {
+                            viewMode.value = 'gallery';
+                        } else if (key !== 'all') {
+                            viewMode.value = 'list';
+                        }
+                        localStorage.setItem('fi_viewMode', viewMode.value);
+                        page.value = 1;
+                        loadFiles(true);
+                    };
+
+                    // 获取文件类型的分组标签
+                    const getGroupLabel = (key) => {
+                        const labels = { image: '图片', document: '文档', video: '视频', audio: '音频' };
+                        return labels[key] || key;
+                    };
+                    const getGroupIcon = (key) => {
+                        const icons = { image: 'fas fa-image', document: 'fas fa-file-alt', video: 'fas fa-file-video', audio: 'fas fa-file-audio' };
+                        return icons[key] || 'fas fa-file';
+                    };
+
+                    const setViewMode = (mode) => {
+                        viewMode.value = mode;
+                        localStorage.setItem('fi_viewMode', mode);
+                    };
+
+                    const setSortBy = (field) => {
+                        if (currentSort.value === field) {
+                            // 切换排序方向
+                            sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc';
+                        } else {
+                            currentSort.value = field;
+                            sortOrder.value = 'desc';
+                        }
+                        showSortDropdown.value = false;
+                        page.value = 1;
+                        loadFiles(true);
+                    };
+
+                    // 点击外部关闭排序下拉
+                    const handleSortDropdownClick = (e) => {
+                        if (!e.target.closest('.fi-sort-btn') && !e.target.closest('.fi-sort-dropdown')) {
+                            showSortDropdown.value = false;
+                        }
+                    };
+
+                    const THUMB_GRID_SIZE = 400;
                     const getFileUrl = (fileId, thumbnail = false) => {
                         const token = localStorage.getItem('token') || '';
                         const sep = thumbnail ? '&' : '?';
                         return `${API_BASE}/i/${fileId}${thumbnail ? `?size=${THUMB_GRID_SIZE}` : ''}${token ? `${sep}token=${token}` : ''}`;
                     };
 
-                    // 获取图片 src：优先使用 presign_url（已签名直链，<img> 可直接加载）
-                    const getImageSrc = (file) => {
-                        // 优先使用 presign_url（已签名直链，不需要 auth）
-                        if (file.presign_url && typeof file.presign_url === 'string' && file.presign_url.length > 0) {
+                    // 获取图片 src：支持不同尺寸上下文
+                    // context: 'thumb' (网格缩略图 400px), 'detail' (详情弹窗 1200px), 'full' (原图)
+                    const getImageSrc = (file, context = 'thumb') => {
+                        if (context === 'full') {
+                            // 全屏预览：使用原图
+                            const token = localStorage.getItem('token') || '';
+                            return `${API_BASE}/i/${file.file_id}${token ? `?token=${token}` : ''}`;
+                        }
+                        // 优先使用 presign_url（仅列表/缩略图场景）
+                        if (context === 'thumb' && file.presign_url && typeof file.presign_url === 'string' && file.presign_url.length > 0) {
                             return file.presign_url;
                         }
-                        // 回退到 /api/i/ 端点（支持缩略图匿名访问）
-                        return getFileUrl(file.file_id, true);
+                        const size = context === 'detail' ? 1200 : THUMB_GRID_SIZE;
+                        const token = localStorage.getItem('token') || '';
+                        return `${API_BASE}/i/${file.file_id}?size=${size}${token ? `&token=${token}` : ''}`;
                     };
 
                     const handleImageError = (e) => {
@@ -2406,6 +2838,9 @@
                                 stats.total_files = res.data.total_files || 0;
                                 stats.total_images = res.data.total_images || 0;
                                 animateStats(stats);
+                            }
+                            if (res.data && res.data.admin_user_id) {
+                                statsData.value = { admin_user_id: res.data.admin_user_id };
                             }
                         } catch (e) {
                             // 统计加载失败静默处理
@@ -2740,8 +3175,21 @@
                             }
 
                             // 优化网络请求：使用缓存头和压缩
+                            const apiParams = {
+                                offset, limit: currentPageSize,
+                                search: searchKeyword.value.trim(),
+                                _t: Date.now()
+                            };
+                            // 文件类型筛选
+                            if (currentTab.value && currentTab.value !== 'all') {
+                                apiParams.type = currentTab.value;
+                            }
+                            // 排序
+                            if (currentSort.value) apiParams.sort = currentSort.value;
+                            if (sortOrder.value) apiParams.order = sortOrder.value;
+
                             const res = await api.get('/files', {
-                                params: { offset, limit: currentPageSize, search: searchKeyword.value.trim(), _t: Date.now() },
+                                params: apiParams,
                                 signal: controller.signal,
                                 headers: {
                                     'Cache-Control': 'no-cache',
@@ -2804,6 +3252,23 @@
 
                                 // 使用服务器返回的total，而不是files.length
                                 total.value = res.data.total || 0;
+
+                                // 更新用户总存储量
+                                if (res.data.total_size !== undefined) {
+                                    userTotalSize.value = res.data.total_size;
+                                }
+
+                                // 更新 Tab 角标计数
+                                if (res.data.type_counts) {
+                                    const tc = res.data.type_counts;
+                                    tabCounts.value = {
+                                        all: (tc.image || 0) + (tc.document || 0) + (tc.video || 0) + (tc.audio || 0),
+                                        image: tc.image || 0,
+                                        document: tc.document || 0,
+                                        video: tc.video || 0,
+                                        audio: tc.audio || 0,
+                                    };
+                                }
 
                                 if (total.value === 0 && files.value.length > 0) {
                                     // total 与 files 不一致时忽略，以 files 为准
@@ -2912,8 +3377,12 @@
                         }
                     };
 
-                    const copyLink = (fileId, fullUrl = false) => {
-                        const url = fullUrl ? window.location.origin + getFileUrl(fileId) : getFileUrl(fileId);
+                    const copyLink = (fileId, fullUrl = false, forceDownload = false) => {
+                        let url = fullUrl ? window.location.origin + getFileUrl(fileId) : getFileUrl(fileId);
+                        // PDF 文件的分享链接强制下载
+                        if (forceDownload) {
+                            url += (url.includes('?') ? '&' : '?') + 'download=1';
+                        }
 
                         if (navigator.clipboard && window.isSecureContext) {
                             navigator.clipboard.writeText(url).then(() => {
@@ -2927,7 +3396,11 @@
                     };
 
                     const copyMarkdown = (file) => {
-                        const url = window.location.origin + getFileUrl(file.file_id);
+                        let url = window.location.origin + getFileUrl(file.file_id);
+                        // PDF 文件的 Markdown 链接强制下载
+                        if (isPdfFile(file)) {
+                            url += '?download=1';
+                        }
                         const filename = file.filename || 'file';
                         const md = isImageFile(file) ? `![${filename}](${url})` : `[${filename}](${url})`;
                         copyText(md, 'Markdown 已复制到剪贴板');
@@ -3179,6 +3652,10 @@
                                             if (serverFiles.some(f => f.file_id === newFile.file_id)) {
                                                 files.value = serverFiles;
                                                 total.value = refreshRes.data.total || 0;
+                                                // 刷新存储统计
+                                                if (refreshRes.data.total_size !== undefined) {
+                                                    userTotalSize.value = refreshRes.data.total_size;
+                                                }
                                             }
                                         }
                                     } catch (e) { /* 静默处理 */ }
@@ -3465,6 +3942,8 @@
                     // 挂载时加载
                     onMounted(() => {
                         document.addEventListener('paste', handlePaste);
+                        // 排序下拉点击外部关闭
+                        document.addEventListener('click', handleSortDropdownClick);
 
                         // 无论是否登录都加载公开统计
                         loadStats();
@@ -3510,6 +3989,19 @@
                         }
                     });
 
+                    // 清理排序下拉监听
+                    onUnmounted(() => {
+                        document.removeEventListener('click', handleSortDropdownClick);
+                    });
+
+                    // 切换到大厅时加载数据
+                    watch(currentView, (val) => {
+                        if (val === 'hall') {
+                            loadHallPosts();
+                            loadHallTags();
+                        }
+                    });
+
                     return {
                         // 主题
                         isDark, toggleTheme,
@@ -3521,7 +4013,7 @@
                         loginRules, registerRules,
 
                         // 统计
-                        stats, displayStats, animateStats,
+                        stats, displayStats, animateStats, statsData,
 
                         // 文件管理
                         files, fileListLoading,
@@ -3538,8 +4030,19 @@
                         bgImages, currentBgIndex,
                         formatDate, formatSize, formatSpeed, formatETA,
                         isImageFile, isPdfFile, isVideoFile, isAudioFile, isTextFile,
-                        getFileIconClass, getFileColor, getFileExtension,
+                        getFileIconClass, getFileColor, getFileColorBg, getFileExtension,
                         getFileUrl, getImageSrc, handleImageError,
+
+                        // 文件列表重构
+                        currentView, hallCat, hallCategories,
+                        // 图床大厅
+                        hallPosts, hallLoading, hallTotal, hallPage, hallPageSize, hallTags, hallSort,
+                        loadHallPosts, loadHallTags, toggleHallLike, publishToHall,
+                        showHallPublish, hallPublishFileId, hallPublishTitle, hallPublishTags, hallPublishImages, submitHallPublish,
+                        currentTab, viewMode, currentSort, sortOrder,
+                        showSortDropdown, tabCounts, fileTabs, sortOptions,
+                        switchTab, setViewMode, setSortBy,
+                        dashboardGroups, storageStats, userTotalSize, getGroupLabel, getGroupIcon,
                         openImagePreview, closeImagePreview,
                         openFileDetail, closeFileDetail, previewFromDetail,
                         fullscreenPdf, openFullscreenPdf, closeFullscreenPdf,
@@ -3580,6 +4083,42 @@
             initAeroImageHost();
         }
     })();
+</script>
+
+<script>
+    // Initialize Lucide icons and re-initialize on DOM changes
+    function initLucideIcons() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    // Initial call after page load
+    if (document.readyState === 'complete') {
+        initLucideIcons();
+    } else {
+        window.addEventListener('load', initLucideIcons);
+    }
+
+    // Re-initialize when Vue updates the DOM
+    const lucideObserver = new MutationObserver(function(mutations) {
+        let shouldUpdate = false;
+        for (const mutation of mutations) {
+            if (mutation.addedNodes.length > 0) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === 1 && (node.hasAttribute?.('data-lucide') || node.querySelector?.('[data-lucide]'))) {
+                        shouldUpdate = true;
+                        break;
+                    }
+                }
+            }
+            if (shouldUpdate) break;
+        }
+        if (shouldUpdate) {
+            requestAnimationFrame(initLucideIcons);
+        }
+    });
+    lucideObserver.observe(document.body, { childList: true, subtree: true });
 </script>
 </body>
 </html>

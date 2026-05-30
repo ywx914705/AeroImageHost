@@ -86,7 +86,12 @@ void fileAccessHandler(const drogon::HttpRequestPtr &req,
     std::string safeFilename = sanitizeFilename(meta.filename);
     std::string encodedFilename = urlEncode(safeFilename);
     std::string disposition;
-    if (isAttachmentType(meta.mime_type)) {
+
+    // ?download=1 强制下载（分享链接用）
+    std::string downloadParam = req->getParameter("download");
+    bool forceDownload = (downloadParam == "1" || downloadParam == "true");
+
+    if (forceDownload || isAttachmentType(meta.mime_type)) {
         disposition = "attachment; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;
     } else {
         disposition = "inline; filename=\"" + safeFilename + "\"; filename*=UTF-8''" + encodedFilename;

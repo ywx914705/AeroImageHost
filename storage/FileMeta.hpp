@@ -16,6 +16,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <map>
 #include <ctime>
 #include "Utils.hpp"
 
@@ -51,8 +52,10 @@ public:
     // 统计用户的文件总数（无搜索条件）
     int countByUser(int user_id);
     // 统计用户的文件总数（支持文件名模糊搜索）
-    int countByUserWithSearch(int user_id, const std::string& keyword);
-    std::pair<std::vector<FileMeta>, int> listAndCountByUserWithSearch(int user_id, const std::string& keyword, int offset, int limit);
+    int countByUserWithSearch(int user_id, const std::string& keyword, const std::string& type = "");
+    std::pair<std::vector<FileMeta>, int> listAndCountByUserWithSearch(int user_id, const std::string& keyword, int offset, int limit, const std::string& type = "", const std::string& sort = "time", const std::string& order = "desc");
+    // 获取用户各类型文件数量（用于 Tab 角标）
+    std::map<std::string, int> getTypeCounts(int user_id);
     // 根据 file_id 删除文件元数据（DELETE）
     bool del(const std::string& file_id);
     // 切换文件的公开/私有状态

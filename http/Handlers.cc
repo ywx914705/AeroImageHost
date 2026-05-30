@@ -258,7 +258,7 @@ HandlerResult handleUpload(int user_id, const std::string& filename, const std::
     return HandlerResult::ok(docToString(resp));
 }
 
-HandlerResult handleListFiles(int user_id, int offset, int limit, const std::string& search_keyword) {
+HandlerResult handleListFiles(int user_id, int offset, int limit, const std::string& search_keyword, const std::string& type, const std::string& sort, const std::string& order) {
     if (offset < 0) offset = 0;
     static const int MAX_PAGE_SIZE = Config::instance().getInt("files_list.max_page_size", 100);
     if (limit <= 0) limit = 20;
@@ -270,8 +270,23 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
         kw.resize(static_cast<size_t>(maxKwLen));
     }
 
+    // 白名单校验 type/sort/order
+    std::string safeType = type;
+    if (safeType != "image" && safeType != "document" && safeType != "video" && safeType != "audio") {
+        safeType.clear();
+    }
+    std::string safeSort = sort;
+    if (safeSort != "time" && safeSort != "size" && safeSort != "name") {
+        safeSort = "time";
+    }
+    std::string safeOrder = order;
+    if (safeOrder != "asc" && safeOrder != "desc") {
+        safeOrder = "desc";
+    }
+
     std::string cacheKey = "user_files:" + std::to_string(user_id) + ":" +
-                           std::to_string(offset) + ":" + std::to_string(limit) + ":" + kw;
+                           std::to_string(offset) + ":" + std::to_string(limit) + ":" +
+                           kw + ":" + safeType + ":" + safeSort + ":" + safeOrder;
 
     struct FilesCacheEntry {
         std::string data;
@@ -305,7 +320,7 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
     }
     MetricsCollector::instance().recordCacheHit("redis", false);
 
-    auto [files, total] = FileMetaDAO::instance().listAndCountByUserWithSearch(user_id, kw, offset, limit);
+    auto [files, total] = FileMetaDAO::instance().listAndCountByUserWithSearch(user_id, kw, offset, limit, safeType, safeSort, safeOrder);
 
     static const std::string publicUrl = Config::instance().getString("minio.public_url");
 
@@ -341,6 +356,20 @@ HandlerResult handleListFiles(int user_id, int offset, int limit, const std::str
     }
     resp.AddMember("files", filesArr, resp.GetAllocator());
     resp.AddMember("total", total, resp.GetAllocator());
+
+    // 各类型文件数量（用于前端 Tab 角标）
+    auto typeCounts = FileMetaDAO::instance().getTypeCounts(user_id);
+    Value countsObj(kObjectType);
+    countsObj.AddMember("image", typeCounts["image"], resp.GetAllocator());
+    countsObj.AddMember("document", typeCounts["document"], resp.GetAllocator());
+    countsObj.AddMember("video", typeCounts["video"], resp.GetAllocator());
+    countsObj.AddMember("audio", typeCounts["audio"], resp.GetAllocator());
+    resp.AddMember("type_counts", countsObj, resp.GetAllocator());
+
+    // 用户总存储量
+    long long userStorage = FileMetaDAO::instance().getUserStorageUsage(user_id);
+    resp.AddMember("total_size", static_cast<int64_t>(userStorage), resp.GetAllocator());
+
     std::string result = docToString(resp);
 
     RedisClient::instance().setex(cacheKey, result, 30);
@@ -380,7 +409,10 @@ HandlerResult handleDeleteFile(int user_id, const std::string& file_id) {
     AeroQueue::instance().post([file_id]() {
         MinIOClient::instance().deleteObject(file_id);
         MinIOClient::instance().deleteObject(file_id + "_watermark");
-        MinIOClient::instance().deleteObject("thumbs/" + file_id + "_200");
+        // 清理各尺寸缩略图缓存
+        for (int sz : {200, 400, 800, 1200}) {
+            MinIOClient::instance().deleteObject("thumbs/" + file_id + "_" + std::to_string(sz));
+        }
     });
     invalidateUserFilesCache(user_id);
     Document resp; resp.SetObject();
@@ -412,7 +444,9 @@ HandlerResult handleBatchDeleteFiles(int user_id, const std::vector<std::string>
         for (const auto& fid : valid_ids) {
             MinIOClient::instance().deleteObject(fid);
             MinIOClient::instance().deleteObject(fid + "_watermark");
-            MinIOClient::instance().deleteObject("thumbs/" + fid + "_200");
+            for (int sz : {200, 400, 800, 1200}) {
+                MinIOClient::instance().deleteObject("thumbs/" + fid + "_" + std::to_string(sz));
+            }
         }
     });
 
@@ -616,6 +650,8 @@ HandlerResult handleStats() {
     resp.AddMember("total_files", total_files, resp.GetAllocator());
     resp.AddMember("total_images", total_images, resp.GetAllocator());
     resp.AddMember("total_size", static_cast<int64_t>(total_size), resp.GetAllocator());
+    int adminUserId = Config::instance().getInt("security.admin_user_id", 1);
+    resp.AddMember("admin_user_id", adminUserId, resp.GetAllocator());
     std::string result = docToString(resp);
     if (statsTtl > 0) {
         RedisClient::instance().setex(kStatsCacheKey, result, statsTtl);

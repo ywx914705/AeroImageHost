@@ -545,16 +545,36 @@ std::vector<FileMeta> FileMetaDAO::listByUserWithSearch(int user_id, const std::
     return result;
 }
 
-int FileMetaDAO::countByUserWithSearch(int user_id, const std::string& keyword) {
+int FileMetaDAO::countByUserWithSearch(int user_id, const std::string& keyword, const std::string& type) {
     MYSQL* conn = getConn();
     if (!conn) return 0;
 
-    std::string sql;
-    if (keyword.empty()) {
-        sql = "SELECT COUNT(*) FROM files WHERE user_id = ?";
-    } else {
-        sql = "SELECT COUNT(*) FROM files WHERE user_id = ? AND filename LIKE ?";
+    // 构建 WHERE 子句
+    std::string where = "WHERE user_id = ?";
+    std::vector<std::string> conditions;
+
+    if (!keyword.empty()) {
+        conditions.push_back("filename LIKE ?");
     }
+    if (!type.empty()) {
+        if (type == "image") {
+            conditions.push_back("mime_type LIKE 'image/%'");
+        } else if (type == "video") {
+            conditions.push_back("mime_type LIKE 'video/%'");
+        } else if (type == "audio") {
+            conditions.push_back("mime_type LIKE 'audio/%'");
+        } else if (type == "document") {
+            conditions.push_back("mime_type NOT LIKE 'image/%'");
+            conditions.push_back("mime_type NOT LIKE 'video/%'");
+            conditions.push_back("mime_type NOT LIKE 'audio/%'");
+        }
+    }
+
+    for (const auto& c : conditions) {
+        where += " AND " + c;
+    }
+
+    std::string sql = "SELECT COUNT(*) FROM files " + where;
 
     MYSQL_STMT* stmt = mysql_stmt_init(conn);
     if (!stmt) { releaseConn(conn); return 0; }
@@ -562,20 +582,25 @@ int FileMetaDAO::countByUserWithSearch(int user_id, const std::string& keyword) 
         mysql_stmt_close(stmt); releaseConn(conn); return 0;
     }
 
-    MYSQL_BIND param[2];
-    memset(param, 0, sizeof(param));
+    // 绑定参数：user_id + keyword（可选）
+    int paramCount = 1;
+    std::string searchPattern;
+    if (!keyword.empty()) {
+        searchPattern = "%" + keyword + "%";
+        paramCount = 2;
+    }
+
+    std::vector<MYSQL_BIND> param(paramCount);
+    memset(param.data(), 0, sizeof(MYSQL_BIND) * paramCount);
     param[0].buffer_type = MYSQL_TYPE_LONG;
     param[0].buffer = &user_id;
 
     if (!keyword.empty()) {
-        std::string searchPattern = "%" + keyword + "%";
         param[1].buffer_type = MYSQL_TYPE_STRING;
         param[1].buffer = (char*)searchPattern.c_str();
         param[1].buffer_length = searchPattern.length();
-        mysql_stmt_bind_param(stmt, param);
-    } else {
-        mysql_stmt_bind_param(stmt, param);
     }
+    mysql_stmt_bind_param(stmt, param.data());
 
     if (mysql_stmt_execute(stmt) != 0) {
         mysql_stmt_close(stmt); releaseConn(conn); return 0;
@@ -595,18 +620,47 @@ int FileMetaDAO::countByUserWithSearch(int user_id, const std::string& keyword) 
     return count;
 }
 
-std::pair<std::vector<FileMeta>, int> FileMetaDAO::listAndCountByUserWithSearch(int user_id, const std::string& keyword, int offset, int limit) {
+std::pair<std::vector<FileMeta>, int> FileMetaDAO::listAndCountByUserWithSearch(int user_id, const std::string& keyword, int offset, int limit, const std::string& type, const std::string& sort, const std::string& order) {
     std::vector<FileMeta> result;
     int total = 0;
     MYSQL* conn = getConn();
     if (!conn) return {result, total};
 
-    std::string sql;
-    if (keyword.empty()) {
-        sql = "SELECT file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files WHERE user_id = ? ORDER BY upload_time DESC LIMIT ?, ?";
-    } else {
-        sql = "SELECT file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files WHERE user_id = ? AND filename LIKE ? ORDER BY upload_time DESC LIMIT ?, ?";
+    // 构建 WHERE 子句
+    std::string where = "WHERE user_id = ?";
+    std::vector<std::string> conditions;
+
+    if (!keyword.empty()) {
+        conditions.push_back("filename LIKE ?");
     }
+    if (!type.empty()) {
+        if (type == "image") {
+            conditions.push_back("mime_type LIKE 'image/%'");
+        } else if (type == "video") {
+            conditions.push_back("mime_type LIKE 'video/%'");
+        } else if (type == "audio") {
+            conditions.push_back("mime_type LIKE 'audio/%'");
+        } else if (type == "document") {
+            conditions.push_back("mime_type NOT LIKE 'image/%'");
+            conditions.push_back("mime_type NOT LIKE 'video/%'");
+            conditions.push_back("mime_type NOT LIKE 'audio/%'");
+        }
+    }
+
+    for (const auto& c : conditions) {
+        where += " AND " + c;
+    }
+
+    // 构建 ORDER BY 子句（白名单校验）
+    std::string orderField = "upload_time";
+    if (sort == "size") orderField = "size";
+    else if (sort == "name") orderField = "filename";
+
+    std::string orderDir = "DESC";
+    if (order == "asc") orderDir = "ASC";
+
+    std::string sql = "SELECT file_id, filename, size, mime_type, width, height, upload_time, is_public FROM files "
+                      + where + " ORDER BY " + orderField + " " + orderDir + " LIMIT ?, ?";
 
     MYSQL_STMT* stmt = mysql_stmt_init(conn);
     if (!stmt) {
@@ -619,27 +673,36 @@ std::pair<std::vector<FileMeta>, int> FileMetaDAO::listAndCountByUserWithSearch(
         return {result, total};
     }
 
-    MYSQL_BIND param[4];
-    memset(param, 0, sizeof(param));
-    param[0].buffer_type = MYSQL_TYPE_LONG;
-    param[0].buffer = &user_id;
+    // 绑定参数
+    std::string searchPattern;
+    int paramCount = 3; // user_id + offset + limit
+    if (!keyword.empty()) {
+        searchPattern = "%" + keyword + "%";
+        paramCount = 4; // user_id + keyword + offset + limit
+    }
+
+    std::vector<MYSQL_BIND> param(paramCount);
+    memset(param.data(), 0, sizeof(MYSQL_BIND) * paramCount);
+
+    int idx = 0;
+    param[idx].buffer_type = MYSQL_TYPE_LONG;
+    param[idx].buffer = &user_id;
+    idx++;
 
     if (!keyword.empty()) {
-        std::string searchPattern = "%" + keyword + "%";
-        param[1].buffer_type = MYSQL_TYPE_STRING;
-        param[1].buffer = (char*)searchPattern.c_str();
-        param[1].buffer_length = searchPattern.length();
-        param[2].buffer_type = MYSQL_TYPE_LONG;
-        param[2].buffer = &offset;
-        param[3].buffer_type = MYSQL_TYPE_LONG;
-        param[3].buffer = &limit;
-    } else {
-        param[1].buffer_type = MYSQL_TYPE_LONG;
-        param[1].buffer = &offset;
-        param[2].buffer_type = MYSQL_TYPE_LONG;
-        param[2].buffer = &limit;
+        param[idx].buffer_type = MYSQL_TYPE_STRING;
+        param[idx].buffer = (char*)searchPattern.c_str();
+        param[idx].buffer_length = searchPattern.length();
+        idx++;
     }
-    mysql_stmt_bind_param(stmt, param);
+
+    param[idx].buffer_type = MYSQL_TYPE_LONG;
+    param[idx].buffer = &offset;
+    idx++;
+    param[idx].buffer_type = MYSQL_TYPE_LONG;
+    param[idx].buffer = &limit;
+
+    mysql_stmt_bind_param(stmt, param.data());
 
     if (mysql_stmt_execute(stmt) != 0) {
         mysql_stmt_close(stmt);
@@ -702,10 +765,67 @@ std::pair<std::vector<FileMeta>, int> FileMetaDAO::listAndCountByUserWithSearch(
 
     mysql_stmt_close(stmt);
 
-    total = countByUserWithSearch(user_id, keyword);
+    total = countByUserWithSearch(user_id, keyword, type);
 
     releaseConn(conn);
     return {result, total};
+}
+
+std::map<std::string, int> FileMetaDAO::getTypeCounts(int user_id) {
+    std::map<std::string, int> counts;
+    counts["image"] = 0;
+    counts["video"] = 0;
+    counts["audio"] = 0;
+    counts["document"] = 0;
+
+    MYSQL* conn = getConn();
+    if (!conn) return counts;
+
+    // 用 CASE 表达式一次性统计各类型数量，避免多次查询
+    std::string sql = "SELECT "
+        "SUM(CASE WHEN mime_type LIKE 'image/%' THEN 1 ELSE 0 END) AS img, "
+        "SUM(CASE WHEN mime_type LIKE 'video/%' THEN 1 ELSE 0 END) AS vid, "
+        "SUM(CASE WHEN mime_type LIKE 'audio/%' THEN 1 ELSE 0 END) AS aud, "
+        "SUM(CASE WHEN mime_type NOT LIKE 'image/%' AND mime_type NOT LIKE 'video/%' AND mime_type NOT LIKE 'audio/%' THEN 1 ELSE 0 END) AS doc "
+        "FROM files WHERE user_id = ?";
+
+    MYSQL_STMT* stmt = mysql_stmt_init(conn);
+    if (!stmt) { releaseConn(conn); return counts; }
+    if (mysql_stmt_prepare(stmt, sql.c_str(), sql.length()) != 0) {
+        mysql_stmt_close(stmt); releaseConn(conn); return counts;
+    }
+
+    MYSQL_BIND param;
+    memset(&param, 0, sizeof(param));
+    param.buffer_type = MYSQL_TYPE_LONG;
+    param.buffer = &user_id;
+    mysql_stmt_bind_param(stmt, &param);
+
+    if (mysql_stmt_execute(stmt) != 0) {
+        mysql_stmt_close(stmt); releaseConn(conn); return counts;
+    }
+
+    int img = 0, vid = 0, aud = 0, doc = 0;
+    MYSQL_BIND resultBind[4];
+    memset(resultBind, 0, sizeof(resultBind));
+    bool is_null[4] = {false};
+    resultBind[0].buffer_type = MYSQL_TYPE_LONG; resultBind[0].buffer = &img; resultBind[0].is_null = &is_null[0];
+    resultBind[1].buffer_type = MYSQL_TYPE_LONG; resultBind[1].buffer = &vid; resultBind[1].is_null = &is_null[1];
+    resultBind[2].buffer_type = MYSQL_TYPE_LONG; resultBind[2].buffer = &aud; resultBind[2].is_null = &is_null[2];
+    resultBind[3].buffer_type = MYSQL_TYPE_LONG; resultBind[3].buffer = &doc; resultBind[3].is_null = &is_null[3];
+    mysql_stmt_bind_result(stmt, resultBind);
+    mysql_stmt_store_result(stmt);
+
+    if (mysql_stmt_fetch(stmt) == 0) {
+        counts["image"] = is_null[0] ? 0 : img;
+        counts["video"] = is_null[1] ? 0 : vid;
+        counts["audio"] = is_null[2] ? 0 : aud;
+        counts["document"] = is_null[3] ? 0 : doc;
+    }
+
+    mysql_stmt_close(stmt);
+    releaseConn(conn);
+    return counts;
 }
 
 std::vector<std::string> FileMetaDAO::getValidFileIds(const std::vector<std::string>& file_ids, int user_id) {
